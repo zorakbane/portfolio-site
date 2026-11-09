@@ -190,7 +190,7 @@ p{margin:0 0 1em}
 .proj-meta dl{margin:0;display:grid;gap:.75rem}
 .proj-meta dt{font:700 .7rem/1 var(--mono);text-transform:uppercase;letter-spacing:.12em;color:color-mix(in srgb,var(--accent) 65%,#fff)}
 .proj-meta dd{margin:.25rem 0 0;font-weight:600}
-.proj-main{display:grid;gap:2rem;min-width:0}
+.proj-main{position:relative;z-index:2;display:grid;gap:2rem;min-width:0}
 .proj-main h2{font:900 1.3rem/1 var(--sans);text-transform:uppercase;color:var(--accent)}
 .bullets{padding:0;margin:0;list-style:none;display:grid;gap:.6rem}
 .bullets li{position:relative;padding:.75rem 1rem .75rem 2.4rem;border-radius:10px;background:var(--panel);border:1px solid var(--line);transition:transform .25s var(--spring),border-color .2s}
@@ -234,7 +234,22 @@ p{margin:0 0 1em}
 .arrived .wipe{transform:scaleX(0);transform-origin:right;transition:transform .3s var(--snap)}
 
 /* ---- Bug Hunt game UI ---- */
+#bh-code{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1;opacity:1}
+main{position:relative;z-index:2}
 #bh-canvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:40}
+#bh-ready{position:fixed;right:max(.75rem,env(safe-area-inset-right));bottom:max(.75rem,env(safe-area-inset-bottom));z-index:52}
+#bh-ready[hidden]{display:none!important}
+.bh-ready-btn{appearance:none;position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;padding:.85rem 1.1rem .9rem;border:2px solid var(--green);border-radius:14px;background:rgba(8,16,12,.94);color:var(--green);font:900 .95rem/1.1 var(--mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;box-shadow:0 0 0 1px #39ff8833,0 12px 36px -10px #39ff8866,inset 0 0 24px #39ff8814;transition:transform .25s var(--spring),box-shadow .2s,border-color .15s}
+.bh-ready-btn:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 0 0 1px #39ff88aa,0 16px 40px -8px #39ff88aa}
+.bh-ready-btn:active{transform:scale(.94)}
+.bh-ready-btn small{font:600 .65rem/1 var(--mono);color:var(--muted);letter-spacing:.14em}
+.bh-ready-pulse{position:absolute;inset:-6px;border-radius:18px;border:2px solid var(--green);opacity:.55;animation:readypulse 1.4s var(--spring) infinite;pointer-events:none}
+.bh-resume .bh-ready-btn{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 0 1px #3de0ff33,0 12px 36px -10px #3de0ff66}
+.bh-resume .bh-ready-pulse{border-color:var(--cyan)}
+@keyframes readypulse{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.06);opacity:.15}}
+#bh-hint{position:fixed;left:50%;top:28%;transform:translate(-50%,-50%);z-index:45;pointer-events:none;max-width:min(92vw,420px);padding:.7rem 1rem;border-radius:12px;background:rgba(12,12,22,.88);border:1px solid var(--cyan);color:var(--cyan);font:700 .85rem/1.35 var(--mono);text-align:center;box-shadow:0 12px 40px -12px #000;animation:hintin .45s var(--spring)}
+#bh-hint[hidden]{display:none!important}
+@keyframes hintin{from{opacity:0;transform:translate(-50%,-40%) scale(.9)}}
 .bh-hud{position:fixed;right:max(.75rem,env(safe-area-inset-right));bottom:max(.75rem,env(safe-area-inset-bottom));z-index:50;width:min(320px,calc(100vw - 1.5rem));font:600 .8rem/1.35 var(--mono);color:var(--text);background:rgba(12,12,22,.92);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px -12px #000;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .35s var(--spring),opacity .2s;transform-origin:100% 100%}
 .bh-hud.pop{animation:hudpop .35s var(--spring)}
 @keyframes hudpop{40%{transform:scale(1.06,.94)}70%{transform:scale(.98,1.03)}}
@@ -249,7 +264,7 @@ p{margin:0 0 1em}
 .bh-btn:active{transform:scale(.88)}
 .bh-btn[disabled]{opacity:.4;cursor:not-allowed}
 .bh-body{border-top:1px solid var(--line);padding:.6rem .7rem .7rem;max-height:min(52vh,420px);overflow:auto;overscroll-behavior:contain}
-@media (max-width:700px){.bh-body{max-height:36vh}.bh-hud{font-size:.74rem}}
+@media (max-width:700px){.bh-body{max-height:36vh}.bh-hud{font-size:.74rem}.bh-ready-btn{font-size:.82rem;padding:.75rem .9rem}}
 .bh-min .bh-body{display:none}
 .bh-tip{color:var(--muted);margin:0 0 .5rem}
 .bh-log{color:var(--cyan);min-height:1.3em;margin:0 0 .5rem;font-size:.74rem}
@@ -260,9 +275,11 @@ p{margin:0 0 1em}
 .bh-item.new{animation:newitem .6s var(--spring)}
 @keyframes newitem{from{transform:scale(.6);opacity:0}}
 .bh-ship{background:var(--pink);color:#fff;border-color:var(--pink)}
-.bh-hidden #bh-canvas{display:none}
+.bh-footer{margin-top:.55rem;padding-top:.45rem;border-top:1px dashed var(--line)}
+.bh-reset{width:100%;color:var(--muted);font-size:.68rem}
+.bh-hidden #bh-canvas,.bh-hidden #bh-code{display:none}
 .bh-hidden .bh-hud{width:auto}
-.bh-hidden .bh-hud .bh-title,.bh-hidden .bh-hud .bh-body,.bh-hidden .bh-hud [data-act=min]{display:none}
+.bh-hidden .bh-hud .bh-title,.bh-hidden .bh-hud .bh-body,.bh-hidden .bh-hud [data-act=min],.bh-hidden .bh-hud [data-act=pause],.bh-hidden .bh-hud [data-act=rb]{display:none}
 .bh-gain{position:fixed;z-index:51;pointer-events:none;font:900 .9rem var(--mono);color:var(--green);text-shadow:0 2px 0 #000;animation:gain .7s var(--snap) forwards}
 @keyframes gain{0%{transform:translate(-50%,-50%) scale(.6);opacity:0}20%{transform:translate(-50%,-90%) scale(1.25);opacity:1}100%{transform:translate(-50%,-260%) scale(1);opacity:0}}
 .punch-body{animation:bodyshake .16s linear}
