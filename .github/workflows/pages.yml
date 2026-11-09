@@ -9,36 +9,32 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Build site
-        run: |
-          export BASE="${BASE_VAR:-/}"
-          echo "BASE=$BASE"
-          node build.mjs --hide-todos
-          # Preview builds under a sub-path: drop CNAME so Pages uses github.io
-          if [ -n "$BASE_VAR" ] && [ "$BASE_VAR" != "/" ]; then
-            rm -f dist/CNAME
-          fi
-        env:
-          BASE_VAR: ${{ vars.SITE_BASE }}
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build
+        env:
+          BASE: /portfolio-site/
+        run: |
+          node build.mjs --hide-todos
+          rm -f dist/CNAME
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Deploy
+        id: deployment
         uses: actions/deploy-pages@v4
