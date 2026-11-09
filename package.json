@@ -1,0 +1,13 @@
+{
+  "name": "derickjanssen-portfolio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Derick Janssen's portfolio: zero-dependency static site",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:prod": "node build.mjs --hide-todos",
+    "serve": "node build.mjs && cd dist && python3 -m http.server 8080",
+    "images": "python3 tools/optimize_images.py"
+  }
+}

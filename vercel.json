@@ -1,0 +1,1 @@
+{ "buildCommand": "node build.mjs --hide-todos", "outputDirectory": "dist", "cleanUrls": true }

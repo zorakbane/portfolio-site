@@ -1,0 +1,982 @@
+{
+  "site": {
+    "name": "Derick Janssen",
+    "title": "Principal Engineer · Game Programmer",
+    "tagline": "An award-winning gameplay programmer who is passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
+    "heroKicker": "Player 1 ready",
+    "url": "https://www.derickjanssen.com",
+    "email": "zorakbane@yahoo.com",
+    "location": "TODO: city / remote preference",
+    "links": [
+      {
+        "label": "Email",
+        "url": "mailto:zorakbane@yahoo.com"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/zorakbane"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "",
+        "todo": "TODO: LinkedIn profile URL"
+      },
+      {
+        "label": "Global Game Jam",
+        "url": "https://globalgamejam.org/users/zorakbane"
+      }
+    ],
+    "stats": [
+      {
+        "value": "~1.5 ms",
+        "label": "mean sim time, V-Rising-size world (Voidwood rollback ECS)"
+      },
+      {
+        "value": "+25%",
+        "label": "server performance in my first week (ARK: Survival Ascended)"
+      },
+      {
+        "value": "2× GOTY",
+        "label": "Skyrim VR (Steam VR GOTY 2018) · Starfield (Xbox GOTY 2023)"
+      },
+      {
+        "value": "Best Paper",
+        "label": "IEEE CIG 2009 — Galactic Arms Race (NEAT / CPPN)"
+      }
+    ]
+  },
+  "projects": [
+    {
+      "slug": "voidwood",
+      "group": "featured",
+      "title": "Voidwood",
+      "studio": "Santa Barbara Games",
+      "role": "Principal Engineer",
+      "years": "Jan 2025 – Present",
+      "engine": "Unity · C# · ECS",
+      "status": "Coming 2027",
+      "accent": "#a78bfa",
+      "image": "voidwood",
+      "cardImage": "voidwood",
+      "summary": "1–4 player co-op survival horror. I own the deterministic multiplayer rollback netcode simulation, built on Unity ECS.",
+      "bullets": [
+        "Owner of the deterministic multiplayer rollback netcode simulation in ECS.",
+        "Built a V-Rising-size world with a mean simulation time of ~1.5 ms.",
+        "Kept a performant build with no crashes or desyncs at each milestone.",
+        "Created many tools for team productivity.",
+        "Built agentic AI workflows: a human asks a coding agent for a change, and the coding agent issues commands to in-game sub-agents that run in the game, verify the results, and do their own testing.",
+        "Created agentic AI workflows so non-coders on the team can build and iterate."
+      ],
+      "tags": [
+        "Rollback netcode",
+        "Determinism",
+        "Unity ECS",
+        "Performance",
+        "Agentic AI",
+        "Tools"
+      ],
+      "youtube": "Zm2sxH-uLa4",
+      "youtubeTitle": "Voidwood — Official Playtest Trailer",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/3694420"
+        },
+        {
+          "label": "voidwood.com",
+          "url": "https://voidwood.com"
+        }
+      ],
+      "todo": [
+        "TODO: personal screenshots / GIFs (rollback debug view, agent test loop)",
+        "TODO: short write-up of the agentic verification loop"
+      ]
+    },
+    {
+      "slug": "rise-of-elements",
+      "group": "featured",
+      "title": "Rise of Elements",
+      "studio": "Wicked Fox Games",
+      "role": "Senior / Lead Programmer",
+      "years": "May 2024 – Jan 2026",
+      "engine": "Unity · C#",
+      "status": "Coming soon",
+      "accent": "#f59e0b",
+      "image": "rise",
+      "cardImage": "rise-header",
+      "summary": "A PvP match-3 puzzle-battler with a PvE story mode. I worked on nearly every part of the game except backend AWS server scaling.",
+      "bullets": [
+        "Client/server game logic.",
+        "UI.",
+        "Tools.",
+        "Touched nearly every aspect of the game except backend AWS server scaling."
+      ],
+      "tags": [
+        "Client/Server",
+        "Gameplay",
+        "UI",
+        "Tools",
+        "Unity"
+      ],
+      "youtube": "NJGgrAUcEIo",
+      "youtubeTitle": "Rise of Elements — Official Teaser",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/3170850"
+        }
+      ],
+      "todo": [
+        "TODO: one or two specific systems you're proudest of here"
+      ]
+    },
+    {
+      "slug": "ark-survival-ascended",
+      "group": "featured",
+      "title": "ARK: Survival Ascended",
+      "studio": "Studio Wildcard",
+      "role": "Senior Programmer",
+      "years": "Feb 2024 – May 2024",
+      "engine": "Unreal Engine 5 · C++",
+      "status": "Released Oct 2023",
+      "accent": "#22c55e",
+      "image": "ark",
+      "cardImage": "ark-header",
+      "summary": "Optimization, tools, and bug fixes on the Unreal Engine 5 remaster of ARK, including 25% more server performance in my first week.",
+      "bullets": [
+        "Gained 25% server performance in my first week.",
+        "Identified Nanite/Lumen performance problems that severely limited client framerate.",
+        "Optimization, tools, and bug fixes."
+      ],
+      "tags": [
+        "Optimization",
+        "UE5",
+        "Nanite / Lumen",
+        "Servers",
+        "Profiling"
+      ],
+      "youtube": "sYi6iy07GsE",
+      "youtubeTitle": "ARK: Survival Ascended trailer",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/2399830"
+        }
+      ],
+      "todo": []
+    },
+    {
+      "slug": "starfield",
+      "group": "featured",
+      "title": "Starfield",
+      "studio": "Bethesda Game Studios",
+      "role": "Lead / Senior Programmer",
+      "years": "Released 2023",
+      "engine": "Proprietary C++ engine",
+      "status": "Xbox GOTY & Most Innovative Gameplay 2023",
+      "accent": "#60a5fa",
+      "image": "starfield",
+      "cardImage": "starfield-header",
+      "summary": "Feature lead for the StarMap. I later worked on Ship Building, Localization, Optimizations, and Outposts.",
+      "bullets": [
+        "Lead for the StarMap feature.",
+        "Later worked on Ship Building, Localization, Optimizations, and Outposts."
+      ],
+      "tags": [
+        "Feature lead",
+        "UI / Maps",
+        "Ship Building",
+        "Optimization",
+        "C++"
+      ],
+      "awards": [
+        "Xbox Game of the Year 2023",
+        "Most Innovative Gameplay 2023"
+      ],
+      "youtube": "YFGZag0W_-o",
+      "youtubeTitle": "Starfield — Official Announcement Trailer (E3 2018)",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/1716740"
+        }
+      ],
+      "todo": [
+        "TODO: StarMap screenshots or a short clip (from the 'origin' pptx in Drive?)"
+      ]
+    },
+    {
+      "slug": "fallout-76",
+      "group": "featured",
+      "title": "Fallout 76",
+      "studio": "Bethesda Game Studios",
+      "role": "Senior Programmer",
+      "years": "Post-launch",
+      "engine": "Proprietary C++ engine",
+      "status": "Live game",
+      "accent": "#facc15",
+      "image": "fo76",
+      "cardImage": "fo76-header",
+      "summary": "Brought on to ship post-release features: bulldozing, vending, and CAMP decorating. I also worked on the Nuclear Winter battle-royale mode.",
+      "bullets": [
+        "Shipped post-release features: bulldozing, vending, and CAMP decorating.",
+        "Worked on the Nuclear Winter battle-royale game mode."
+      ],
+      "tags": [
+        "Live ops",
+        "Multiplayer",
+        "Building systems",
+        "Game modes"
+      ],
+      "youtube": "",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/1151340"
+        }
+      ],
+      "todo": [
+        "TODO: a public trailer or clip to embed (the old site's video is private)"
+      ]
+    },
+    {
+      "slug": "skyrim-vr",
+      "group": "featured",
+      "title": "Skyrim VR",
+      "studio": "Bethesda Game Studios",
+      "role": "Lead Programmer",
+      "years": "Released 2017",
+      "engine": "Proprietary C++ engine",
+      "status": "Steam VR GOTY & Golden Joystick 2018",
+      "accent": "#e2e8f0",
+      "image": "skyrimvr",
+      "cardImage": "skyrimvr-header",
+      "summary": "I spearheaded Skyrim VR from conception until launch, on both PSVR and Vive.",
+      "bullets": [
+        "Spearheaded the project from conception until launch.",
+        "Worked on pretty much every feature of the game except the zoomed-out map mode and the tutorial.",
+        "Shipped on both PSVR and Vive."
+      ],
+      "tags": [
+        "VR",
+        "Project lead",
+        "Gameplay",
+        "PSVR",
+        "Vive"
+      ],
+      "awards": [
+        "Steam VR Game of the Year 2018",
+        "Golden Joystick Award 2018"
+      ],
+      "youtube": "_uelzOUIksk",
+      "youtubeTitle": "Skyrim VR — PlayStation VR Gameplay Trailer (E3 2017)",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/611670"
+        }
+      ],
+      "todo": [
+        "TODO: VR systems highlights (the 'Skyrim VR - Systems' slides in Drive)"
+      ]
+    },
+    {
+      "slug": "fallout-4-vr",
+      "group": "featured",
+      "title": "Fallout 4 VR",
+      "studio": "Bethesda Game Studios",
+      "role": "Senior Game Programmer",
+      "years": "Released 2017",
+      "engine": "Proprietary C++ engine · AS3 UI",
+      "status": "Shipped",
+      "accent": "#38bdf8",
+      "image": "fo4vr",
+      "cardImage": "fo4vr-header",
+      "summary": "I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.",
+      "bullets": [
+        "Created VR melee.",
+        "Polished teleporting and movement.",
+        "Created the Workshop mode in VR.",
+        "Built many new UI elements in AS3."
+      ],
+      "tags": [
+        "VR",
+        "Melee",
+        "Locomotion",
+        "Workshop",
+        "UI"
+      ],
+      "youtube": "D-nZw-Tm0Zc",
+      "youtubeTitle": "Fallout 4 VR Trailer (E3 2017)",
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/611660"
+        }
+      ],
+      "todo": []
+    },
+    {
+      "slug": "unannounced",
+      "group": "earlier",
+      "title": "Unannounced project",
+      "studio": "Bethesda Game Studios",
+      "role": "Senior Programmer",
+      "years": "",
+      "engine": "Unity ECS (canned) · UE4 GAS",
+      "accent": "#94a3b8",
+      "image": "",
+      "summary": "A multiplayer third-person game. Can't talk much about this one (NDA).",
+      "bullets": [],
+      "tags": [
+        "Multiplayer",
+        "Unity ECS",
+        "UE4 GAS"
+      ],
+      "noPage": true,
+      "glyph": "NDA"
+    },
+    {
+      "slug": "savage-resurrection",
+      "group": "earlier",
+      "title": "Savage: Resurrection",
+      "studio": "S2 Games",
+      "role": "Senior Game Programmer",
+      "years": "",
+      "engine": "UE4",
+      "accent": "#ef4444",
+      "image": "",
+      "summary": "A first- and third-person FPS/RTS hybrid. I did all of the commander coding, all of the combat and gun/spell logic, cosmetics, some UI, and character controls.",
+      "bullets": [
+        "All of the commander (RTS) coding.",
+        "All of the combat and gun/spell logic.",
+        "Cosmetics, some UI, character controls, and more."
+      ],
+      "tags": [
+        "FPS / RTS",
+        "Combat",
+        "Commander mode"
+      ],
+      "youtube": "yAtvC49hLWs",
+      "youtubeTitle": "Savage: Resurrection Launch Trailer",
+      "links": [],
+      "todo": [
+        "TODO: confirm engine (resume says UE4)",
+        "TODO: a still image"
+      ],
+      "glyph": "SR"
+    },
+    {
+      "slug": "strife",
+      "group": "earlier",
+      "title": "Strife",
+      "studio": "S2 Games",
+      "role": "Senior Game Programmer",
+      "years": "",
+      "engine": "Proprietary C++ engine",
+      "accent": "#f97316",
+      "image": "strife-logo",
+      "imageFit": "contain",
+      "summary": "A top-down 'second generation' MOBA with a ground-up reduced-toxicity design. I worked closely with designers and built ways for them to achieve what they wanted.",
+      "bullets": [
+        "Worked closely with designers and implemented ways for them to achieve what they wanted.",
+        "Wrote a proprietary 'Conductor' dynamic music system.",
+        "Built a shader graph builder UI and other tools."
+      ],
+      "tags": [
+        "MOBA",
+        "Dynamic music",
+        "Shader graph",
+        "Designer tools"
+      ],
+      "youtube": "rsyZD3PxzLs",
+      "youtubeTitle": "Strife Open Beta: The Trials Begin",
+      "links": [],
+      "todo": [
+        "TODO: gameplay still"
+      ]
+    },
+    {
+      "slug": "force-of-elements",
+      "group": "earlier",
+      "title": "Force of Elements",
+      "studio": "Side project",
+      "role": "Programmer",
+      "years": "",
+      "engine": "Proprietary AS3 engine",
+      "accent": "#a3e635",
+      "image": "",
+      "summary": "Helped a friend ship a multiplayer versus puzzle-fighter game.",
+      "bullets": [],
+      "tags": [
+        "Multiplayer",
+        "Puzzle fighter",
+        "AS3"
+      ],
+      "noPage": true,
+      "todo": [
+        "TODO: link / image"
+      ],
+      "glyph": "FoE"
+    },
+    {
+      "slug": "chroma",
+      "group": "earlier",
+      "title": "Chroma",
+      "studio": "SMU Guildhall capstone",
+      "role": "Lead Programmer (did all the programming)",
+      "years": "16 weeks · 10 members",
+      "engine": "UDK · UnrealScript",
+      "accent": "#ec4899",
+      "image": "chroma-tools",
+      "summary": "A third-person multiplayer deathmatch with wall-walking on every level. Code-named Death Blossom.",
+      "bullets": [
+        "Wall-walking on every level, with a trigger-able relative-gravity Kismet node for designers.",
+        "Approachable to new players, with a player catch-up system.",
+        "8+ player multiplayer, plus a server browser on Google App Engine.",
+        "A one-click downloadable zip so players could host their own servers.",
+        "End-of-match fly-by camera that zooms in on the winner."
+      ],
+      "tags": [
+        "Multiplayer",
+        "UDK",
+        "Wall-walking",
+        "Tools"
+      ],
+      "youtube": "9ysoGMUtWgE",
+      "youtubeTitle": "Chroma Game Trailer",
+      "links": [],
+      "todo": [
+        "TODO: gameplay stills"
+      ]
+    },
+    {
+      "slug": "puppies-in-spaaace",
+      "group": "earlier",
+      "title": "Puppies In Spaaace!",
+      "studio": "SMU Guildhall",
+      "role": "Lead Programmer (did all the programming)",
+      "years": "8 weeks · 8 members",
+      "engine": "UDK · UnrealScript · Scaleform",
+      "accent": "#fb7185",
+      "image": "puppies",
+      "summary": "An all-ages first-person shooter. You play Puddles, a dog with shoulder-mounted tennis ball launchers, in a 3-stage boss battle against a vacuum cleaner piloted by a cat.",
+      "bullets": [
+        "Play as Puddles: shoot tennis balls, bark, and piddle.",
+        "3-stage boss battle against the evil Calico Cat Galactica.",
+        "GOFAI enemies: Ceiling Cat, Zoombies, Cats on Zoombies, the Blackhole 9000 (two stages), and Milkdud.",
+        "A designer-facing interface for driving the Scaleform HUD (image, text, duration)."
+      ],
+      "tags": [
+        "FPS",
+        "Enemy AI",
+        "Boss design",
+        "Scaleform"
+      ],
+      "youtube": "xpogStgxnHs",
+      "youtubeTitle": "Puppies in Spaaace! Game Trailer",
+      "gallery": [
+        "puppies-2",
+        "puppies-tools"
+      ],
+      "links": []
+    },
+    {
+      "slug": "cell",
+      "group": "earlier",
+      "title": "Cell",
+      "studio": "SMU Guildhall",
+      "role": "Lead Programmer (did all the programming)",
+      "years": "12 weeks · 5 members",
+      "engine": "Torque X 2D → XNA · C# · Xbox 360",
+      "accent": "#2dd4bf",
+      "image": "cell",
+      "summary": "A fast-paced 2D puzzle arcade shooter with RPG elements, started in Torque X 2D and converted to XNA.",
+      "bullets": [
+        "Converted from Torque X 2D to XNA; added a level editor and particle engine.",
+        "Level editor with no load times, for developers and players alike.",
+        "Integrated and patched the Mercury particle editor for Windows and Xbox 360.",
+        "Crash emailer that reports crashes with debug line info and cause.",
+        "Installer built with NSIS scripts."
+      ],
+      "tags": [
+        "2D",
+        "XNA",
+        "Level editor",
+        "Particles",
+        "Tools"
+      ],
+      "gallery": [
+        "cell-menu",
+        "cell-editor"
+      ],
+      "links": []
+    },
+    {
+      "slug": "galactic-arms-race",
+      "group": "earlier",
+      "title": "Galactic Arms Race",
+      "studio": "2-person project · UCF thesis",
+      "role": "Programmer",
+      "years": "",
+      "engine": "XNA · C#",
+      "accent": "#a78bfa",
+      "image": "gar",
+      "summary": "A multiplayer Diablo-esque looter shooter whose weapons are evolved by neural networks while you play. Also the thesis game for cgNEAT (content generation with AI).",
+      "bullets": [
+        "CPPNs (compositional pattern-producing networks) generate the weapon patterns.",
+        "Fitness rises with each shot fired from a weapon and falls when another weapon is used, so the gene pool evolves toward what players actually like.",
+        "The gene pool is drawn from every weapon on the current server.",
+        "GOFAI for player drone interactions.",
+        "32-player online multiplayer using Lidgren networking.",
+        "Steam integration: achievements via Steamworks and cloud save/load."
+      ],
+      "tags": [
+        "Neuroevolution",
+        "NEAT / CPPN",
+        "Procedural content",
+        "Multiplayer"
+      ],
+      "awards": [
+        "Best Paper — IEEE CIG 2009",
+        "Best AI in an Independent Game (Editor's Choice)",
+        "Indie Game Challenge Finalist",
+        "Full scholarship to SMU Guildhall"
+      ],
+      "youtube": "MOKNoZSAGGQ",
+      "youtubeTitle": "Galactic Arms Race (GAR) Informational Video",
+      "links": [],
+      "todo": []
+    },
+    {
+      "slug": "agentic-workflows",
+      "group": "lab",
+      "title": "Agentic AI workflows",
+      "studio": "Santa Barbara Games",
+      "role": "Creator",
+      "engine": "Coding agents · in-game sub-agents",
+      "accent": "#a78bfa",
+      "image": "",
+      "summary": "A human asks a coding agent for a change. The coding agent then commands sub-agents inside the running game to exercise it, verify the results, and do their own testing. I also built workflows that let non-coders ship changes.",
+      "tags": [
+        "Agentic coding",
+        "Verification",
+        "Automation"
+      ],
+      "noPage": true,
+      "todo": [
+        "TODO: diagram or short clip"
+      ],
+      "glyph": "AI⇄"
+    },
+    {
+      "slug": "janssengine",
+      "group": "lab",
+      "title": "JanssEngine",
+      "studio": "SMU Guildhall",
+      "role": "Solo",
+      "engine": "C++ · OpenGL / DirectX · Lua",
+      "accent": "#38bdf8",
+      "image": "engine-light",
+      "summary": "My own engine and renderer, built from the ground up: dual OpenGL/DirectX renderer, Lua integration, my own JanScript language, LOD terrain, BSP with PVS, and hot-reloadable DLL plugins.",
+      "bullets": [
+        "Dual renderer interface: swap between OpenGL and DirectX.",
+        "Lua integration with native code access, plus JanScript, my own scripting language.",
+        "LOD terrain from binary terrain files; BSP with collision, frustum culling, and potentially visible sets.",
+        "Collada loading and a custom 3ds Max exporter (Dj3d) with animation and skinning.",
+        "DLL plugin loader with live reload, threaded background loading, hierarchical clocks and profiling.",
+        "Data-driven, classless game object loader using XML and named properties.",
+        "Memory manager, string pool, intrusive smart pointers, fixed-point math, and a computational geometry library."
+      ],
+      "tags": [
+        "C++",
+        "Rendering",
+        "Engine architecture",
+        "Lua"
+      ],
+      "gallery": [
+        "engine-lod",
+        "engine-bsp",
+        "engine-parallax",
+        "engine-physics"
+      ],
+      "links": []
+    },
+    {
+      "slug": "neat-balancer",
+      "group": "lab",
+      "title": "NEAT auto-balancer",
+      "studio": "AI project",
+      "role": "Solo",
+      "engine": "NEAT",
+      "accent": "#22c55e",
+      "image": "neat-fitness",
+      "summary": "Neuroevolution that balances a game. It takes every unit's health and attack damage as input and outputs attack cooldowns that hit a desired lock/unlock chart. Agents earn fitness per balanced unit and category (max 32), and the run stops when one balances the whole game.",
+      "tags": [
+        "NEAT",
+        "Reward design",
+        "Game balance"
+      ],
+      "gallery": [
+        "neat-genome"
+      ],
+      "noPage": true
+    },
+    {
+      "slug": "ai-battle",
+      "group": "lab",
+      "title": "AI Battle — 2nd place",
+      "studio": "AI competition",
+      "role": "Solo",
+      "engine": "Agent AI",
+      "accent": "#84cc16",
+      "image": "aibattle",
+      "summary": "A battle for food and survival between programmed AIs. My cockroach-like agents build and share a light map and try to move toward darkness. Walls, enemies, and dirt emit light, and found food emits darkness toward the nearest unit. Took 2nd place overall.",
+      "tags": [
+        "Multi-agent",
+        "Emergent behavior"
+      ],
+      "noPage": true
+    },
+    {
+      "slug": "braaains",
+      "group": "lab",
+      "title": "Braaains!",
+      "studio": "2-person AI class project",
+      "role": "Programmer",
+      "engine": "Java",
+      "accent": "#f43f5e",
+      "image": "",
+      "summary": "A top-down 2D zombie shooter whose zombies use neuroevolution to adapt to how you play in real time. Sensors for the player and bullets go in, and rotation, velocity, dodges, and lunges come out.",
+      "tags": [
+        "Neuroevolution",
+        "Real-time learning"
+      ],
+      "noPage": true,
+      "todo": [
+        "TODO: screenshot / playable build link"
+      ],
+      "glyph": "B!"
+    },
+    {
+      "slug": "robot-vision",
+      "group": "lab",
+      "title": "Robot Vision",
+      "studio": "Image recognition",
+      "role": "Solo",
+      "engine": "Computer vision",
+      "accent": "#eab308",
+      "image": "robot-vision",
+      "summary": "An edge and line detection pipeline: Sobel for gradient magnitude and direction, then Canny for peaks and valleys, then Burns for the N longest lines within an angle threshold.",
+      "tags": [
+        "Computer vision"
+      ],
+      "noPage": true
+    },
+    {
+      "slug": "tools",
+      "group": "lab",
+      "title": "Editors & pipelines",
+      "studio": "Guildhall · jams",
+      "role": "Tools programmer",
+      "engine": "Box2D · Lua · XNA",
+      "accent": "#06b6d4",
+      "image": "collision-editor",
+      "summary": "A convex-polygon collision editor for Box2D and an animation-cell editor, both with live previews and Lua export. Also a data-driven tilemap pipeline that had designers building Johny Apple Siege maps within 2 hours of a 36-hour jam.",
+      "tags": [
+        "Tools",
+        "Pipelines",
+        "Designer UX"
+      ],
+      "gallery": [
+        "jas-tiles"
+      ],
+      "noPage": true
+    },
+    {
+      "slug": "project-m",
+      "group": "lab",
+      "title": "Project M 3.0",
+      "studio": "Community project",
+      "role": "Programmer",
+      "engine": "Wii / Wii U homebrew",
+      "accent": "#f472b6",
+      "image": "projectm",
+      "summary": "The community project to make Brawl feel more like Melee. I worked on the homebrew front-end launcher and updater.",
+      "tags": [
+        "Homebrew",
+        "Launcher / updater"
+      ],
+      "noPage": true
+    },
+    {
+      "slug": "more-side-projects",
+      "group": "lab",
+      "title": "More side projects",
+      "studio": "Always building",
+      "role": "",
+      "engine": "UEFN · UE5 · UE4",
+      "accent": "#a78bfa",
+      "image": "",
+      "summary": "Ninja Survivors, a Vampire Survivors-style game in UE5 GAS (lead programmer). Alchemy Avenue, a UE4 Blueprint mobile game made to teach friends furloughed during COVID-19 how to make games. Many UEFN prototypes. A GitHub project reverse-engineering Amiibo NFC data.",
+      "tags": [
+        "UE5 GAS",
+        "UEFN",
+        "Teaching",
+        "Reverse engineering"
+      ],
+      "noPage": true,
+      "todo": [
+        "TODO: links (Amiibo repo, any playable builds)"
+      ],
+      "glyph": "+++"
+    }
+  ],
+  "jams": [
+    {
+      "title": "Bonsai",
+      "event": "Global Game Jam 2023",
+      "engine": "Unity",
+      "desc": "A zen game about pruning an always-growing bonsai tree."
+    },
+    {
+      "title": "Reflection",
+      "event": "Global Game Jam 2022",
+      "engine": "UE4",
+      "desc": "A psychological puzzle-platformer adventure."
+    },
+    {
+      "title": "Lineage",
+      "event": "Global Game Jam 2022",
+      "engine": "UE4",
+      "desc": "A side-scrolling action-adventure set in ancient Persia."
+    },
+    {
+      "title": "The Coven",
+      "event": "Global Game Jam 2021",
+      "engine": "UE4",
+      "desc": "Asymmetric 4v1: four witches hunt their fallen sister turned wraith."
+    },
+    {
+      "title": "Alchemy Avenue",
+      "event": "Global Game Jam 2020",
+      "engine": "",
+      "desc": "Brew potions to cure customers' curses and illnesses."
+    },
+    {
+      "title": "Fire Season",
+      "event": "DSOP Spoopy Game Jam 2019",
+      "engine": "Unity ECS",
+      "desc": "A Gauntlet and Doom crossover.",
+      "url": "https://godjammit.itch.io/fire-season"
+    },
+    {
+      "title": "When I Still Knew You",
+      "event": "Global Game Jam 2019",
+      "engine": "Unity",
+      "desc": "A narrative platformer about an old man battling dementia."
+    },
+    {
+      "title": "Kronium Mogul",
+      "event": "Global Game Jam 2018",
+      "engine": "Proprietary",
+      "desc": "A space trade empire: colonize planets, mine resources."
+    },
+    {
+      "title": "Saturn Skipper",
+      "event": "Global Game Jam 2017",
+      "engine": "Unity",
+      "desc": "Asymmetric VS: a whale hunter in VR versus a space narwhal."
+    },
+    {
+      "title": "Late To Work Simulator",
+      "event": "Global Game Jam 2016",
+      "engine": "UE4",
+      "desc": "A tri-lane game that keeps getting faster."
+    },
+    {
+      "title": "Comm Room",
+      "event": "Global Game Jam 2015",
+      "engine": "Unity",
+      "desc": "Two players cooperate to escape: one navigates, one escapes."
+    },
+    {
+      "title": "Today I…",
+      "event": "Global Game Jam 2014",
+      "engine": "Unity",
+      "desc": "An open world spanning days, where yesterday's events shape today."
+    },
+    {
+      "title": "Fire and Ice",
+      "event": "Global Game Jam 2012",
+      "engine": "Unity",
+      "desc": "Co-op phoenixes that circle to score and revive each other.",
+      "image": "fireice"
+    },
+    {
+      "title": "Johny Apple Siege",
+      "event": "Guildhall Game Jam 2011",
+      "engine": "C# XNA",
+      "desc": "Grid-based tower defense against bugs. I hosted the event.",
+      "image": "jas"
+    },
+    {
+      "title": "Mr. Sinister",
+      "event": "3-week project",
+      "engine": "OpenGL",
+      "desc": "A Sinistar remake where GOFAI worker drones assemble the boss.",
+      "image": "sinistar"
+    }
+  ],
+  "awards": [
+    {
+      "title": "Steam VR Game of the Year",
+      "year": "2018",
+      "project": "Skyrim VR",
+      "icon": "trophy"
+    },
+    {
+      "title": "Golden Joystick Award",
+      "year": "2018",
+      "project": "Skyrim VR",
+      "icon": "joystick"
+    },
+    {
+      "title": "Xbox Game of the Year",
+      "year": "2023",
+      "project": "Starfield",
+      "icon": "trophy"
+    },
+    {
+      "title": "Most Innovative Gameplay",
+      "year": "2023",
+      "project": "Starfield",
+      "icon": "star"
+    },
+    {
+      "title": "Best Paper — IEEE CIG",
+      "year": "2009",
+      "project": "Galactic Arms Race",
+      "icon": "paper"
+    },
+    {
+      "title": "Best AI in an Independent Game (Editor's Choice)",
+      "year": "",
+      "project": "Galactic Arms Race",
+      "icon": "brain"
+    },
+    {
+      "title": "Indie Games Challenge Finalist",
+      "year": "2010",
+      "project": "Galactic Arms Race · full scholarship to SMU Guildhall (DICE, Las Vegas)",
+      "icon": "medal"
+    },
+    {
+      "title": "AI Battle — 2nd place overall",
+      "year": "",
+      "project": "AI competition",
+      "icon": "medal"
+    }
+  ],
+  "experience": [
+    {
+      "company": "Santa Barbara Games",
+      "role": "Principal Engineer",
+      "where": "Remote",
+      "years": "Jan 2025 – Present"
+    },
+    {
+      "company": "Wicked Fox Games",
+      "role": "Senior / Lead Programmer",
+      "where": "Remote",
+      "years": "May 2024 – Jan 2026"
+    },
+    {
+      "company": "Studio Wildcard",
+      "role": "Senior Programmer",
+      "where": "Remote",
+      "years": "Feb 2024 – May 2024"
+    },
+    {
+      "company": "Bethesda Game Studios",
+      "role": "Senior / Lead Programmer",
+      "where": "Dallas, TX",
+      "years": "Jun 2016 – Jan 2024"
+    },
+    {
+      "company": "S2 Games",
+      "role": "Senior Programmer",
+      "where": "Kalamazoo, MI",
+      "years": "Jun 2012 – Jun 2016"
+    },
+    {
+      "company": "Evolutionary Games",
+      "role": "Programmer",
+      "where": "Orlando, FL",
+      "years": "Jul 2008 – May 2010"
+    }
+  ],
+  "education": [
+    {
+      "school": "SMU Guildhall",
+      "degree": "Master's, Interactive Technology (programming track)",
+      "years": "2010 – 2012",
+      "note": "Full scholarship. Built our own engine and renderer from the ground up, and shipped games in Torque, UDK, and proprietary engines."
+    },
+    {
+      "school": "University of Central Florida",
+      "degree": "B.S. Computer Science, minor in Mathematics",
+      "years": "2007 – 2010",
+      "note": "President's List. Focused on AI, including graduate-level courses. Member of Upsilon Pi Epsilon (CS) and Pi Mu Epsilon (math) honor societies."
+    }
+  ],
+  "skills": {
+    "Languages": [
+      "C++",
+      "C#",
+      "C",
+      "Python",
+      "Lua",
+      "ActionScript",
+      "Blueprint",
+      "Java"
+    ],
+    "Engines": [
+      "Unity (incl. ECS)",
+      "Unreal 4/5 (incl. GAS)",
+      "Proprietary C++ engines",
+      "UDK",
+      "XNA",
+      "Torque"
+    ],
+    "Focus": [
+      "Deterministic rollback netcode",
+      "Gameplay & game feel",
+      "Performance & optimization",
+      "Tools & pipelines",
+      "VR",
+      "Agentic coding & AI"
+    ]
+  },
+  "talks": [
+    "UCF — Galactic Arms Race: NEAT (AI) and making games with it",
+    "GR Dev Night — Game development (sold out)",
+    "MSU — How to transition from education to industry",
+    "WMU — So you want to make games?",
+    "KVCC — Game industry primer"
+  ],
+  "about": [
+    "I'm a game programmer who loves the parts players feel: tight controls, juicy feedback, rock-solid multiplayer, and frame times that never hitch. I've led Skyrim VR from conception to launch, led Starfield's StarMap, and today I own Voidwood's deterministic rollback simulation at Santa Barbara Games.",
+    "Lately I've been building agentic AI workflows where coding agents drive in-game sub-agents to test and verify their own work. To me, reading code and understanding exactly what it does at a low level now matters more than typing it.",
+    "Off the clock I'm a competitive gamer (8th of ~80,000 in GameStop's Super Smash Bros. Brawl national grand finals; Evolve Top 100 Goliath), a game jam regular, and happiest on a river in a canoe."
+  ],
+  "aboutTodo": "TODO: newer headshot + where you're based now",
+  "gaming": [
+    "Super Smash Bros. Brawl — GameStop National Grand Finals, 8th of ~80,000 (2008)",
+    "Evolve — Top 100 Goliath (2015)",
+    "Heroes of the Storm — Diamond League, 3k MMR (2014/15)",
+    "Strife — Gold League, top 10% (2014/15)",
+    "League of Legends — Season 1 Silver medal, top 10% ranked",
+    "Left 4 Dead — Alienware Arena, 6-1 season (2010)"
+  ]
+}
