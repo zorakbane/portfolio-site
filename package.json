@@ -8,6 +8,7 @@
     "build": "node build.mjs",
     "build:prod": "node build.mjs --hide-todos",
     "serve": "node build.mjs && cd dist && python3 -m http.server 8080",
-    "images": "python3 tools/optimize_images.py"
+    "images": "python3 tools/optimize_images.py",
+    "deploy:preview": "bash tools/deploy-preview.sh"
   }
 }

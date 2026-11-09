@@ -1,7 +1,8 @@
 name: Deploy to GitHub Pages
+# Prefer the local script:  npm run deploy:preview
+# (GitHub Actions runners for this repo were failing to schedule jobs on 2026-11-09;
+# preview currently publishes from the gh-pages branch.)
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,6 +14,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,14 +24,14 @@ jobs:
           node-version: 20
       - name: Build
         env:
-          BASE: /portfolio-site/
+          BASE: ${{ vars.SITE_BASE }}
         run: |
+          export BASE="${BASE:-/}"
           node build.mjs --hide-todos
-          rm -f dist/CNAME
+          if [ -n "$BASE" ] && [ "$BASE" != "/" ]; then rm -f dist/CNAME; fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-      - name: Deploy
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
