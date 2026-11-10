@@ -22,7 +22,25 @@
     b.appendChild(f);
   });
 
-  // Hero title glitch every so often
+  // Hero title: fit outline SVG to natural glyph width (no compressed A/E), then glitch.
+  function fitHeroOutline() {
+    const svg = d.querySelector('.ht-outline');
+    const text = svg && svg.querySelector('text');
+    if (!svg || !text) return;
+    text.removeAttribute('textLength');
+    text.removeAttribute('lengthAdjust');
+    let w = 0;
+    try { w = text.getComputedTextLength(); } catch { return; }
+    if (!(w > 0)) return;
+    const padX = 18, height = 140;
+    svg.setAttribute('viewBox', `0 0 ${Math.ceil(w + padX * 2)} ${height}`);
+    text.setAttribute('x', String(padX));
+    text.setAttribute('y', '108');
+  }
+  const fontsReady = (d.fonts && d.fonts.ready) ? d.fonts.ready : Promise.resolve();
+  fontsReady.then(fitHeroOutline).catch(() => fitHeroOutline());
+  addEventListener('load', fitHeroOutline);
+  addEventListener('resize', fitHeroOutline);
   const ht = d.querySelector('.hero-title');
   if (ht && !RM) setInterval(() => { ht.classList.remove('glitch'); void ht.offsetWidth; ht.classList.add('glitch'); }, 5200);
 
