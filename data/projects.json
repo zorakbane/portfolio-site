@@ -3,7 +3,6 @@
     "name": "Derick Janssen",
     "title": "Principal Engineer · Game Programmer",
     "tagline": "An award-winning gameplay programmer who is passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
-    "heroKicker": "Player 1 ready",
     "url": "https://www.derickjanssen.com",
     "email": "zorakbane@yahoo.com",
     "location": "TODO: city / remote preference",
@@ -345,7 +344,7 @@
       "years": "",
       "engine": "UE4",
       "accent": "#ef4444",
-      "image": "",
+      "image": "savage",
       "summary": "A first- and third-person FPS/RTS hybrid. I did all of the commander coding, all of the combat and gun/spell logic, cosmetics, some UI, and character controls.",
       "bullets": [
         "All of the commander (RTS) coding.",
@@ -359,12 +358,12 @@
       ],
       "youtube": "yAtvC49hLWs",
       "youtubeTitle": "Savage: Resurrection Launch Trailer",
-      "links": [],
-      "todo": [
-        "TODO: confirm engine (resume says UE4)",
-        "TODO: a still image"
-      ],
-      "glyph": "SR"
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/366440"
+        }
+      ]
     },
     {
       "slug": "strife",
@@ -375,8 +374,7 @@
       "years": "",
       "engine": "Proprietary C++ engine",
       "accent": "#f97316",
-      "image": "strife-logo",
-      "imageFit": "contain",
+      "image": "strife",
       "summary": "A top-down 'second generation' MOBA with a ground-up reduced-toxicity design. I worked closely with designers and built ways for them to achieve what they wanted.",
       "bullets": [
         "Worked closely with designers and implemented ways for them to achieve what they wanted.",
@@ -391,9 +389,11 @@
       ],
       "youtube": "rsyZD3PxzLs",
       "youtubeTitle": "Strife Open Beta: The Trials Begin",
-      "links": [],
-      "todo": [
-        "TODO: gameplay still"
+      "links": [
+        {
+          "label": "Steam",
+          "url": "https://store.steampowered.com/app/339280"
+        }
       ]
     },
     {
@@ -428,7 +428,7 @@
       "years": "16 weeks · 10 members",
       "engine": "UDK · UnrealScript",
       "accent": "#ec4899",
-      "image": "chroma-tools",
+      "image": "chroma",
       "summary": "A third-person multiplayer deathmatch with wall-walking on every level. Code-named Death Blossom.",
       "bullets": [
         "Wall-walking on every level, with a trigger-able relative-gravity Kismet node for designers.",
@@ -445,9 +445,16 @@
       ],
       "youtube": "9ysoGMUtWgE",
       "youtubeTitle": "Chroma Game Trailer",
-      "links": [],
-      "todo": [
-        "TODO: gameplay stills"
+      "gallery": [
+        "chroma-2",
+        "chroma-3",
+        "chroma-tools"
+      ],
+      "links": [
+        {
+          "label": "SMU Guildhall",
+          "url": "https://www.smu.edu/guildhall/academics/student-games/chroma"
+        }
       ]
     },
     {

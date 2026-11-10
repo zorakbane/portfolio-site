@@ -132,8 +132,7 @@ function home() {
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-bg" aria-hidden="true"><div class="grid"></div><div class="glow g1"></div><div class="glow g2"></div></div>
   <div class="wrap hero-inner">
-    <p class="kicker"><span class="blink" aria-hidden="true">▮</span> ${esc(S.heroKicker)}</p>
-    <h1 id="hero-title" class="hero-title"><span class="ht-line" data-text="Derick">Derick</span><span class="ht-line ht-2" data-text="Janssen">Janssen</span></h1>
+    <h1 id="hero-title" class="hero-title"><span class="ht-line" data-text="Derick">Derick</span><span class="ht-line ht-2" data-text="Janssen"><svg class="ht-outline" viewBox="0 0 980 130" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><text x="4" y="105" textLength="960" lengthAdjust="spacingAndGlyphs" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">JANSSEN</text></svg><span class="ht-sr">Janssen</span></span></h1>
     <p class="hero-role">${esc(S.title)} <span class="sep">//</span> Santa Barbara Games</p>
     <p class="hero-tag">${esc(S.tagline)}</p>
     <div class="hero-cta">

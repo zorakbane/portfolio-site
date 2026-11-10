@@ -30,7 +30,14 @@ IMAGES = {
   'skyrimvr-header': ('media/steam/skyrimvr_header.jpg', [460]),
   'fo4vr':           ('media/steam/fo4vr_library_hero.jpg', [800, 1600]),
   'fo4vr-header':    ('media/steam/fo4vr_header.jpg', [460]),
-  # earlier games
+  # earlier games (Steam / official press)
+  'strife':          ('media/steam/strife_capsule.jpg', [480, 616]),
+  'strife-header':   ('media/steam/strife_header.jpg', [460]),
+  'savage':          ('media/steam/savage_capsule.jpg', [480, 616]),
+  'savage-header':   ('media/steam/savage_header.jpg', [460]),
+  'chroma':          ('media/chroma_trailer_thumb.jpg', [480, 960]),
+  'chroma-2':        ('media/chroma_smu_2.jpg', [480, 660]),
+  'chroma-3':        ('media/chroma_smu_1.jpg', [480, 660]),
   'strife-logo':     (X+'game-projects/Strife Logo - Color.png', [600]),
   'chroma-tools':    (X+'individual-projects/tools/Tools-Chroma.png', [480, 915]),
   'gar':             (X+'individual-projects/artificial-intelligence/GAR_weapons.png', [480, 960]),

@@ -1,23 +1,23 @@
-/* Bug Hunt — original idle/clicker for derickjanssen.com.
-   Opt-in arcade prompt → click empty space to write code → code spawns slime bugs.
-   Squash bugs; unlock Hire Derick (edge lasers), Agentic Workflow, coding agents,
-   Hire QA (reveals + targets largest for destroy-without-split), tests, CI, rollback.
-   State persists in localStorage across pages and visits. Never preventDefault.
-   All game logic, art, and code-snippet corpus written fresh for this site. */
+/* Bug Hunt — idle/clicker for derickjanssen.com.
+   Opt-in → click empty space to write LOC → bugs hatch → squash for Commits.
+   Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow,
+   command mode at 10 agents, rollback, Ship. Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt) return;
-  const KEY = 'dj-bughunt-v2';
+  const KEY = 'dj-bughunt-v3';
   const d = document, W = window;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const COARSE = matchMedia('(pointer: coarse)').matches;
   const now = () => performance.now();
-  let derickAcc = 0, qaRevealAcc = 0, last = now(), raf = 0, dirty = true, lastShop = '';
-  let hintUntil = 0;
+  let last = now(), raf = 0, dirty = true, lastShop = '', hintUntil = 0;
+  let pulseAcc = 0, bossAcc = 0, hatchAcc = 0;
 
   const DEF = {
-    v: 2, optedIn: false, paused: false,
-    loc: 0, cash: 0, squashed: 0, spawned: 0, debt: 0,
-    derick: 0, agentic: 0, ai: 0, qa: 0, tests: 0, ci: 0, orch: 0, rollback: 0, autoRb: 0, ships: 0,
+    v: 3, optedIn: false, paused: false,
+    loc: 0, commits: 0, squashed: 0, spawned: 0, debt: 0,
+    derick: 0, agents: 0, agentic: 0, tests: 0, ci: 0, qa: 0,
+    profiler: 0, collision: 0, movement: 0, sync: 0, rapid: 0,
+    rollback: 0, autoRb: 0, ships: 0,
     shop: false, open: true, hidden: false,
     bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0
   };
@@ -27,73 +27,94 @@
     fresh = !raw;
     S = Object.assign({}, DEF, JSON.parse(raw || '{}'));
   } catch { S = Object.assign({}, DEF); fresh = true; }
-  // Drop legacy v1 silently — new opt-in flow.
-  try { localStorage.removeItem('dj-bughunt-v1'); } catch {}
+  try { localStorage.removeItem('dj-bughunt-v1'); localStorage.removeItem('dj-bughunt-v2'); } catch {}
   if (fresh && (COARSE || innerWidth < 700)) S.open = false;
 
   // ---------- economy ----------
   const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.floor(n).toLocaleString();
   const mult = () => 1 + S.ships * 0.5;
-  const locPerSec = () => {
-    let v = S.ai * 1.35 * (S.orch ? 2.4 : 1) * (1 + S.ships * 0.25);
-    if (S.agentic) v += S.derick * 0.35 * S.agentic; // sub-agents drafting while lasers fire
-    return v;
-  };
-  const bugsPerLoc = () => 0.38 * Math.pow(0.82, S.tests) * (S.orch ? 0.65 : 1) * (S.ci ? 0.85 : 1);
-  const derickRate = () => {
-    if (!S.derick) return 0;
-    const base = 0.55 + S.derick * 0.35;
-    return base * (1 + S.agentic * 0.85) * (S.ci ? 1.15 : 1);
-  };
-  const derickBeams = () => Math.min(6, 1 + S.derick + (S.agentic ? 1 + S.agentic : 0));
-  const qaRevealPerSec = () => S.qa * 0.55 * (S.ci ? 1.6 : 1);
+  const costScale = () => (S.rapid ? 0.78 : 1);
+  const bugsPerLoc = () => 0.38 * Math.pow(0.82, Math.min(5, S.tests)) * (S.ci ? 0.85 : 1);
   const shipGoal = () => Math.round(1600 * Math.pow(S.ships + 1, 1.55));
   const RB_CD = 30000;
-  const cost = {
-    derick: () => Math.ceil(12 * Math.pow(1.45, S.derick)),
-    agentic: () => Math.ceil(55 * Math.pow(1.7, S.agentic)),
-    ai: () => Math.ceil(18 * Math.pow(1.34, S.ai)),
-    qa: () => Math.ceil(32 * Math.pow(1.4, S.qa)),
-    tests: () => Math.ceil(48 * Math.pow(2.05, S.tests)),
-    ci: () => 240, orch: () => 720, rollback: () => 400, autoRb: () => 2400,
+
+  // Derick: starts at 2s kill on small (HP=2), improves with tools/ships
+  const derickKillTime = () => {
+    let t = 2.0;
+    t *= Math.pow(0.88, S.ships);
+    if (S.ci) t *= 0.82;
+    if (S.profiler) t *= 0.92;
+    if (S.agentic) t *= 0.9;
+    return Math.max(0.35, t);
   };
-  const ITEMS = [
-    { id: 'derick', name: 'HIRE DERICK', desc: () => `Lasers from off-screen auto-kill bugs. (${S.derick})`, show: () => S.shop },
-    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => `More emitters, faster volleys, multi-target beams + draft LOC. (${S.agentic})`, show: () => S.derick >= 1 },
-    { id: 'ai', name: 'Hire coding agent', desc: () => `+1.35 LOC/s each. Writes bugs too. (${S.ai})`, show: () => S.derick >= 1 },
-    { id: 'qa', name: 'HIRE QA', desc: () => `Reveals more bugs & marks largest for destroy-no-split. Does not squash. (${S.qa})`, show: () => S.ai >= 1 || S.derick >= 2 },
-    { id: 'tests', name: 'Write unit tests', desc: () => `-18% bugs per line. (${S.tests}/5)`, show: () => S.squashed >= 12, max: 5 },
-    { id: 'ci', name: 'CI pipeline', desc: () => 'Derick + QA find faster; 15% fewer bugs pre-merge.', show: () => S.qa >= 1 || S.derick >= 3, once: true },
-    { id: 'orch', name: 'Agent orchestrator', desc: () => 'Coding agents verify each other: 2.4× code, fewer bugs.', show: () => S.ai >= 3, once: true },
-    { id: 'rollback', name: 'Deterministic rollback', desc: () => '⟲ Rollback clears every bug. 30s cooldown.', show: () => S.ci || S.spawned >= 40, once: true },
-    { id: 'autoRb', name: 'Rollback netcode', desc: () => 'Rollback fires when 8+ bugs are live.', show: () => S.rollback, once: true },
-  ];
-  const BUY_LOG = {
-    derick: 'Derick hired. Lasers inbound from off-screen.',
-    agentic: 'Agentic workflow online: sub-agents amplify every laser volley.',
-    ai: 'Coding agent hired. It writes code. Lots of code.',
-    qa: 'QA online. Hunting for bugs — targets painted on the biggest ones.',
-    tests: 'Tests written. Fewer bugs per line.',
-    ci: 'CI is green. Mostly.',
-    orch: 'Orchestrator live: agents verify their own work.',
-    rollback: 'Rollback unlocked. Press ⟲ when it gets bad.',
-    autoRb: 'Rollback netcode: it fixes itself now.',
+  const derickRange = () => {
+    let r = COARSE ? 110 : 140;
+    r += S.profiler * 36 + S.agentic * 28 + S.ships * 18;
+    if (S.agents >= 10) r = Math.min(r, 160); // command corner focus
+    return r;
+  };
+  const derickDps = () => 2 / derickKillTime(); // HP/s vs small
+  const agentDps = () => 1; // 2s on small (HP=2)
+  const agentRange = () => (COARSE ? 78 : 92) + (S.profiler ? 22 : 0);
+  const chaseSpeed = () => 95 + (S.movement ? 70 : 0) + S.ships * 12;
+
+  const cost = {
+    derick: () => Math.ceil(25 * costScale()),
+    agent: () => Math.ceil(40 * Math.pow(1.32, S.agents) * costScale()),
+    tests: () => Math.ceil(55 * Math.pow(1.95, S.tests) * costScale()),
+    profiler: () => Math.ceil(80 * costScale()),
+    collision: () => Math.ceil(120 * costScale()),
+    movement: () => Math.ceil(100 * costScale()),
+    ci: () => Math.ceil(180 * costScale()),
+    qa: () => Math.ceil(150 * costScale()),
+    rapid: () => Math.ceil(200 * costScale()),
+    sync: () => Math.ceil(250 * costScale()),
+    agentic: () => Math.ceil(300 * costScale()),
+    rollback: () => Math.ceil(400 * costScale()),
+    autoRb: () => Math.ceil(800 * costScale()),
   };
 
-  // Original snippet corpus (game-engine / automation flavored). NOT from hackertyper.
+  // Progression gate: only the next unlock appears (Hire agent stays buyable after the first).
+  // Order: Derick → agent → tests (1+) → profiler → collision → movement → ci → qa →
+  // rapid → sync → agentic → rollback → autoRb → Ship.
+  const SEQ = ['tests', 'profiler', 'collision', 'movement', 'ci', 'qa', 'rapid', 'sync', 'agentic', 'rollback', 'autoRb'];
+  function seqDone(id) {
+    if (id === 'tests') return S.tests >= 1; // one purchase unlocks the next tool
+    return !!S[id];
+  }
+  function nextUnlock() {
+    if (!S.derick) return S.shop ? 'derick' : null;
+    if (S.agents < 1) return 'agent';
+    for (const id of SEQ) if (!seqDone(id)) return id;
+    return null;
+  }
+  const ITEMS = [
+    { id: 'derick', name: 'HIRE DERICK', desc: () => 'One engineer. Thin laser. Roams and squashes.', once: true, show: () => nextUnlock() === 'derick' },
+    { id: 'agent', name: 'HIRE AGENT', desc: () => `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
+    { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'movement', 'ci'].includes(nextUnlock())) },
+    { id: 'profiler', name: 'PROFILER', desc: () => 'Reveal hatching bugs · larger agent radius.', once: true, show: () => nextUnlock() === 'profiler' },
+    { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce to a second bug.', once: true, show: () => nextUnlock() === 'collision' },
+    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Chasing agents move faster.', once: true, show: () => nextUnlock() === 'movement' },
+    { id: 'ci', name: 'CI PIPELINE', desc: () => 'Faster lasers · fewer bugs pre-merge.', once: true, show: () => nextUnlock() === 'ci' },
+    { id: 'qa', name: 'QA', desc: () => 'Marks big & boss bugs: die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
+    { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
+    { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse chains to several agents.', once: true, show: () => nextUnlock() === 'sync' },
+    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick pulses an agent to chase & clear a lineage.', once: true, show: () => nextUnlock() === 'agentic' },
+    { id: 'rollback', name: 'ROLLBACK NETCODE', desc: () => '⟲ Clears the screen. 30s cooldown.', once: true, show: () => nextUnlock() === 'rollback' },
+    { id: 'autoRb', name: 'AUTO ROLLBACK', desc: () => 'Rollback fires when 8+ bugs are live.', once: true, show: () => nextUnlock() === 'autoRb' },
+  ];
+
   const CORPUS = [
     '// rollback: restore sim to last good frame\nvoid RollbackNet::Restore(Frame f) {\n  state = archive.At(f);\n  inputs.Rewind(f);\n}\n',
     'def spawn_agent(task):\n    agent = CodingAgent(model="local")\n    agent.plan(task)\n    return agent.run_with_verify()\n',
     'function SquashBug(bug)\n  if bug.tier > 1 then\n    Split(bug, bug.tier - 1)\n  else\n    Splat(bug)\n  end\nend\n',
     'class ParallaxLayer {\n  float depth;\n  void Draw(Camera cam) {\n    float ox = cam.x * depth;\n    blit(tex, ox, 0);\n  }\n};\n',
-    'async function orchestrate(jobs) {\n  const kids = jobs.map(j => subAgent(j));\n  const out = await Promise.all(kids);\n  return mergeVerified(out);\n}\n',
-    '-- LOD: pick mesh by camera distance\nlocal function pickLod(d)\n  if d < 12 then return hi\n  elseif d < 40 then return mid\n  else return lo end\nend\n',
     'bool BSP_Trace(const Ray& r, Hit& h) {\n  Node* n = root;\n  while (n && !n->leaf) n = n->Child(r);\n  return n && n->Test(r, h);\n}\n',
     'qa.findBugs = (build) => {\n  const suspects = fuzz(build);\n  return suspects.filter(isRepro);\n};\n',
-    'fn auto_laser(target: Bug) {\n  beam.from(edge_of_screen());\n  beam.fire(target.pos);\n  target.kill(split: false);\n}\n',
+    'fn thin_laser(target: Bug) {\n  beam.width = 1.0;\n  beam.fire(self.pos, target.pos);\n}\n',
     'local sim = DeterministicSim.new()\nsim:step(inputs)\nif desync then sim:rollback(lastGood) end\n',
-    'struct AgentJob { string prompt; Vec<Job> kids; };\nvoid RunAgentic(AgentJob& j) {\n  for (auto& k : j.kids) Spawn(k);\n}\n',
     '# collision editor export\nmesh = bake_convex(hull)\nwrite_bin("col.bin", mesh.verts, mesh.idx)\n',
+    'struct Pulse { Agent* a; Bug* target; };\nvoid Agentic(Derick& d, Pulse p) { d.send(p); p.a->chase(p.target); }\n',
   ].join('');
 
   // ---------- DOM ----------
@@ -103,11 +124,16 @@
   const ctx = cv.getContext('2d');
   const ready = d.createElement('div');
   ready.id = 'bh-ready';
-  ready.innerHTML = `<button type="button" class="bh-ready-btn" data-act="ready"><span class="bh-ready-pulse"></span><span class="bh-ready-label">PLAYER 1 READY?</span><small>start Bug Hunt</small></button>`;
+  ready.innerHTML = `<button type="button" class="bh-ready-btn" data-act="ready"><span class="bh-ready-pulse"></span><span class="bh-ready-label">Play Bug Hunt</span><small>mini-game</small></button>`;
   const hud = d.createElement('section'); hud.className = 'bh-hud'; hud.setAttribute('aria-label', 'Bug Hunt mini-game');
   hud.hidden = true;
   hud.innerHTML = `<div class="bh-bar">
-      <div class="bh-title"><b>BUG HUNT</b><span class="bh-stat"><i>LOC</i> <span data-k="loc">0</span></span><span class="bh-stat"><i>BUGS</i> <span data-k="bugs">0</span></span><span class="bh-stat"><i>$</i> <span data-k="cash">0</span></span></div>
+      <div class="bh-title">
+        <b>BUG HUNT</b>
+        <span class="bh-stat" title="Lines of code written this run — the build counter. Writing LOC hatches bugs."><i>LOC</i> <span data-k="loc">0</span></span>
+        <span class="bh-stat"><i>BUGS</i> <span data-k="bugs">0</span></span>
+        <span class="bh-stat" title="Commits earned by squashing bugs."><i>COMMITS</i> <span data-k="commits">0</span></span>
+      </div>
       <button class="bh-btn" type="button" data-act="pause" title="Pause">❚❚</button>
       <button class="bh-btn" type="button" data-act="rb" hidden title="Rollback">⟲</button>
       <button class="bh-btn" type="button" data-act="min" aria-label="Minimize Bug Hunt">–</button>
@@ -120,7 +146,7 @@
   d.body.append(codeCv, cv, ready, hud, hint);
   const $ = s => hud.querySelector(s);
   const el = {
-    loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), cash: $('[data-k=cash]'),
+    loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), commits: $('[data-k=commits]'),
     pause: $('[data-act=pause]'), rb: $('[data-act=rb]'), min: $('[data-act=min]'), quit: $('[data-act=quit]'),
     log: $('.bh-log'), tip: $('.bh-tip'), shop: $('.bh-shop')
   };
@@ -129,7 +155,6 @@
   let typed = Math.min(S.codeIdx || 0, CORPUS.length * 4);
   let codeDirty = true;
 
-  // ---------- hackertyper-style background (canvas, original corpus) ----------
   function typeCode(n) {
     typed += n;
     S.codeIdx = typed;
@@ -159,7 +184,6 @@
       x += fs * 0.62;
       drawn++;
     }
-    // caret blink at end
     if (!RM && (Math.floor(now() / 400) % 2)) {
       codeCtx.fillStyle = 'rgba(61,224,255,0.35)';
       codeCtx.fillRect(x, y, 7, fs);
@@ -172,47 +196,56 @@
     for (const c of [cv, codeCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // Keep entities on-screen
+    if (derickEnt) { derickEnt.x = clamp(derickEnt.x, 20, Wd - 20); derickEnt.y = clamp(derickEnt.y, 60, Hd - 20); }
+    for (const a of agents) { a.homeX = clamp(a.homeX, 24, Wd - 24); a.homeY = clamp(a.homeY, 70, Hd - 24); if (!a.chasing) { a.x = a.homeX; a.y = a.homeY; } }
     paintCode(true); kick();
   }
   addEventListener('resize', resize, { passive: true });
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   // ---------- entities ----------
-  const R = [0, 8, 13, 19];
-  const SPEED = [0, 62, 44, 30];
-  const HUE = [0, 145, 110, 300];
+  const R = [0, 8, 13, 19, 28]; // 4 = boss
+  const SPEED = [0, 62, 44, 30, 22];
+  const HUE = [0, 145, 110, 300, 0];
+  const HP = [0, 2, 4.5, 8, 22];
+  const BOSS_NAMES = ['Desync', 'Memory Leak', 'Race Condition', 'Null Pointer', 'Frame Spike', 'Packet Loss', 'Rollback Ghost', 'Stale Snapshot'];
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
+
   let bugs = [];
-  if (S.optedIn && !S.paused && S.bugs && S.bugs.length) {
-    bugs = S.bugs.map(b => ({ ...b, x: b.x * Wd, y: b.y * Hd, ox: b.x * Wd, oy: b.y * Hd, pop: 1, sq: 0, flash: 0, ph: Math.random() * 6, targeted: !!b.targeted }));
-  }
-  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [];
+  let derickEnt = null;
+  let agents = [];
+  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [];
   let shake = 0, freezeUntil = 0, flash = 0;
 
-  function mkBug(tier, x, y, a) {
+  function mkBug(tier, x, y, a, opts = {}) {
     a = a ?? Math.random() * Math.PI * 2;
-    return { tier, x, y, ox: x, oy: y, a, ph: Math.random() * 6, pop: 0.2, sq: 0, flash: 0, turn: 0, targeted: false };
+    const boss = tier >= 4;
+    return {
+      tier, x, y, ox: x, oy: y, a, ph: Math.random() * 6, pop: 0.2, sq: 0, flash: 0, turn: 0,
+      targeted: false, hp: HP[tier] || 2, maxHp: HP[tier] || 2,
+      boss, name: opts.name || (boss ? BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)] : null),
+      hatching: !!opts.hatching, hatchT: opts.hatching ? 1.2 : 0
+    };
   }
   function edgePoint() {
     const s = Math.floor(Math.random() * 4), m = 10;
     return s === 0 ? [Math.random() * Wd, -m] : s === 1 ? [Wd + m, Math.random() * Hd] : s === 2 ? [Math.random() * Wd, Hd + m] : [-m, Math.random() * Hd];
   }
-  function laserOrigin() {
-    // Prefer off-screen edges; with agentic, also fire from corners / mid-edges
-    if (S.agentic && Math.random() < 0.55) {
-      const corners = [[-20, -20], [Wd + 20, -20], [-20, Hd + 20], [Wd + 20, Hd + 20],
-        [Wd / 2, -30], [-30, Hd / 2], [Wd + 30, Hd / 2], [Wd / 2, Hd + 30]];
-      return corners[Math.floor(Math.random() * corners.length)];
-    }
-    return edgePoint();
-  }
   function spawnBug(x, y, opts = {}) {
     S.spawned++;
     if (bugs.length >= cap()) { S.backlog++; return null; }
-    const p3 = Math.min(0.55, 0.12 + S.loc / 2800);
-    const tier = opts.tier || (Math.random() < p3 ? 3 : Math.random() < 0.7 ? 2 : 1);
+    let tier = opts.tier;
+    if (!tier) {
+      if (opts.boss) tier = 4;
+      else {
+        const p3 = Math.min(0.5, 0.1 + S.loc / 3000);
+        tier = Math.random() < p3 ? 3 : Math.random() < 0.7 ? 2 : 1;
+      }
+    }
     if (x == null) [x, y] = edgePoint();
-    const b = mkBug(tier, x, y, Math.atan2(Hd / 2 - y, Wd / 2 - x) + (Math.random() - .5));
-    if (opts.reveal) { b.pop = 0.05; b.flash = 1; }
+    const b = mkBug(tier, x, y, Math.atan2(Hd / 2 - y, Wd / 2 - x) + (Math.random() - .5), opts);
+    if (opts.reveal || opts.hatching) { b.pop = 0.05; b.flash = 1; }
     bugs.push(b);
     kick();
     return b;
@@ -221,9 +254,13 @@
     S.loc += n;
     typeCode(Math.max(2, Math.floor(n * 14)));
     S.debt += n * bugsPerLoc();
-    // Player clicks always hatch at least one bug at the cursor so cause→effect is obvious.
     if (fromClick && x != null) {
-      spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20);
+      if (S.profiler && Math.random() < 0.55) {
+        const hb = spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20, { hatching: true });
+        if (hb) hatches.push(hb);
+      } else {
+        spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20);
+      }
       S.debt = Math.max(0, S.debt - 1);
     }
     let guard = 0;
@@ -231,18 +268,44 @@
       S.debt -= 1;
       const bx = x != null ? x + (Math.random() - .5) * 36 : null;
       const by = y != null ? y + (Math.random() - .5) * 36 : null;
-      spawnBug(bx, by);
+      if (S.profiler && Math.random() < 0.4) spawnBug(bx, by, { hatching: true });
+      else spawnBug(bx, by);
     }
+  }
+
+  function ensureDerick() {
+    if (!S.derick) { derickEnt = null; return; }
+    if (!derickEnt) {
+      derickEnt = { x: Wd * 0.2, y: Hd * 0.35, tx: Wd * 0.2, ty: Hd * 0.35, target: null, aimX: 0, aimY: 0, beam: 0 };
+    }
+  }
+  function ensureAgents() {
+    while (agents.length < S.agents) {
+      const ang = (agents.length * 2.4) + Math.random();
+      const rad = Math.min(Wd, Hd) * (0.22 + (agents.length % 5) * 0.05);
+      const hx = clamp(Wd / 2 + Math.cos(ang) * rad, 40, Wd - 40);
+      const hy = clamp(Hd / 2 + Math.sin(ang) * rad, 80, Hd - 40);
+      agents.push({
+        x: hx, y: hy, homeX: hx, homeY: hy,
+        target: null, chaseRoot: null, chasing: false, beam: 0, aimX: hx, aimY: hy, pierce: null
+      });
+    }
+    while (agents.length > S.agents) agents.pop();
+  }
+  function commandMode() { return S.derick && S.agents >= 10; }
+  function commandCorner() {
+    // Park away from HUD (bottom-right): use top-left
+    return { x: 48, y: 88 };
   }
 
   // ---------- juice ----------
   function burst(x, y, hue, n, spd = 260, life = 0.6) {
-    if (RM) n = Math.min(n, 4);
+    if (RM) n = Math.min(n, 3);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, v = spd * (0.35 + Math.random());
-      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, life, max: life, r: 2 + Math.random() * 3.5, hue: hue + (Math.random() - .5) * 30 });
+      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, life, max: life, r: 1.5 + Math.random() * 2.5, hue: hue + (Math.random() - .5) * 30 });
     }
-    if (parts.length > 360) parts.splice(0, parts.length - 360);
+    if (parts.length > 280) parts.splice(0, parts.length - 280);
   }
   let gains = 0;
   function gain(x, y, text, color) {
@@ -254,100 +317,126 @@
   }
   function punch(strength) {
     if (RM) return;
-    shake = Math.max(shake, strength);
+    shake = Math.max(shake, strength * 0.55);
     hud.classList.remove('shake'); void hud.offsetWidth; hud.classList.add('shake');
-    if (strength >= 8) { const m = d.querySelector('main'); if (m) { m.classList.remove('punch-body'); void m.offsetWidth; m.classList.add('punch-body'); } }
   }
   function log(msg) { el.log.textContent = msg; }
   function codeBurstAt(x, y) {
     codeBursts.push({ x, y, life: 0.55, max: 0.55 });
     if (codeBursts.length > 24) codeBursts.shift();
-    burst(x, y, 190, 5, 110, .4);
+    burst(x, y, 190, 4, 110, .35);
+  }
+  function addLaser(x1, y1, x2, y2, opts = {}) {
+    lasers.push({
+      x1, y1, x2, y2,
+      life: opts.life || 0.12, max: opts.life || 0.12,
+      wide: opts.wide || 1, color: opts.color || '#39ff88', soft: true
+    });
+    if (lasers.length > 40) lasers.shift();
+  }
+  function sendPulse(from, agent, target) {
+    pulses.push({
+      x: from.x, y: from.y, tx: agent.x, ty: agent.y,
+      agent, target, life: 0.45, max: 0.45, arrived: false
+    });
+    if (pulses.length > 16) pulses.shift();
   }
 
-  // ---------- targeting (QA) ----------
-  function retarget() {
+  function retargetQA() {
     for (const b of bugs) b.targeted = false;
     if (!S.qa || !bugs.length) return;
-    const n = Math.min(bugs.length, S.qa);
-    const sorted = bugs.slice().sort((a, b) => b.tier - a.tier || (b.x * b.y) - (a.x * a.y));
-    for (let i = 0; i < n; i++) sorted[i].targeted = true;
+    const pool = bugs.filter(b => b.tier >= 3 || b.boss).sort((a, b) => b.tier - a.tier || b.maxHp - a.maxHp);
+    const n = Math.min(pool.length, 1 + S.qa);
+    for (let i = 0; i < n; i++) if (pool[i]) pool[i].targeted = true;
   }
 
-  // ---------- squashing ----------
   function squash(b, opts = {}) {
     const i = bugs.indexOf(b); if (i < 0) return;
     const auto = !!opts.auto;
-    const noSplit = !!opts.noSplit || !!b.targeted;
-    const val = Math.round(b.tier * mult() * (b.targeted ? 1.35 : 1));
-    S.cash += val; S.squashed++;
-    burst(b.x, b.y, b.targeted ? 50 : HUE[b.tier], 6 + b.tier * 4, 180 + b.tier * 50);
-    splats.push({ x: b.x, y: b.y, r: R[b.tier] * 1.4, hue: b.targeted ? 50 : HUE[b.tier], life: 1.6, max: 1.6 });
-    if (splats.length > 40) splats.shift();
-    if (!auto) { freezeUntil = now() + (b.tier === 3 ? 75 : 45); punch(b.tier * 3); }
-    gain(b.x, b.y - R[b.tier], `+$${val}`, auto ? '#3de0ff' : (b.targeted ? '#ffd166' : null));
+    const noSplit = !!opts.noSplit || !!b.targeted || (b.boss && !!opts.qaBoss);
+    const val = Math.round((b.boss ? 18 : b.tier * 3) * mult() * (b.targeted ? 1.25 : 1));
+    S.commits += val; S.squashed++;
+    burst(b.x, b.y, b.boss ? 8 : (b.targeted ? 50 : HUE[b.tier]), 5 + b.tier * 3, 160 + b.tier * 40);
+    splats.push({ x: b.x, y: b.y, r: R[b.tier] * 1.3, hue: b.boss ? 8 : (b.targeted ? 50 : HUE[b.tier]), life: 1.4, max: 1.4 });
+    if (splats.length > 36) splats.shift();
+    if (!auto) { freezeUntil = now() + (b.boss ? 90 : b.tier === 3 ? 55 : 35); punch(b.tier * 2.2); }
+    gain(b.x, b.y - R[b.tier], `+${val}`, auto ? '#3de0ff' : (b.targeted ? '#ffd166' : null));
+    // Clear chase roots pointing at this bug
+    for (const a of agents) {
+      if (a.chaseRoot === b || a.target === b) {
+        if (a.chasing && a.chaseRoot === b) { /* keep chasing splits via retarget below */ }
+        a.target = null;
+      }
+    }
     bugs.splice(i, 1);
-    if (!noSplit && b.tier > 1) {
+    if (!noSplit && b.tier > 1 && b.tier < 4) {
       for (let k = 0; k < 2; k++) {
         const a = b.a + (k ? 1 : -1) * (Math.PI / 2 + Math.random() * .6);
         const c = mkBug(b.tier - 1, b.x + Math.cos(a) * 6, b.y + Math.sin(a) * 6, a);
         c.boost = 3.2; c.pop = 0.4; c.sq = 1; bugs.push(c);
+        // Chasing agents continue onto splits from this lineage
+        for (const ag of agents) {
+          if (ag.chasing && ag.chaseRoot === b) {
+            ag.chaseRoot = c;
+            ag.target = c;
+          }
+        }
       }
-    } else if (noSplit && b.tier > 1) {
-      // juicy destroy — no children
-      burst(b.x, b.y, 50, 14, 320, .7);
-      punch(auto ? 4 : 7);
+    } else if ((noSplit && b.tier > 1) || b.boss) {
+      burst(b.x, b.y, b.boss ? 8 : 50, 12, 280, .65);
+      punch(auto ? 3 : 6);
+      for (const ag of agents) {
+        if (ag.chaseRoot === b) { ag.chasing = false; ag.chaseRoot = null; ag.target = null; }
+      }
+    } else {
+      for (const ag of agents) {
+        if (ag.chaseRoot === b) { ag.chasing = false; ag.chaseRoot = null; ag.target = null; }
+      }
     }
     if (!S.shop && S.squashed >= 5) openShop();
-    retarget();
+    retargetQA();
     kick(); dirty = true;
   }
+
+  function damageBug(b, dps, dt, attacker) {
+    if (!b || b.hatching) return;
+    b.hp -= dps * dt;
+    b.flash = Math.max(b.flash, 0.35);
+    if (attacker) {
+      attacker.beam = 1;
+      attacker.aimX = b.x; attacker.aimY = b.y;
+    }
+    if (b.hp <= 0) {
+      const qaBoss = b.boss && b.targeted;
+      squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
+    }
+  }
+
   function openShop() {
     S.shop = true; S.open = true;
-    log('HIRE DERICK unlocked — lasers from off-screen.');
+    log('Hire Derick unlocked.');
     hud.classList.remove('pop'); void hud.offsetWidth; hud.classList.add('pop');
-    burst(Wd - 60, Hd - 40, 50, 24, 340, .8); punch(6);
+    burst(Wd - 60, Hd - 40, 50, 16, 300, .7); punch(5);
   }
-  function fireLasers() {
-    if (!S.derick || !bugs.length || S.paused || !S.optedIn) return;
-    const beams = derickBeams();
-    // Prefer targeted, then largest
-    const pool = bugs.slice().sort((a, b) => (b.targeted - a.targeted) || (b.tier - a.tier));
-    const hits = Math.min(beams, pool.length);
-    for (let i = 0; i < hits; i++) {
-      const t = pool[i];
-      const [ox, oy] = laserOrigin();
-      lasers.push({ x1: ox, y1: oy, x2: t.x, y2: t.y, life: 0.22, max: 0.22, wide: 2 + S.agentic });
-      squash(t, { auto: true, noSplit: !!t.targeted });
-    }
-    if (S.agentic) {
-      // chaining spark between targets
-      for (let i = 0; i < hits - 1; i++) {
-        const a = pool[i], b = pool[i + 1];
-        if (!a || !b) break;
-        lasers.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, life: 0.16, max: 0.16, wide: 1.5, chain: true });
-      }
-    }
-    kick();
-  }
+
   function rollback(auto) {
     if (!S.rollback || Date.now() - S.rbAt < RB_CD) return;
     S.rbAt = Date.now();
-    let n = bugs.length + S.backlog, cash = 0;
-    bugs.forEach(b => { cash += b.tier; ghosts.push({ x: b.x, y: b.y, tx: b.ox, ty: b.oy, r: R[b.tier], hue: HUE[b.tier], t: 0 }); });
-    cash = Math.round((cash + S.backlog) * 0.5 * mult());
-    S.cash += cash; S.squashed += n; S.backlog = 0; bugs = [];
-    flash = 1; punch(10);
-    log(`⟲ Rolled back to the last good frame${auto ? ' (netcode)' : ''}. ${n} bugs never happened. +$${fmt(cash)}`);
+    let n = bugs.length + S.backlog, gainC = 0;
+    bugs.forEach(b => { gainC += b.boss ? 8 : b.tier; ghosts.push({ x: b.x, y: b.y, tx: b.ox, ty: b.oy, r: R[b.tier], hue: HUE[Math.min(3, b.tier)], t: 0 }); });
+    gainC = Math.round((gainC + S.backlog) * 0.5 * mult());
+    S.commits += gainC; S.squashed += n; S.backlog = 0; bugs = [];
+    for (const a of agents) { a.chasing = false; a.target = null; a.chaseRoot = null; a.x = a.homeX; a.y = a.homeY; }
+    flash = 1; punch(8);
+    log(`⟲ Rolled back${auto ? ' (auto)' : ''}. ${n} bugs never happened. +${fmt(gainC)} commits`);
     kick(); dirty = true;
   }
   function ship() {
     if (S.loc < shipGoal() || bugs.length + S.backlog > 3) return;
     S.ships++;
-    const lines = ['Shipped! Reviews are in: Game of the Year.', 'Shipped v' + S.ships + '.0! Players love the feel.', 'Shipped! Most Innovative Gameplay.', 'Shipped! Zero desyncs reported.'];
-    log(`🏆 ${lines[(S.ships - 1) % lines.length]} All bounties +50%.`);
-    for (let i = 0; i < 5; i++) burst(Math.random() * Wd, Hd * 0.3 + Math.random() * Hd * 0.3, Math.random() * 360, 18, 420, 1.2);
-    punch(12); kick(); dirty = true;
+    log(`Shipped v${S.ships}.0 — permanent +50% commit bounty.`);
+    for (let i = 0; i < 4; i++) burst(Math.random() * Wd, Hd * 0.3 + Math.random() * Hd * 0.3, Math.random() * 360, 12, 360, 1);
+    punch(10); kick(); dirty = true;
   }
 
   // ---------- opt-in / pause / quit ----------
@@ -358,46 +447,32 @@
     const label = ready.querySelector('.bh-ready-label');
     const small = ready.querySelector('small');
     if (S.optedIn && S.paused) {
-      if (label) label.textContent = 'RESUME?';
-      if (small) small.textContent = 'continue Bug Hunt';
+      if (label) label.textContent = 'Resume Bug Hunt';
+      if (small) small.textContent = 'continue';
     } else {
-      if (label) label.textContent = 'PLAYER 1 READY?';
-      if (small) small.textContent = 'start Bug Hunt';
+      if (label) label.textContent = 'Play Bug Hunt';
+      if (small) small.textContent = 'mini-game';
     }
     hud.hidden = !S.optedIn;
     d.documentElement.classList.toggle('bh-playing', playing);
     d.documentElement.classList.toggle('bh-hidden', S.hidden);
-    if (!playing) {
-      // clear live bugs from view when paused/quit — state kept in S via save
-      if (S.paused || !S.optedIn) {
-        ctx.clearRect(0, 0, Wd, Hd);
-      }
-    }
+    if (!playing && (S.paused || !S.optedIn)) ctx.clearRect(0, 0, Wd, Hd);
     paintCode(true);
   }
   function optIn() {
     S.optedIn = true; S.paused = false; S.hidden = false; S.open = true;
-    if (!S.hintSeen) {
-      S.hintSeen = true;
-      hint.hidden = false;
-      hintUntil = now() + 5500;
-    }
-    log(S.squashed || S.loc ? 'Welcome back. Squash continues.' : 'Insert coin. Write some code.');
+    if (!S.hintSeen) { S.hintSeen = true; hint.hidden = false; hintUntil = now() + 5500; }
+    log(S.squashed || S.loc ? 'Welcome back.' : 'Write some code. Squash the bugs.');
+    ensureDerick(); ensureAgents();
     syncShell(); render(true); kick(); dirty = true; save();
   }
   function pauseGame() {
     if (!S.optedIn) return;
-    S.paused = true;
-    save();
-    syncShell();
-    log('Paused. Progress saved.');
+    S.paused = true; save(); syncShell(); log('Paused. Progress saved.');
   }
   function quitGame() {
     if (!S.optedIn) return;
-    S.paused = true;
-    save();
-    syncShell();
-    log('Quit to title. Progress kept.');
+    S.paused = true; save(); syncShell(); log('Quit. Progress kept.');
   }
   function resetAll() {
     if (!confirm('Reset Bug Hunt progress? This cannot be undone.')) return;
@@ -406,6 +481,7 @@
   }
 
   syncShell();
+  if (S.optedIn && !S.paused) { ensureDerick(); ensureAgents(); }
   if (S.optedIn && !S.paused && !S.hintSeen && !S.intro) {
     hint.hidden = false; hintUntil = now() + 5500; S.hintSeen = true;
   }
@@ -421,17 +497,16 @@
     const sel = W.getSelection && W.getSelection(); if (sel && String(sel).length) return;
     const x = e.clientX, y = e.clientY, pad = e.pointerType === 'touch' ? 16 : 8;
     let best = null, bd = 1e9;
-    for (const b of bugs) { const dd = Math.hypot(b.x - x, b.y - y); if (dd < R[b.tier] + pad && dd < bd) { bd = dd; best = b; } }
+    for (const b of bugs) {
+      if (b.hatching) continue;
+      const dd = Math.hypot(b.x - x, b.y - y);
+      if (dd < R[b.tier] + pad && dd < bd) { bd = dd; best = b; }
+    }
     if (best) { squash(best, {}); return; }
-    // empty space → write code at cursor (spawns bugs from that spot)
     addCode(1, x, y, true);
     codeBurstAt(x, y);
     gain(x, y, '+1 LOC', '#ececf6');
-    if (!S.intro) {
-      S.intro = true;
-      log('Code written. Code has bugs. Squash them!');
-      hint.hidden = true;
-    }
+    if (!S.intro) { S.intro = true; log('Code written. Bugs crawl out. Squash them!'); hint.hidden = true; }
     dirty = true; kick();
   }, { passive: true });
 
@@ -451,12 +526,19 @@
     else if (act === 'ship') ship();
     else if (buy) {
       const it = ITEMS.find(i => i.id === buy); const c = cost[buy]();
-      if (S.cash >= c && !(it.once && S[buy]) && !(it.max && S[buy] >= it.max)) {
-        S.cash -= c; S[buy] = (S[buy] || 0) + 1;
-        const r = b.getBoundingClientRect(); burst(r.left + r.width / 2, r.top, 50, 10, 200, .5);
-        log(BUY_LOG[buy] || 'Purchased.');
-        if (buy === 'qa') retarget();
-        if (buy === 'derick' || buy === 'agentic') kick();
+      const key = buy === 'agent' ? 'agents' : buy;
+      if (S.commits >= c && !(it.once && S[key]) && !(it.max && S[key] >= it.max)) {
+        S.commits -= c;
+        S[key] = (S[key] || 0) + 1;
+        const r = b.getBoundingClientRect(); burst(r.left + r.width / 2, r.top, 50, 8, 180, .45);
+        if (buy === 'derick') { ensureDerick(); log('Derick hired.'); }
+        else if (buy === 'agent') { ensureAgents(); log(`Agent #${S.agents} online.`); }
+        else if (buy === 'agentic') log('Agentic Workflow online.');
+        else if (buy === 'rollback') log('Rollback unlocked.');
+        else if (buy === 'qa') { retargetQA(); log('QA marking big bugs.'); }
+        else log(`${it.name} unlocked.`);
+        if (S.agents >= 10 && buy === 'agent') log('Command mode: Derick directing from the corner.');
+        kick();
       }
     }
     dirty = true; render(true); save();
@@ -471,77 +553,211 @@
     el.pause.textContent = S.paused ? '▶' : '❚❚';
     el.loc.textContent = fmt(S.loc);
     el.bugs.textContent = fmt(bugs.length + S.backlog);
-    el.cash.textContent = fmt(S.cash);
+    el.commits.textContent = fmt(S.commits);
     el.rb.hidden = !S.rollback;
     if (S.rollback) {
       const left = Math.max(0, RB_CD - (Date.now() - S.rbAt));
       el.rb.disabled = left > 0;
-      el.rb.textContent = left > 0 ? `⟲ ${Math.ceil(left / 1000)}s` : '⟲ Rollback';
+      el.rb.textContent = left > 0 ? `⟲ ${Math.ceil(left / 1000)}s` : '⟲';
     }
     const tap = COARSE ? 'Tap' : 'Click';
     if (!S.shop) {
       el.tip.textContent = S.squashed
-        ? `Squash ${Math.max(0, 5 - S.squashed)} more bug${5 - S.squashed === 1 ? '' : 's'} to unlock HIRE DERICK.`
-        : `${tap} empty space to write code. Bugs crawl out of what you write.`;
+        ? `Squash ${Math.max(0, 5 - S.squashed)} more to unlock Hire Derick.`
+        : `${tap} empty space to write LOC. Bugs hatch from what you write.`;
     } else {
-      el.tip.textContent = `${S.backlog ? `Backlog: ${fmt(S.backlog)} · ` : ''}${locPerSec() ? fmt(locPerSec()) + ' LOC/s · ' : ''}${S.derick ? 'Lasers armed · ' : ''}Ship at ${fmt(shipGoal())} LOC with ≤3 bugs.`;
+      const bits = [];
+      if (S.backlog) bits.push(`Backlog ${fmt(S.backlog)}`);
+      if (S.derick) bits.push(`Derick ${derickKillTime().toFixed(1)}s`);
+      if (S.agents) bits.push(`${S.agents} agent${S.agents === 1 ? '' : 's'}`);
+      if (commandMode()) bits.push('CMD');
+      bits.push(`Ship ${fmt(shipGoal())} LOC ≤3 bugs`);
+      el.tip.textContent = bits.join(' · ');
     }
     if (!S.open && !force) return;
     let html = '';
     if (S.shop) {
       for (const it of ITEMS) {
         if (!it.show()) continue;
-        const owned = S[it.id], done = (it.once && owned) || (it.max && owned >= it.max);
+        const key = it.id === 'agent' ? 'agents' : it.id;
+        const ownedN = S[key] || 0;
+        const done = (it.once && ownedN) || (it.max && ownedN >= it.max);
         if (done) continue;
         const c = cost[it.id]();
-        html += `<button class="bh-btn bh-item" type="button" data-buy="${it.id}" ${S.cash < c ? 'disabled' : ''}><span>${it.name}</span><small>${it.desc()}</small><em>$${fmt(c)}</em></button>`;
+        html += `<button class="bh-btn bh-item" type="button" data-buy="${it.id}" ${S.commits < c ? 'disabled' : ''}><span>${it.name}</span><small>${it.desc()}</small><em>${fmt(c)}</em></button>`;
       }
       const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
-      if (S.loc >= shipGoal() * 0.5) html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>🚀 Ship v${S.ships + 1}.0</span><small>${ok ? 'No blockers. Ship it!' : `Needs ${fmt(shipGoal())} LOC and ≤3 open bugs.`}</small><em>🏆 ${S.ships}</em></button>`;
+      if (S.rollback && S.loc >= shipGoal() * 0.45) {
+        html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${S.ships + 1}.0</span><small>${ok ? 'No blockers.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.ships}</em></button>`;
+      }
     }
     if (html !== lastShop) { el.shop.innerHTML = html; lastShop = html; }
+  }
+
+  // ---------- combat AI ----------
+  function nearestBug(x, y, range, pred) {
+    let best = null, bd = range;
+    for (const b of bugs) {
+      if (b.hatching) continue;
+      if (pred && !pred(b)) continue;
+      const dd = Math.hypot(b.x - x, b.y - y);
+      if (dd < bd) { bd = dd; best = b; }
+    }
+    return best;
+  }
+
+  function updateDerick(dt) {
+    ensureDerick();
+    if (!derickEnt || !S.derick) return;
+    const cmd = commandMode();
+    if (cmd) {
+      const c = commandCorner();
+      derickEnt.tx = c.x; derickEnt.ty = c.y;
+    } else {
+      // roam toward densest / largest threat
+      const threat = bugs.filter(b => !b.hatching).sort((a, b) => (b.boss - a.boss) || (b.tier - a.tier) || (Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) - Math.hypot(b.x - derickEnt.x, b.y - derickEnt.y)))[0];
+      if (threat) {
+        const ang = Math.atan2(threat.y - derickEnt.y, threat.x - derickEnt.x);
+        const prefer = derickRange() * 0.55;
+        derickEnt.tx = threat.x - Math.cos(ang) * prefer;
+        derickEnt.ty = threat.y - Math.sin(ang) * prefer;
+      } else {
+        derickEnt.tx += (Math.random() - .5) * 40 * dt;
+        derickEnt.ty += (Math.random() - .5) * 40 * dt;
+      }
+      derickEnt.tx = clamp(derickEnt.tx, 30, Wd - 30);
+      derickEnt.ty = clamp(derickEnt.ty, 70, Hd - 30);
+    }
+    const sp = cmd ? 140 : 120;
+    derickEnt.x += (derickEnt.tx - derickEnt.x) * Math.min(1, dt * (sp / 40));
+    derickEnt.y += (derickEnt.ty - derickEnt.y) * Math.min(1, dt * (sp / 40));
+
+    const range = cmd ? Math.min(derickRange(), 150) : derickRange();
+    const t = nearestBug(derickEnt.x, derickEnt.y, range, b => true);
+    derickEnt.target = t;
+    derickEnt.beam = Math.max(0, derickEnt.beam - dt * 4);
+    if (t) {
+      addLaser(derickEnt.x, derickEnt.y, t.x, t.y, { wide: 1, life: 0.1, color: 'rgba(57,255,136,0.75)' });
+      damageBug(t, derickDps() * (S.ci ? 1.1 : 1), dt, derickEnt);
+    }
+
+    // Agentic pulses
+    if (S.agentic && agents.length) {
+      pulseAcc += dt * (cmd ? 0.55 : 0.35) * (1 + S.sync * 0.5);
+      while (pulseAcc >= 1) {
+        pulseAcc -= 1;
+        const idle = agents.filter(a => !a.chasing);
+        const pool = idle.length ? idle : agents;
+        const n = Math.min(pool.length, S.sync ? 3 : 1);
+        // Prefer boss / large
+        const prey = bugs.filter(b => !b.hatching).sort((a, b) => (b.boss - a.boss) || (b.tier - a.tier))[0];
+        if (!prey) break;
+        for (let i = 0; i < n; i++) {
+          const ag = pool[Math.floor(Math.random() * pool.length)];
+          sendPulse(derickEnt, ag, prey);
+        }
+      }
+    }
+  }
+
+  function activateChase(agent, target) {
+    if (!agent || !target) return;
+    agent.chasing = true;
+    agent.chaseRoot = target;
+    agent.target = target;
+  }
+
+  function updatePulses(dt) {
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i];
+      p.life -= dt;
+      const e = 1 - Math.max(0, p.life) / p.max;
+      p.x = p.x + (p.tx - p.x) * Math.min(1, dt * 8);
+      p.y = p.y + (p.ty - p.y) * Math.min(1, dt * 8);
+      if (!p.arrived && Math.hypot(p.x - p.tx, p.y - p.ty) < 10) {
+        p.arrived = true;
+        if (p.agent && p.target && bugs.includes(p.target)) activateChase(p.agent, p.target);
+      }
+      if (p.life <= 0) pulses.splice(i, 1);
+    }
   }
 
   // ---------- sim ----------
   function econ(dt) {
     if (!S.optedIn || S.paused) return;
-    const lps = locPerSec();
-    if (lps) addCode(lps * dt);
     while (S.backlog > 0 && bugs.length < cap()) { S.backlog--; S.spawned--; spawnBug(); }
-    // Derick lasers
-    derickAcc += derickRate() * dt;
-    while (derickAcc >= 1) { derickAcc -= 1; fireLasers(); }
-    // QA reveals more bugs (does NOT squash)
-    qaRevealAcc += qaRevealPerSec() * dt;
-    while (qaRevealAcc >= 1) {
-      qaRevealAcc -= 1;
-      const b = spawnBug(null, null, { reveal: true, tier: Math.random() < 0.45 ? 3 : 2 });
-      if (b) {
-        gain(b.x, b.y, 'QA found!', '#ffd166');
-        log('QA revealed a bug.');
-      } else {
-        S.backlog++; // still "found"
-      }
-      retarget();
+    // Occasional boss
+    bossAcc += dt * (0.015 + Math.min(0.04, S.loc / 50000));
+    if (bossAcc >= 1 && bugs.length < cap() && S.derick) {
+      bossAcc = 0;
+      const b = spawnBug(null, null, { boss: true, tier: 4 });
+      if (b) { log(`${b.name} appeared.`); retargetQA(); }
     }
     if (S.autoRb && bugs.length + S.backlog >= 8) rollback(true);
   }
+
   function step(dt) {
     if (!S.optedIn || S.paused) {
       for (let i = lasers.length - 1; i >= 0; i--) { lasers[i].life -= dt; if (lasers[i].life <= 0) lasers.splice(i, 1); }
       return;
     }
     for (const b of bugs) {
-      b.ph += dt * (8 - b.tier);
+      if (b.hatching) {
+        b.hatchT -= dt;
+        b.pop = Math.max(0.15, 1 - b.hatchT / 1.2);
+        b.flash = 0.5 + Math.sin(now() / 80) * 0.5;
+        if (b.hatchT <= 0) { b.hatching = false; b.pop = 1; }
+        continue;
+      }
+      b.ph += dt * (8 - Math.min(3, b.tier));
       b.turn += (Math.random() - .5) * dt * 6; b.turn *= 0.96; b.a += b.turn * dt * 3;
-      const sp = SPEED[b.tier] * (b.boost || 1); if (b.boost) b.boost = Math.max(1, b.boost - dt * 6);
+      const sp = SPEED[Math.min(4, b.tier)] * (b.boost || 1); if (b.boost) b.boost = Math.max(1, b.boost - dt * 6);
       b.x += Math.cos(b.a) * sp * dt; b.y += Math.sin(b.a) * sp * dt;
-      const m = R[b.tier];
+      const m = R[Math.min(4, b.tier)];
       if (b.x < m) { b.x = m; b.a = Math.PI - b.a; } else if (b.x > Wd - m) { b.x = Wd - m; b.a = Math.PI - b.a; }
       if (b.y < m + 56) { b.y = m + 56; b.a = -b.a; } else if (b.y > Hd - m) { b.y = Hd - m; b.a = -b.a; }
       b.pop += (1 - b.pop) * Math.min(1, dt * 10);
       b.sq *= Math.pow(0.002, dt); b.flash = Math.max(0, b.flash - dt * 6);
     }
+
+    updateDerick(dt);
+    // agents with correct pierce
+    ensureAgents();
+    const range = agentRange();
+    for (const a of agents) {
+      a.beam = Math.max(0, a.beam - dt * 4);
+      if (a.chasing) {
+        let t = a.chaseRoot && bugs.includes(a.chaseRoot) ? a.chaseRoot : null;
+        if (!t) {
+          t = nearestBug(a.x, a.y, 240, b => true);
+          if (t) a.chaseRoot = t; else { a.chasing = false; a.chaseRoot = null; a.target = null; }
+        }
+        a.target = t;
+        if (t) {
+          const ang = Math.atan2(t.y - a.y, t.x - a.x);
+          a.x += Math.cos(ang) * chaseSpeed() * dt;
+          a.y += Math.sin(ang) * chaseSpeed() * dt;
+        }
+      } else {
+        a.x += (a.homeX - a.x) * Math.min(1, dt * 3);
+        a.y += (a.homeY - a.y) * Math.min(1, dt * 3);
+        a.target = nearestBug(a.x, a.y, range, b => true);
+      }
+      const t = a.target && bugs.includes(a.target) ? a.target : null;
+      if (t && Math.hypot(t.x - a.x, t.y - a.y) <= (a.chasing ? 9999 : range)) {
+        addLaser(a.x, a.y, t.x, t.y, { wide: 0.9, life: 0.09, color: 'rgba(61,224,255,0.65)' });
+        damageBug(t, agentDps() * (S.ci ? 1.08 : 1), dt, a);
+        if (S.collision) {
+          const second = nearestBug(t.x, t.y, range * 0.9, b => b !== t);
+          if (second) {
+            addLaser(t.x, t.y, second.x, second.y, { wide: 0.7, life: 0.08, color: 'rgba(61,224,255,0.4)' });
+            damageBug(second, agentDps() * 0.55, dt, null);
+          }
+        }
+      }
+    }
+    updatePulses(dt);
+
     for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += 700 * dt; p.vx *= 0.985; p.x += p.vx * dt; p.y += p.vy * dt; }
     for (let i = splats.length - 1; i >= 0; i--) { splats[i].life -= dt; if (splats[i].life <= 0) splats.splice(i, 1); }
     for (let i = lasers.length - 1; i >= 0; i--) { lasers[i].life -= dt; if (lasers[i].life <= 0) lasers.splice(i, 1); }
@@ -551,85 +767,152 @@
     flash = Math.max(0, flash - dt * 2.5);
     if (hintUntil && now() > hintUntil) { hint.hidden = true; hintUntil = 0; }
   }
+
   function drawBug(b) {
-    const r = R[b.tier] * b.pop, w = Math.sin(b.ph) * 0.13;
+    const tier = Math.min(4, b.tier);
+    const r = R[tier] * b.pop, w = Math.sin(b.ph) * 0.13;
     ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
     ctx.scale(1 + w + b.sq * .5, 1 - w - b.sq * .4);
-    const h = HUE[b.tier];
-    ctx.strokeStyle = `hsla(${h},90%,35%,.9)`; ctx.lineWidth = Math.max(1.2, r * .12); ctx.lineCap = 'round';
+    const h = b.boss ? 8 : HUE[tier];
+    if (b.hatching) {
+      ctx.globalAlpha = 0.35 + b.flash * 0.4;
+      ctx.strokeStyle = `hsla(${h},90%,60%,.9)`;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.2, r * .9, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      return;
+    }
+    ctx.strokeStyle = `hsla(${h},90%,35%,.9)`; ctx.lineWidth = Math.max(1, r * .1); ctx.lineCap = 'round';
     for (let k = -1; k <= 1; k++) { const o = Math.sin(b.ph * 2 + k) * r * .25; ctx.beginPath(); ctx.moveTo(k * r * .45, -r * .6); ctx.lineTo(k * r * .45 + o, -r * 1.15); ctx.moveTo(k * r * .45, r * .6); ctx.lineTo(k * r * .45 - o, r * 1.15); ctx.stroke(); }
-    ctx.fillStyle = b.flash > 0 ? '#fff' : `hsla(${h},95%,55%,.93)`;
-    ctx.beginPath(); ctx.ellipse(0, 0, r * 1.15, r * .85, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = b.flash > 0 ? '#fff' : `hsla(${h},95%,${b.boss ? 48 : 55}%,.93)`;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * (b.boss ? 1.25 : 1.15), r * (b.boss ? 1 : .85), 0, 0, Math.PI * 2); ctx.fill();
+    if (b.boss) {
+      ctx.strokeStyle = 'rgba(255,80,80,.85)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.45, r * 1.15, 0, 0, 7); ctx.stroke();
+    }
     ctx.fillStyle = `hsla(${h},100%,85%,.55)`; ctx.beginPath(); ctx.ellipse(-r * .25, -r * .35, r * .45, r * .22, -.3, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = `hsla(${h},90%,35%,1)`; ctx.beginPath(); ctx.moveTo(r * .9, -r * .2); ctx.lineTo(r * 1.5, -r * .6); ctx.moveTo(r * .9, r * .2); ctx.lineTo(r * 1.5, r * .6); ctx.stroke();
     ctx.fillStyle = '#05050a'; ctx.beginPath(); ctx.arc(r * .6, -r * .28, r * .17, 0, 7); ctx.arc(r * .6, r * .28, r * .17, 0, 7); ctx.fill();
     ctx.restore();
+    if (b.boss && b.name) {
+      ctx.save();
+      ctx.font = '700 10px ui-monospace, monospace';
+      ctx.fillStyle = 'rgba(255,100,100,.9)';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.name, b.x, b.y - R[tier] * b.pop - 10);
+      // hp bar
+      const bw = 36, pct = Math.max(0, b.hp / b.maxHp);
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * b.pop - 6, bw, 3);
+      ctx.fillStyle = '#ff5a5a'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * b.pop - 6, bw * pct, 3);
+      ctx.restore();
+    }
     if (b.targeted) {
-      const tr = R[b.tier] * 1.55 * b.pop;
+      const tr = R[tier] * 1.5 * b.pop;
       const pulse = 0.65 + Math.sin(now() / 120) * 0.35;
       ctx.save();
-      ctx.strokeStyle = `rgba(255,209,102,${0.85 * pulse})`;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(255,209,102,${0.8 * pulse})`;
+      ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(b.x, b.y, tr, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath();
-      const tick = tr + 4;
-      ctx.moveTo(b.x - tick, b.y); ctx.lineTo(b.x - tick + 6, b.y);
-      ctx.moveTo(b.x + tick, b.y); ctx.lineTo(b.x + tick - 6, b.y);
-      ctx.moveTo(b.x, b.y - tick); ctx.lineTo(b.x, b.y - tick + 6);
-      ctx.moveTo(b.x, b.y + tick); ctx.lineTo(b.x, b.y + tick - 6);
-      ctx.stroke();
       ctx.restore();
     }
   }
+
+  function drawDerick() {
+    if (!derickEnt || !S.derick) return;
+    const x = derickEnt.x, y = derickEnt.y;
+    ctx.save();
+    // subtle soft glow
+    ctx.fillStyle = 'rgba(57,255,136,0.12)';
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.fill();
+    // body
+    ctx.fillStyle = '#39ff88';
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#04120a';
+    ctx.font = '800 7px ui-monospace, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('DJ', x, y + 0.5);
+    if (commandMode()) {
+      ctx.strokeStyle = 'rgba(61,224,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 18, 0, 7); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAgent(a) {
+    ctx.save();
+    ctx.strokeStyle = a.chasing ? 'rgba(61,224,255,0.7)' : 'rgba(61,224,255,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, 7); ctx.stroke();
+    ctx.fillStyle = a.chasing ? 'rgba(61,224,255,0.55)' : 'rgba(61,224,255,0.28)';
+    ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, 7); ctx.fill();
+    // tiny radius hint when profiler
+    if (S.profiler && !a.chasing) {
+      ctx.strokeStyle = 'rgba(61,224,255,0.08)';
+      ctx.beginPath(); ctx.arc(a.x, a.y, agentRange(), 0, 7); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function draw() {
     ctx.save(); ctx.clearRect(0, 0, Wd, Hd);
     if (!S.optedIn || S.paused) { ctx.restore(); return; }
     if (shake) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
-    for (const s of splats) { ctx.globalAlpha = (s.life / s.max) * .5; ctx.fillStyle = `hsl(${s.hue},90%,40%)`; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r * 1.3, s.r * .8, 0, 0, 7); ctx.fill(); }
+    for (const s of splats) { ctx.globalAlpha = (s.life / s.max) * .45; ctx.fillStyle = `hsl(${s.hue},90%,40%)`; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r * 1.2, s.r * .75, 0, 0, 7); ctx.fill(); }
     ctx.globalAlpha = 1;
-    for (const g of ghosts) { const e = 1 - Math.pow(1 - g.t, 3); ctx.globalAlpha = 1 - g.t; ctx.strokeStyle = '#3de0ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(g.x + (g.tx - g.x) * e, g.y + (g.ty - g.y) * e, g.r * (1 - g.t * .8), 0, 7); ctx.stroke(); }
+    for (const g of ghosts) { const e = 1 - Math.pow(1 - g.t, 3); ctx.globalAlpha = 1 - g.t; ctx.strokeStyle = '#3de0ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(g.x + (g.tx - g.x) * e, g.y + (g.ty - g.y) * e, g.r * (1 - g.t * .8), 0, 7); ctx.stroke(); }
     ctx.globalAlpha = 1;
-    // code-burst glyphs at click points
     for (const c of codeBursts) {
       const a = c.life / c.max;
-      ctx.globalAlpha = a * 0.85;
+      ctx.globalAlpha = a * 0.8;
       ctx.fillStyle = '#39ff88';
-      ctx.font = 'bold 11px ui-monospace, monospace';
-      ctx.fillText('{ code++ }', c.x - 28, c.y - 18 * (1 - a));
-      ctx.fillStyle = '#3de0ff';
-      ctx.fillText('bug?', c.x + 8, c.y + 14 * (1 - a));
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.fillText('{ ++loc }', c.x - 24, c.y - 16 * (1 - a));
     }
     ctx.globalAlpha = 1;
     for (const b of bugs) drawBug(b);
+    // thin lasers
     for (const z of lasers) {
       const a = z.life / z.max;
-      ctx.globalAlpha = a;
-      ctx.strokeStyle = z.chain ? '#ffd166' : '#39ff88';
-      ctx.lineWidth = (z.wide || 2.5) + a * 2;
-      ctx.shadowColor = z.chain ? '#ffd166' : '#39ff88';
-      ctx.shadowBlur = 12;
-      ctx.beginPath(); ctx.moveTo(z.x1, z.y1);
-      const mx = (z.x1 + z.x2) / 2 + (Math.random() - .5) * 18;
-      const my = (z.y1 + z.y2) / 2 + (Math.random() - .5) * 18;
-      ctx.lineTo(mx, my); ctx.lineTo(z.x2, z.y2); ctx.stroke();
+      ctx.globalAlpha = a * 0.75;
+      ctx.strokeStyle = z.color || '#39ff88';
+      ctx.lineWidth = (z.wide || 1) * (0.7 + a * 0.4);
       ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
+      ctx.globalAlpha = a * 0.5;
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(z.x2, z.y2, 3 + a * 4, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(z.x2, z.y2, 1.4, 0, 7); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    // pulses
+    for (const p of pulses) {
+      const a = Math.max(0, p.life / p.max);
+      ctx.globalAlpha = a * 0.85;
+      ctx.strokeStyle = '#3de0ff';
+      ctx.lineWidth = 1.25;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4 + (1 - a) * 6, 0, 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(61,224,255,0.7)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    for (const a of agents) drawAgent(a);
+    drawDerick();
     for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = `hsl(${p.hue},95%,60%)`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
     ctx.globalAlpha = 1;
-    if (flash) { ctx.fillStyle = `rgba(61,224,255,${flash * .25})`; ctx.fillRect(-20, -20, Wd + 40, Hd + 40); }
+    if (flash) { ctx.fillStyle = `rgba(61,224,255,${flash * .22})`; ctx.fillRect(-20, -20, Wd + 40, Hd + 40); }
     ctx.restore();
   }
+
   function frame() {
     raf = 0;
     const t = now(); let dt = Math.min(0.05, (t - last) / 1000); last = t;
     if (t < freezeUntil) dt = 0;
     step(dt); draw();
-    if (!RM) paintCode(); // caret blink
+    if (!RM) paintCode();
     const live = S.optedIn && !S.paused && !S.hidden &&
-      (bugs.length || parts.length || splats.length || lasers.length || ghosts.length || codeBursts.length || shake || flash);
+      (bugs.length || parts.length || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shake || flash || S.derick || S.agents);
     if (live) raf = requestAnimationFrame(frame);
     else if (S.optedIn && !S.paused) ctx.clearRect(0, 0, Wd, Hd);
   }
@@ -639,20 +922,19 @@
     }
   }
 
-  // offline progress only while opted in
+  // offline
   (() => {
     if (!S.optedIn || S.paused) return;
     const dt = Math.min(900, Math.max(0, (Date.now() - (S.t || Date.now())) / 1000));
-    if (dt > 1 && locPerSec()) {
-      const loc = locPerSec() * dt; S.loc += loc; typeCode(Math.floor(loc * 8));
-      const nb = loc * bugsPerLoc(); S.backlog += Math.floor(nb); S.spawned += Math.floor(nb);
-      // Derick lasers chew backlog/offline bugs
-      const kills = Math.min(S.backlog, Math.floor(derickRate() * dt));
-      S.backlog -= kills; S.squashed += kills; S.cash += Math.round(kills * 2 * mult());
-      // QA reveals add to backlog offline
-      const found = Math.floor(qaRevealPerSec() * dt);
-      if (found) S.backlog += found;
-      if (dt > 20) log(`While you were away: +${fmt(loc)} LOC, lasers cleared ${fmt(kills)}, QA found ${fmt(found)}.`);
+    if (dt > 2 && S.derick) {
+      // Approximate auto kills while away
+      const kills = Math.min(40, Math.floor(derickDps() * dt * 0.25 + S.agents * 0.15 * dt));
+      if (kills) {
+        S.squashed += kills;
+        S.commits += Math.round(kills * 2 * mult());
+        S.backlog = Math.max(0, S.backlog - kills);
+        if (dt > 20) log(`While away: lasers cleared ${fmt(kills)} · +${fmt(kills * 2)} commits`);
+      }
     }
   })();
 
@@ -662,7 +944,7 @@
     econ((t - lastEcon) / 1000);
     lastEcon = t;
     render();
-    if (bugs.length || lasers.length) kick();
+    if (bugs.length || lasers.length || S.derick || S.agents) kick();
   }, 250);
 
   function save() {
@@ -670,7 +952,8 @@
     if (S.optedIn && !S.paused) {
       S.bugs = bugs.slice(0, 20).map(b => ({
         tier: b.tier, x: +(b.x / Math.max(1, Wd)).toFixed(4), y: +(b.y / Math.max(1, Hd)).toFixed(4),
-        a: +b.a.toFixed(2), turn: 0, targeted: !!b.targeted
+        a: +b.a.toFixed(2), targeted: !!b.targeted, boss: !!b.boss, name: b.name || null,
+        hp: +b.hp.toFixed(2), maxHp: b.maxHp
       }));
     }
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
@@ -680,14 +963,23 @@
   addEventListener('bh-save', save);
   d.addEventListener('visibilitychange', () => { if (d.hidden) save(); else kick(); });
 
-  // NO free bug on load — bugs only after clicking empty space
   resize();
+  // restore bugs after resize so Wd/Hd are valid
+  if (S.optedIn && !S.paused && S.bugs && S.bugs.length) {
+    bugs = S.bugs.map(b => {
+      const tier = b.boss ? 4 : b.tier;
+      const nb = mkBug(tier, b.x * Wd, b.y * Hd, b.a, { name: b.name });
+      nb.targeted = !!b.targeted;
+      if (b.hp != null) nb.hp = b.hp;
+      return nb;
+    });
+  }
   render(true);
   if (S.optedIn && !S.paused) kick();
 
   W.__bugHunt = {
-    S, get bugs() { return bugs; },
-    spawnBug, squash, addCode, rollback, ship, fireLasers, optIn, pauseGame, quitGame,
+    S, get bugs() { return bugs; }, get derick() { return derickEnt; }, get agents() { return agents; },
+    spawnBug, squash, addCode, rollback, ship, optIn, pauseGame, quitGame,
     reset() { localStorage.removeItem(KEY); location.reload(); }
   };
 })();
