@@ -43,14 +43,159 @@ Order in the JSON = order on the page. Rebuild after editing.
 
 (If you only have one ready-made WebP, drop it in `static/img/` as `my-key-<width>.webp` and add `"my-key": {"w": [<width>], "ratio": <w/h>}` to `static/img/images.json`.)
 
-## Bug Hunt (the clicker)
+## Bug Hunt — Game Design
 
-- Click/tap **empty** page space to write code (+1 LOC). Code spawns slime bugs. Tap a bug to squash it: big bugs split into smaller ones, and the smallest splat.
-- After **5 squashes**, **⚡ Auto** unlocks: AI coding agents (more code, more bugs), QA test agents (auto-squash), unit tests, CI pipeline, agent orchestrator, deterministic rollback (⟲ clears the screen), rollback netcode (auto-rollback), and **Ship v1.0** milestones.
-- State is saved in `localStorage` (`dj-bughunt-v1`) and carries across pages and visits, including a little offline progress.
-- It never calls `preventDefault`, ignores links/buttons/videos/the HUD, and ignores drags and text selection. **–** minimizes it, and **✕** hides it (the 🐛 button brings it back).
-- Respects `prefers-reduced-motion` (no screenshake, fewer particles).
-- Tuning numbers are at the top of `game.js` (`cost`, `locPerSec`, `bugsPerLoc`, `qaPerSec`, `shipGoal`). `__bugHunt.reset()` in the console wipes your save.
+Numbers below are taken from `static/js/game.js` as implemented. Costs are in **Commits** and are rounded up (`Math.ceil`). Buying **Rapid Prototype** multiplies every shop price by **0.78** (~22% off).
+
+### Opt-in
+
+The game does not run until you press **Play Bug Hunt** (bottom-right). Before that there are no bugs, no LOC, and clicks on the page behave normally. Pause or quit shows **Resume Bug Hunt**; progress is kept. A first-run hint says to click/tap empty space to write code.
+
+### Core loop
+
+1. Click or tap **empty page space** to write **+1 LOC** and hatch a bug near the cursor. Dim hacker-typer code paints across the background as you write.
+2. Click a normal bug to squash it. Tier 2–3 bugs **split** into two of the next-smaller tier (if there is room under the entity cap). Tier 1 bugs splat.
+3. Squashes pay **Commits**, which buy upgrades. After **5 squashes** the shop opens with **Hire Derick** as the first unlock.
+4. Derick and agents automatically laser bugs. When the board has been clear for **3 seconds**, they draft extra LOC instead.
+
+### Currencies
+
+| Currency | What it is | How you earn it |
+| --- | --- | --- |
+| **LOC** | Lines of code written this run (the build counter) | Empty-space clicks (+1), idle drafting by Derick/agents, and a little offline catch-up |
+| **Commits** | Shop currency | Squashing bugs. A normal bug pays `tier × 3`; a boss pays **18**. QA-targeted bugs pay **1.25×**. Each **Ship** adds a permanent **+50%** bounty: `mult = 1 + ships × 0.5` |
+
+Bugs per LOC starts at **0.38**, then `× 0.82` per Unit Tests rank (max 5) and `× 0.85` if CI is owned. Click-hatches apply that rate in full; automatic/idle LOC applies it more slowly (32% for leftover debt, 20% for idle drafts) so lasers do not instantly refill the board.
+
+### Bugs: spawn, split, merge
+
+- Nothing spawns until you opt in **and** click empty space (or later idle/QA/debt sources kick in).
+- A click-hatch picks a tier: chance of tier 3 is `min(0.5, 0.1 + loc/3000)`; otherwise 70% tier 2 / 30% tier 1.
+- **Cap:** 8 live bugs on coarse pointers or viewports under 700px, otherwise 15. Overflow goes to a **backlog** and drains back in when there is room (never during a post-kill quiet window).
+- **Split:** a non-targeted, non-boss tier 2 or 3 becomes two kids of `tier - 1` if `live + 2 ≤ cap`.
+- **Merge:** if live bugs exceed the cap, the two closest non-boss bugs fuse. The survivor’s tier is `min(3, max(a, b))` and it keeps some of the combined HP. Merges never create a boss.
+- After an automatic kill the spawner stays quiet for **0.7s** (or **3.2s** if the board is empty) so a laser kill does not instantly hatch a replacement. Player squashes use a **1.2s** quiet if they clear the board.
+- With the **Profiler**, some hatches appear as dashed “hatching” outlines for **1.2s**. Hatching bugs cannot be clicked or lasered yet.
+
+Radii / wander speeds / HP by tier (`1…3`, boss = 4): radius `[8, 13, 19, 28]`, speed `[62, 44, 30, 22]`, HP `[2, 4.5, 8, 22]`.
+
+### Unlock order
+
+Only the **next** gated unlock is shown (Hire Agent stays listed after the first one so you can stack turrets). Extra **Unit Tests** ranks stay buyable (up to 5) while the next unlock is Profiler, Collision Editor, CI, or QA.
+
+**Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow → Movement Tuning → Multiplayer Sync → Rollback Netcode → Auto Rollback → Ship.**
+
+Movement Tuning (“chasing agents move faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
+
+### Upgrades
+
+| Upgrade | Base cost | Limit | Unlock | Effect |
+| --- | --- | --- | --- | --- |
+| **Hire Derick** | 25 | once | Shop opens (5 squashes) | One roaming DJ with a thin laser |
+| **Hire Agent** | `40 × 1.32^agents` | stackable | After Derick; stays buyable | Static turret; 2s to kill a small bug (HP 2 → 1 DPS) |
+| **Unit Tests** | `55 × 1.95^tests` | 5 | After first agent | Fewer bugs per LOC (`× 0.82` each rank) |
+| **Profiler** | 80 | once | After first Unit Tests rank | Some bugs hatch visibly; agent range **+22**; Derick kill time `× 0.92`; Derick range **+36** |
+| **Collision Editor** | 120 | once | After Profiler | Agent lasers pierce to a second bug (55% DPS) |
+| **CI Pipeline** | 180 | once | After Collision Editor | Derick kill time `× 0.82` and damage `× 1.1`; agent damage `× 1.08`; bugs per LOC `× 0.85`; QA reveal rate `× 1.6` |
+| **QA** | 150 | once | After CI | Reveals more bugs; paints targets on the largest (see QA below) |
+| **Rapid Prototype** | 200 | once | After QA | All shop prices `× 0.78` |
+| **Agentic Workflow** | 300 | once | After Rapid Prototype | Derick pulses an agent to chase and clear a lineage; also amplifies Derick (kill time `× 0.9`, range **+28**) and idle drafting (**+0.12** LOC/s) |
+| **Movement Tuning** | 100 | once | After Agentic Workflow | Chasing agents move faster: `95 + 70 + ships×12` instead of `95 + ships×12` |
+| **Multiplayer Sync** | 250 | once | After Movement Tuning | Each pulse batch can enlist up to **3** agents; pulse rate `× 1.5` |
+| **Rollback Netcode** | 400 | once | After Sync | ⟲ button clears the board; **30s** cooldown |
+| **Auto Rollback** | 800 | once | After Rollback | Rollback fires by itself when live bugs + backlog ≥ **8** |
+| **Ship vN.0** | — (milestone) | repeatable | Shown once Rollback is owned and LOC ≥ 45% of the goal; clickable at the goal with ≤ 3 live+backlog bugs | Goal is `round(1600 × (ships+1)^1.55)`. Shipping increments `ships` and permanently adds **+50%** commit bounty. Also shortens Derick’s kill time (`× 0.88` each) and adds range/chase speed |
+
+The shop will not charge you for a hidden upgrade (the buy handler ignores anything `show()` would hide).
+
+### Derick
+
+One engineer, drawn as a small green “DJ” orb. He roams toward the biggest threat and fires a **thin, short-lived** laser (width 1, ~0.1s, green).
+
+- Base time to kill a small bug: **2.0s**, floored at **0.35s** after tools/ships.
+- Range: **140** desktop / **110** on coarse pointers, plus Profiler / Agentic / Ship bonuses above.
+- Roam lerp speed 120 (140 in command mode).
+- Agentic Workflow is the only thing that makes him send pulses to agents.
+
+### Agents
+
+Hired as **static turrets** placed around the page. They fire thin cyan lasers (width 0.9) at bugs inside their radius (**92** desktop / **78** coarse, **+22** with Profiler) and take 2 seconds to kill a small bug.
+
+They **do not walk** until Agentic Workflow sends a pulse. A pulsed agent chases its assigned lineage (including splits of that bug) at `chaseSpeed`. When the lineage is gone they walk home and turret again.
+
+### Agentic Workflow, pulses, and command mode
+
+- While Agentic is owned and at least one agent exists, Derick accumulates pulses at **0.35/s** (0.55/s in command mode), times `(1 + sync × 0.5)`.
+- Each pulse flies to an idle agent (or any agent if all are busy) and tells it to chase the current highest-value prey (bosses first, then high tier).
+- Without Sync, one agent is pulsed; with Sync, up to three.
+- **Command mode** turns on automatically at **10 agents**: Derick parks in the top-left (`48, 88`), keeps a tighter range (capped at 160, combat range min’d with 150), and pulses faster.
+
+### QA
+
+QA does **not** squash bugs for you.
+
+- It **reveals** extra bugs at **0.55/s** (× **1.6** if CI is owned), flashing them in as they appear. Reveals respect the same cap and post-kill quiet window as other automatic spawns.
+- It **paints a target** on the largest live bugs (tier ≥ 3 or bosses), up to `1 + qa` marks (so 2 once QA is bought). Targeted bugs **die without splitting** and pay **1.25×** commits, whether you click them or a laser finishes them.
+
+### Bosses
+
+Named: **Desync**, **Memory Leak**, **Race Condition**, **Null Pointer**, **Frame Spike**, **Packet Loss**, **Rollback Ghost**, **Stale Snapshot**.
+
+- They only start appearing after Hire Derick. Chance accumulates at `0.015 + min(0.04, loc/50000)` per second, and never during a quiet window or when the board is already at cap.
+- Tier 4, 22 HP, 28px radius, red ring plus an HP bar and name.
+- **Clicks cannot kill them.** A click “clinks,” knocks them back, and chips at most **0.05** HP without ever dropping them below **1**. Derick or an agent has to finish the job. QA can mark them so the kill does not split (bosses do not split anyway).
+
+### Idle behavior and away-from-tab
+
+Once Derick or any agent is hired and the board has been empty for **3 seconds**, they draft LOC at `(derick ? 0.28 : 0) + agents × 0.07 + (agentic ? 0.12 : 0)` per second. That writes background code and adds debt slowly (not 1:1 with kills).
+
+If you leave and come back still opted-in and unpaused, up to **900s** of absence is estimated: a capped number of auto-kills and commit payout, logged when you were away more than 20 seconds. Pause and quit both save and stop the loops.
+
+### Saves and migration
+
+- Current key: **`dj-bughunt-v3`**.
+- An unused/empty v3 slot will import `dj-bughunt-v2` (`cash` becomes `commits`, `ai` becomes `agents`, a few v2 flags become 0-or-1 ranks). The old `dj-bughunt-v1` key is removed.
+- Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide, and on `bh-save` (used before in-site navigations).
+- `__bugHunt.reset()` (or the Reset progress button) wipes the save and reloads.
+
+### Performance tiers
+
+Quality starts at **3**, or **1** if `prefers-reduced-motion` is on. The last ~45 frame times are watched:
+
+- Average frame **> 21ms** for several samples → step quality down.
+- Average **< 13.5ms** for longer → step back up (not above 1 when reduced-motion is on).
+
+Lower quality cuts particle counts, screen shake, and device-pixel ratio (caps: 2 / 1.5 / 1 / 0.7). Effect arrays are hard-capped (particles 220/90/36, lasers 40, splats 36, pulses 16, and so on) so a long session does not leak. Reduced motion also disables the hero glitch and most juice.
+
+### Layering and input
+
+- Background code canvas is `z-index: 0`. Bug canvas is `z-index: 1`. Page `main` is `z-index: 2`, so bugs crawl **under** cards, type, and links.
+- Both canvases use `pointer-events: none`. The game listens on the document and **never calls `preventDefault`**.
+- Clicks on links, buttons, inputs, media, the HUD, or the Play button are ignored by the game (the page handles them). Drags, long-presses, and text selections are ignored too.
+- On empty space: click a bug to squash it (or clink a boss); otherwise write +1 LOC. Touch slop is 20px, mouse slop is 12px.
+
+HUD: **❚❚** pause, **⟲** rollback (once unlocked), **–** minimize, **✕** quit/keep progress.
+
+### Design rules from Derick
+
+These are the explicit asks the implementation is meant to honor:
+
+1. Players opt in (Play Bug Hunt); the game does not start itself.
+2. Progress is remembered if they leave and come back.
+3. No bugs on screen until they click empty space.
+4. Clicks write dim hacker-typer background code.
+5. The first unlock is **Hire Derick**.
+6. QA reveals bugs and paints targets on the largest; targeted bugs are destroyed instead of breaking into smaller ones. QA does not auto-squash.
+7. Agentic Workflow amplifies Derick’s lasers (faster kill, longer range) and is the thing that sends agents out to chase.
+8. Bugs render under page elements. The canvas never steals clicks from real UI; clicking a bug in empty space never navigates.
+9. Agentic Workflow is gated behind a chain of earlier upgrades, not handed out with the first agents.
+10. An upgrade that affects chasing or pulses (Movement Tuning, Multiplayer Sync) cannot appear before agents actually move.
+11. Excess bugs merge, and animation quality steps down if frames get slow.
+12. Long sessions must not leak memory or gradually hitch.
+13. Once opted in with staff hired, idle Derick/agents write LOC when they are not lasering (board-clear drafts).
+14. Bosses cannot be click-killed.
+15. All game code is original to this project — not copied from another site’s clicker.
+
 
 ## Deploying
 

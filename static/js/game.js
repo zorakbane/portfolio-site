@@ -1,7 +1,8 @@
 /* Bug Hunt — idle/clicker for derickjanssen.com.
    Opt-in → click empty space to write LOC → bugs hatch → squash for Commits.
    Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow,
-   command mode at 10 agents, rollback, Ship. Persist in localStorage. Never preventDefault. */
+   then Movement Tuning / Multiplayer Sync (after agents actually chase), command mode
+   at 10 agents, rollback, Ship. Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
   window.__bugHunt = { __booting: true };
@@ -11,7 +12,7 @@
   const COARSE = matchMedia('(pointer: coarse)').matches;
   const now = () => performance.now();
   let last = now(), raf = 0, dirty = true, lastShop = '', hintUntil = 0;
-  let pulseAcc = 0, bossAcc = 0, hatchAcc = 0, idleAcc = 0, clearAcc = 0;
+  let pulseAcc = 0, bossAcc = 0, hatchAcc = 0, idleAcc = 0, clearAcc = 0, qaRevealAcc = 0;
   let quality = RM ? 1 : 3, qHold = 0, econId = 0, saveId = 0, lastEcon = now();
   let spawnQuietUntil = 0;
   const frameTimes = [];
@@ -93,6 +94,7 @@
   const agentDps = () => 1; // 2s on small (HP=2)
   const agentRange = () => (COARSE ? 78 : 92) + (S.profiler ? 22 : 0);
   const chaseSpeed = () => 95 + (S.movement ? 70 : 0) + S.ships * 12;
+  const qaRevealPerSec = () => (S.qa ? 0.55 * (S.ci ? 1.6 : 1) : 0);
 
   const cost = {
     derick: () => Math.ceil(25 * costScale()),
@@ -111,9 +113,11 @@
   };
 
   // Progression gate: only the next unlock appears (Hire agent stays buyable after the first).
-  // Order: Derick → agent → tests (1+) → profiler → collision → movement → ci → qa →
-  // rapid → sync → agentic → rollback → autoRb → Ship.
-  const SEQ = ['tests', 'profiler', 'collision', 'movement', 'ci', 'qa', 'rapid', 'sync', 'agentic', 'rollback', 'autoRb'];
+  // Order: Derick → agent → tests (1+) → profiler → collision → ci → qa →
+  // rapid → agentic → movement → sync → rollback → autoRb → Ship.
+  // Movement Tuning and Multiplayer Sync both require chasing/pulses, so they come
+  // after Agentic Workflow (the upgrade that actually makes agents move).
+  const SEQ = ['tests', 'profiler', 'collision', 'ci', 'qa', 'rapid', 'agentic', 'movement', 'sync', 'rollback', 'autoRb'];
   function seqDone(id) {
     if (id === 'tests') return S.tests >= 1; // one purchase unlocks the next tool
     return !!S[id];
@@ -127,12 +131,12 @@
   const ITEMS = [
     { id: 'derick', name: 'HIRE DERICK', desc: () => 'One engineer. Thin laser. Roams and squashes.', once: true, show: () => nextUnlock() === 'derick' },
     { id: 'agent', name: 'HIRE AGENT', desc: () => `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
-    { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'movement', 'ci'].includes(nextUnlock())) },
+    { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'ci', 'qa'].includes(nextUnlock())) },
     { id: 'profiler', name: 'PROFILER', desc: () => 'Reveal hatching bugs · larger agent radius.', once: true, show: () => nextUnlock() === 'profiler' },
     { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce to a second bug.', once: true, show: () => nextUnlock() === 'collision' },
     { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Chasing agents move faster.', once: true, show: () => nextUnlock() === 'movement' },
     { id: 'ci', name: 'CI PIPELINE', desc: () => 'Faster lasers · fewer bugs pre-merge.', once: true, show: () => nextUnlock() === 'ci' },
-    { id: 'qa', name: 'QA', desc: () => 'Marks big & boss bugs: die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
+    { id: 'qa', name: 'QA', desc: () => 'Reveals more bugs & marks the largest (incl. bosses) to die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
     { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
     { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse chains to several agents.', once: true, show: () => nextUnlock() === 'sync' },
     { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick pulses an agent to chase & clear a lineage.', once: true, show: () => nextUnlock() === 'agentic' },
@@ -259,7 +263,10 @@
     spawnLog.push({ src, t: now(), n: bugs.length });
     if (spawnLog.length > 80) spawnLog.shift();
   }
-  function quietFor(sec) { spawnQuietUntil = Math.max(spawnQuietUntil, now() + sec * 1000); }
+  function quietFor(sec) {
+    if (sec <= 0) { spawnQuietUntil = 0; return; }
+    spawnQuietUntil = Math.max(spawnQuietUntil, now() + sec * 1000);
+  }
   function canAutoSpawn() { return now() >= spawnQuietUntil; }
   function mergeIfOver() {
     while (bugs.length > cap() && bugs.length >= 2) {
@@ -623,7 +630,9 @@
     else if (act === 'rb') rollback(false);
     else if (act === 'ship') ship();
     else if (buy) {
-      const it = ITEMS.find(i => i.id === buy); const c = cost[buy]();
+      const it = ITEMS.find(i => i.id === buy);
+      if (!it || !it.show()) { dirty = true; render(true); save(); return; }
+      const c = cost[buy]();
       const key = buy === 'agent' ? 'agents' : buy;
       if (S.commits >= c && !(it.once && S[key]) && !(it.max && S[key] >= it.max)) {
         S.commits -= c;
@@ -827,6 +836,14 @@
     }
     mergeIfOver();
     idleWrite(dt);
+    if (S.qa && canAutoSpawn()) {
+      qaRevealAcc += qaRevealPerSec() * dt;
+      while (qaRevealAcc >= 1) {
+        qaRevealAcc -= 1;
+        const b = spawnBug(null, null, { reveal: true, src: 'qa', tier: Math.random() < 0.45 ? 3 : 2 });
+        if (b) { log('QA revealed a bug.'); retargetQA(); }
+      }
+    }
     if (S.autoRb && bugs.length + S.backlog >= 8) rollback(true);
   }
 
@@ -1150,7 +1167,7 @@
   W.__bugHunt = {
     S, get bugs() { return bugs; }, get derick() { return derickEnt; }, get agents() { return agents; },
     spawnBug, squash, addCode, rollback, ship, econ, optIn, pauseGame, quitGame,
-    isBoss, clink, cap, idleWrite, idleCodeRate,
+    isBoss, clink, cap, idleWrite, idleCodeRate, qaRevealPerSec, mergeIfOver,
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },
@@ -1162,6 +1179,7 @@
         pulses: pulses.length, hatches: hatches.length, typed, raf: !!raf, econId: !!econId, saveId: !!saveId,
         quality, dpr: DPR, fps: frameTimes.length ? 1000 / (frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length) : 0,
         shopItems: ITEMS.filter(i => i.show()).map(i => i.id),
+        nextUnlock: nextUnlock(),
         clearAcc, spawnQuiet: Math.max(0, spawnQuietUntil - now()),
       };
     },
