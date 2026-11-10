@@ -3,14 +3,19 @@
    Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow,
    command mode at 10 agents, rollback, Ship. Persist in localStorage. Never preventDefault. */
 (() => {
-  if (window.__bugHunt) return;
+  if (window.__bugHunt && !window.__bugHunt.__booting) return;
+  window.__bugHunt = { __booting: true };
   const KEY = 'dj-bughunt-v3';
   const d = document, W = window;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const COARSE = matchMedia('(pointer: coarse)').matches;
   const now = () => performance.now();
   let last = now(), raf = 0, dirty = true, lastShop = '', hintUntil = 0;
-  let pulseAcc = 0, bossAcc = 0, hatchAcc = 0;
+  let pulseAcc = 0, bossAcc = 0, hatchAcc = 0, idleAcc = 0, clearAcc = 0;
+  let quality = RM ? 1 : 3, qHold = 0, econId = 0, saveId = 0, lastEcon = now();
+  let spawnQuietUntil = 0;
+  const frameTimes = [];
+  const spawnLog = [];
 
   const DEF = {
     v: 3, optedIn: false, paused: false,
@@ -21,13 +26,44 @@
     shop: false, open: true, hidden: false,
     bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0
   };
+  function migrateV2(v2) {
+    const agents = Math.max(0, v2.ai | 0);
+    return {
+      v: 3,
+      optedIn: !!v2.optedIn, paused: !!v2.paused,
+      loc: v2.loc || 0, commits: v2.commits != null ? v2.commits : (v2.cash || 0),
+      squashed: v2.squashed || 0, spawned: v2.spawned || 0, debt: v2.debt || 0,
+      derick: v2.derick ? 1 : 0, agents, agentic: v2.agentic ? 1 : 0,
+      tests: Math.min(5, v2.tests || 0), ci: v2.ci ? 1 : 0, qa: v2.qa ? 1 : 0,
+      profiler: 0, collision: 0, movement: 0, sync: 0, rapid: 0,
+      rollback: v2.rollback ? 1 : 0, autoRb: v2.autoRb ? 1 : 0, ships: v2.ships || 0,
+      shop: !!v2.shop, open: v2.open !== false, hidden: !!v2.hidden,
+      bugs: Array.isArray(v2.bugs) ? v2.bugs.slice(0, 20).map(b => ({
+        tier: (b.boss || (b.mass >= 8)) ? 4 : Math.min(3, Math.max(1, b.tier || 1)),
+        x: b.x, y: b.y, a: b.a, targeted: !!b.targeted,
+        boss: !!(b.boss || (b.mass >= 8)), name: b.name || null,
+        hp: b.hp, maxHp: b.maxHp
+      })) : [],
+      backlog: v2.backlog || 0, t: v2.t || Date.now(), rbAt: v2.rbAt || 0,
+      intro: !!v2.intro, hintSeen: !!v2.hintSeen, codeIdx: v2.codeIdx || 0
+    };
+  }
   let S, fresh = false;
+  function isUnused(s) { return s && !s.optedIn && !s.loc && !s.squashed && !s.derick && !s.shop; }
   try {
     const raw = localStorage.getItem(KEY);
-    fresh = !raw;
-    S = Object.assign({}, DEF, JSON.parse(raw || '{}'));
+    const v2raw = localStorage.getItem('dj-bughunt-v2');
+    let parsed = raw ? JSON.parse(raw) : null;
+    if (v2raw && (!parsed || isUnused(parsed))) {
+      S = Object.assign({}, DEF, migrateV2(JSON.parse(v2raw)));
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+    } else if (parsed) {
+      S = Object.assign({}, DEF, parsed);
+    } else {
+      S = Object.assign({}, DEF); fresh = true;
+    }
   } catch { S = Object.assign({}, DEF); fresh = true; }
-  try { localStorage.removeItem('dj-bughunt-v1'); localStorage.removeItem('dj-bughunt-v2'); } catch {}
+  try { localStorage.removeItem('dj-bughunt-v1'); } catch {}
   if (fresh && (COARSE || innerWidth < 700)) S.open = false;
 
   // ---------- economy ----------
@@ -152,14 +188,15 @@
   };
 
   let Wd = 0, Hd = 0, DPR = 1;
-  let typed = Math.min(S.codeIdx || 0, CORPUS.length * 4);
+  const CORPUS_MOD = CORPUS.length * 4;
+  let typed = Math.min(S.codeIdx || 0, CORPUS_MOD);
   let codeDirty = true;
 
   function typeCode(n) {
-    typed += n;
+    typed = (typed + Math.max(1, n | 0)) % CORPUS_MOD;
     S.codeIdx = typed;
     codeDirty = true;
-    paintCode();
+    if (!raf) paintCode();
   }
   function paintCode(force) {
     if (!force && !codeDirty) return;
@@ -190,9 +227,15 @@
     }
   }
 
-  function resize() {
-    DPR = Math.min(2, W.devicePixelRatio || 1);
+  function currentDpr() {
+    const capD = quality >= 3 ? 2 : quality >= 2 ? 1.5 : quality >= 1 ? 1 : 0.7;
+    return Math.min(capD, W.devicePixelRatio || 1);
+  }
+  function resize(force) {
+    const next = currentDpr();
     Wd = innerWidth; Hd = innerHeight;
+    if (!force && next === DPR && cv.width === Math.floor(Wd * next)) return;
+    DPR = next;
     for (const c of [cv, codeCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -211,11 +254,37 @@
   const HP = [0, 2, 4.5, 8, 22];
   const BOSS_NAMES = ['Desync', 'Memory Leak', 'Race Condition', 'Null Pointer', 'Frame Spike', 'Packet Loss', 'Rollback Ghost', 'Stale Snapshot'];
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
+  function isBoss(b) { return !!(b && (b.boss || b.tier >= 4)); }
+  function noteSpawn(src) {
+    spawnLog.push({ src, t: now(), n: bugs.length });
+    if (spawnLog.length > 80) spawnLog.shift();
+  }
+  function quietFor(sec) { spawnQuietUntil = Math.max(spawnQuietUntil, now() + sec * 1000); }
+  function canAutoSpawn() { return now() >= spawnQuietUntil; }
+  function mergeIfOver() {
+    while (bugs.length > cap() && bugs.length >= 2) {
+      let bi = 0, bj = 1, bd = 1e15;
+      for (let i = 0; i < bugs.length; i++) {
+        if (isBoss(bugs[i])) continue;
+        for (let j = i + 1; j < bugs.length; j++) {
+          if (isBoss(bugs[j])) continue;
+          const dd = Math.hypot(bugs[i].x - bugs[j].x, bugs[i].y - bugs[j].y);
+          if (dd < bd) { bd = dd; bi = i; bj = j; }
+        }
+      }
+      const a = bugs[bi], b = bugs[bj];
+      a.tier = Math.min(3, Math.max(a.tier, b.tier));
+      a.hp = Math.min(HP[a.tier] || a.hp, a.hp + (b.hp || 0) * 0.5);
+      a.maxHp = HP[a.tier] || a.maxHp;
+      a.pop = 1; a.flash = 0.5;
+      bugs.splice(bj, 1);
+    }
+  }
 
   let bugs = [];
   let derickEnt = null;
   let agents = [];
-  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [];
+  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [], shields = [];
   let shake = 0, freezeUntil = 0, flash = 0;
 
   function mkBug(tier, x, y, a, opts = {}) {
@@ -234,6 +303,7 @@
   }
   function spawnBug(x, y, opts = {}) {
     S.spawned++;
+    if (!opts.force && !opts.fromClick && !canAutoSpawn()) { S.backlog++; return null; }
     if (bugs.length >= cap()) { S.backlog++; return null; }
     let tier = opts.tier;
     if (!tier) {
@@ -247,29 +317,32 @@
     const b = mkBug(tier, x, y, Math.atan2(Hd / 2 - y, Wd / 2 - x) + (Math.random() - .5), opts);
     if (opts.reveal || opts.hatching) { b.pop = 0.05; b.flash = 1; }
     bugs.push(b);
+    noteSpawn(opts.src || (opts.fromClick ? 'click' : opts.reveal ? 'qa' : opts.boss ? 'boss' : opts.force ? 'force' : 'spawn'));
     kick();
     return b;
   }
   function addCode(n, x, y, fromClick) {
     S.loc += n;
     typeCode(Math.max(2, Math.floor(n * 14)));
-    S.debt += n * bugsPerLoc();
+    // Empty-space clicks still hatch immediately. Automatic LOC (idle / leftover debt)
+    // only hatches slowly, and never during the post-kill quiet window.
     if (fromClick && x != null) {
-      if (S.profiler && Math.random() < 0.55) {
-        const hb = spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20, { hatching: true });
-        if (hb) hatches.push(hb);
-      } else {
-        spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20);
-      }
+      S.debt += n * bugsPerLoc();
+      const hbOpts = { fromClick: true, src: 'click', hatching: !!(S.profiler && Math.random() < 0.55) };
+      const hb = spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20, hbOpts);
+      if (hb && hb.hatching) hatches.push(hb);
       S.debt = Math.max(0, S.debt - 1);
+    } else {
+      // ~1 bug per 8 LOC automatically, not 1:1 with kills
+      S.debt += n * bugsPerLoc() * 0.32;
     }
+    if (!fromClick && !canAutoSpawn()) return;
     let guard = 0;
-    while (S.debt >= 1 && guard++ < 50) {
+    while (S.debt >= 1 && guard++ < 8) {
       S.debt -= 1;
       const bx = x != null ? x + (Math.random() - .5) * 36 : null;
       const by = y != null ? y + (Math.random() - .5) * 36 : null;
-      if (S.profiler && Math.random() < 0.4) spawnBug(bx, by, { hatching: true });
-      else spawnBug(bx, by);
+      spawnBug(bx, by, { src: fromClick ? 'click-debt' : 'debt', hatching: !!(S.profiler && Math.random() < 0.4) });
     }
   }
 
@@ -300,12 +373,14 @@
 
   // ---------- juice ----------
   function burst(x, y, hue, n, spd = 260, life = 0.6) {
-    if (RM) n = Math.min(n, 3);
+    if (quality < 1 || RM) n = Math.min(n, quality < 1 ? 0 : 3);
+    else n = Math.ceil(n * (quality >= 3 ? 1 : quality >= 2 ? 0.5 : 0.25));
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, v = spd * (0.35 + Math.random());
       parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, life, max: life, r: 1.5 + Math.random() * 2.5, hue: hue + (Math.random() - .5) * 30 });
     }
-    if (parts.length > 280) parts.splice(0, parts.length - 280);
+    const capP = quality >= 3 ? 220 : quality >= 2 ? 90 : 36;
+    if (parts.length > capP) parts.splice(0, parts.length - capP);
   }
   let gains = 0;
   function gain(x, y, text, color) {
@@ -316,9 +391,9 @@
     d.body.appendChild(g); setTimeout(() => { g.remove(); gains--; }, 720);
   }
   function punch(strength) {
-    if (RM) return;
-    shake = Math.max(shake, strength * 0.55);
-    hud.classList.remove('shake'); void hud.offsetWidth; hud.classList.add('shake');
+    if (RM || quality < 2) return;
+    shake = Math.max(shake, strength * (quality >= 3 ? 0.55 : 0.3));
+    if (quality >= 3) { hud.classList.remove('shake'); hud.classList.add('shake'); }
   }
   function log(msg) { el.log.textContent = msg; }
   function codeBurstAt(x, y) {
@@ -369,17 +444,24 @@
       }
     }
     bugs.splice(i, 1);
+    if (auto) quietFor(bugs.length ? 0.7 : 3.2);
+    else if (!bugs.length) quietFor(1.2);
     if (!noSplit && b.tier > 1 && b.tier < 4) {
-      for (let k = 0; k < 2; k++) {
-        const a = b.a + (k ? 1 : -1) * (Math.PI / 2 + Math.random() * .6);
-        const c = mkBug(b.tier - 1, b.x + Math.cos(a) * 6, b.y + Math.sin(a) * 6, a);
-        c.boost = 3.2; c.pop = 0.4; c.sq = 1; bugs.push(c);
-        // Chasing agents continue onto splits from this lineage
-        for (const ag of agents) {
-          if (ag.chasing && ag.chaseRoot === b) {
-            ag.chaseRoot = c;
-            ag.target = c;
-          }
+      const kids = [];
+      if (bugs.length + 2 <= cap()) {
+        for (let k = 0; k < 2; k++) {
+          const a = b.a + (k ? 1 : -1) * (Math.PI / 2 + Math.random() * .6);
+          const c = mkBug(b.tier - 1, b.x + Math.cos(a) * 6, b.y + Math.sin(a) * 6, a);
+          c.boost = 3.2; c.pop = 0.4; c.sq = 1; bugs.push(c); kids.push(c);
+          noteSpawn('split');
+        }
+      }
+      // Chasing agents continue onto splits from this lineage
+      for (const ag of agents) {
+        if (ag.chasing && ag.chaseRoot === b) {
+          ag.chaseRoot = kids[0] || null;
+          ag.target = kids[0] || null;
+          if (!kids[0]) { ag.chasing = false; ag.chaseRoot = null; }
         }
       }
     } else if ((noSplit && b.tier > 1) || b.boss) {
@@ -394,6 +476,7 @@
       }
     }
     if (!S.shop && S.squashed >= 5) openShop();
+    mergeIfOver();
     retargetQA();
     kick(); dirty = true;
   }
@@ -407,9 +490,20 @@
       attacker.aimX = b.x; attacker.aimY = b.y;
     }
     if (b.hp <= 0) {
-      const qaBoss = b.boss && b.targeted;
+      const qaBoss = isBoss(b) && b.targeted;
       squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
     }
+  }
+  function clink(b, x, y) {
+    const ang = Math.atan2(b.y - y, b.x - x);
+    b.a = ang; b.boost = 3.6; b.flash = 1; b.sq = 0.7;
+    // negligible chip that can never finish the boss
+    if (b.hp > 1) b.hp = Math.max(1, b.hp - 0.05);
+    shields.push({ x: b.x, y: b.y, r: (R[Math.min(4, b.tier)] || 28) + 6, life: 0.4, max: 0.4 });
+    if (shields.length > 8) shields.shift();
+    if (quality >= 1) gain(b.x, b.y - 20, 'clink', '#ffd166');
+    log('Too armored to squash by hand. Derick or an agent will drop it.');
+    kick();
   }
 
   function openShop() {
@@ -464,15 +558,15 @@
     if (!S.hintSeen) { S.hintSeen = true; hint.hidden = false; hintUntil = now() + 5500; }
     log(S.squashed || S.loc ? 'Welcome back.' : 'Write some code. Squash the bugs.');
     ensureDerick(); ensureAgents();
-    syncShell(); render(true); kick(); dirty = true; save();
+    syncShell(); render(true); startLoops(); dirty = true; save();
   }
   function pauseGame() {
     if (!S.optedIn) return;
-    S.paused = true; save(); syncShell(); log('Paused. Progress saved.');
+    S.paused = true; save(); stopLoops(); syncShell(); log('Paused. Progress saved.');
   }
   function quitGame() {
     if (!S.optedIn) return;
-    S.paused = true; save(); syncShell(); log('Quit. Progress kept.');
+    S.paused = true; save(); stopLoops(); syncShell(); log('Quit. Progress kept.');
   }
   function resetAll() {
     if (!confirm('Reset Bug Hunt progress? This cannot be undone.')) return;
@@ -495,14 +589,18 @@
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || now() - downT > 600) return;
     if (e.target.closest && e.target.closest(IGNORE)) return;
     const sel = W.getSelection && W.getSelection(); if (sel && String(sel).length) return;
-    const x = e.clientX, y = e.clientY, pad = e.pointerType === 'touch' ? 16 : 8;
+    const x = e.clientX, y = e.clientY, pad = e.pointerType === 'touch' ? 20 : 12;
     let best = null, bd = 1e9;
     for (const b of bugs) {
       if (b.hatching) continue;
       const dd = Math.hypot(b.x - x, b.y - y);
-      if (dd < R[b.tier] + pad && dd < bd) { bd = dd; best = b; }
+      if (dd < (R[b.tier] || 8) + pad && dd < bd) { bd = dd; best = b; }
     }
-    if (best) { squash(best, {}); return; }
+    if (best) {
+      if (isBoss(best)) { clink(best, x, y); return; }
+      squash(best, {});
+      return;
+    }
     addCode(1, x, y, true);
     codeBurstAt(x, y);
     gain(x, y, '+1 LOC', '#ececf6');
@@ -683,16 +781,52 @@
   }
 
   // ---------- sim ----------
+  function idleCodeRate() {
+    if (!S.derick && !S.agents) return 0;
+    return (S.derick ? 0.28 : 0) + S.agents * 0.07 + (S.agentic ? 0.12 : 0);
+  }
+  function idleWrite(dt) {
+    if (S.paused || !S.optedIn) return;
+    if (bugs.length) { clearAcc = 0; idleAcc = 0; return; }
+    clearAcc += dt;
+    if (clearAcc < 3) return;
+    const rate = idleCodeRate();
+    if (!rate) return;
+    idleAcc += rate * dt;
+    let n = 0;
+    while (idleAcc >= 1 && n++ < 2) {
+      idleAcc -= 1;
+      S.loc += 1;
+      typeCode(8);
+      S.debt += bugsPerLoc() * 0.2; // slow, not 1:1
+      if (quality >= 2 && derickEnt && n === 1) {
+        gain(derickEnt.x, derickEnt.y - 14, '+1 LOC', '#39ff88');
+        codeBursts.push({ x: derickEnt.x, y: derickEnt.y, life: 0.35, max: 0.35 });
+        if (codeBursts.length > 16) codeBursts.shift();
+      }
+    }
+    if (canAutoSpawn() && S.debt >= 1) {
+      S.debt -= 1;
+      spawnBug(null, null, { src: 'idle' });
+    }
+  }
   function econ(dt) {
     if (!S.optedIn || S.paused) return;
-    while (S.backlog > 0 && bugs.length < cap()) { S.backlog--; S.spawned--; spawnBug(); }
-    // Occasional boss
+    if (canAutoSpawn()) {
+      while (S.backlog > 0 && bugs.length < cap()) {
+        S.backlog--; S.spawned--;
+        spawnBug(null, null, { src: 'backlog' });
+      }
+    }
+    // Occasional boss (never before Hire Derick; never during post-kill quiet)
     bossAcc += dt * (0.015 + Math.min(0.04, S.loc / 50000));
-    if (bossAcc >= 1 && bugs.length < cap() && S.derick) {
+    if (bossAcc >= 1 && canAutoSpawn() && bugs.length < cap() && S.derick) {
       bossAcc = 0;
-      const b = spawnBug(null, null, { boss: true, tier: 4 });
+      const b = spawnBug(null, null, { boss: true, tier: 4, src: 'boss' });
       if (b) { log(`${b.name} appeared.`); retargetQA(); }
     }
+    mergeIfOver();
+    idleWrite(dt);
     if (S.autoRb && bugs.length + S.backlog >= 8) rollback(true);
   }
 
@@ -763,6 +897,8 @@
     for (let i = lasers.length - 1; i >= 0; i--) { lasers[i].life -= dt; if (lasers[i].life <= 0) lasers.splice(i, 1); }
     for (let i = ghosts.length - 1; i >= 0; i--) { const g = ghosts[i]; g.t += dt * 2.6; if (g.t >= 1) ghosts.splice(i, 1); }
     for (let i = codeBursts.length - 1; i >= 0; i--) { codeBursts[i].life -= dt; if (codeBursts[i].life <= 0) codeBursts.splice(i, 1); }
+    for (let i = shields.length - 1; i >= 0; i--) { shields[i].life -= dt; if (shields[i].life <= 0) shields.splice(i, 1); }
+    for (let i = hatches.length - 1; i >= 0; i--) { if (!hatches[i].hatching) hatches.splice(i, 1); }
     shake *= Math.pow(0.0005, dt); if (shake < .3) shake = 0;
     flash = Math.max(0, flash - dt * 2.5);
     if (hintUntil && now() > hintUntil) { hint.hidden = true; hintUntil = 0; }
@@ -886,6 +1022,13 @@
       ctx.beginPath(); ctx.arc(z.x2, z.y2, 1.4, 0, 7); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    for (const s of shields) {
+      const a = s.life / s.max;
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r + (1 - a) * 8, 0, 7); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     // pulses
     for (const p of pulses) {
       const a = Math.max(0, p.life / p.max);
@@ -905,21 +1048,51 @@
     ctx.restore();
   }
 
+  function noteFrame(ms) {
+    frameTimes.push(ms); if (frameTimes.length > 45) frameTimes.shift();
+    if (frameTimes.length < 18) return;
+    const avg = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+    if (avg > 21 && quality > 0) {
+      if (++qHold > 8) { quality--; qHold = 0; frameTimes.length = 0; resize(true); }
+    } else if (avg < 13.5 && quality < (RM ? 1 : 3)) {
+      if (--qHold < -24) { quality++; qHold = 0; frameTimes.length = 0; resize(true); }
+    } else if (qHold > 0) qHold--; else if (qHold < 0) qHold++;
+  }
   function frame() {
     raf = 0;
-    const t = now(); let dt = Math.min(0.05, (t - last) / 1000); last = t;
+    const t = now(); const raw = t - last; last = t;
+    let dt = Math.min(0.05, raw / 1000);
     if (t < freezeUntil) dt = 0;
     step(dt); draw();
-    if (!RM) paintCode();
+    noteFrame(raw);
+    if (!RM && quality >= 2) paintCode();
     const live = S.optedIn && !S.paused && !S.hidden &&
-      (bugs.length || parts.length || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shake || flash || S.derick || S.agents);
+      (bugs.length || parts.length || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || shake || flash || S.derick || S.agents);
     if (live) raf = requestAnimationFrame(frame);
-    else if (S.optedIn && !S.paused) ctx.clearRect(0, 0, Wd, Hd);
+    else if (S.optedIn && !S.paused) { raf = 0; }
   }
   function kick() {
     if (!raf && S.optedIn && !S.paused && !S.hidden && !d.hidden) {
       last = now(); raf = requestAnimationFrame(frame);
     }
+  }
+  function startLoops() {
+    if (!econId) { lastEcon = now(); econId = setInterval(econTick, 250); }
+    if (!saveId) saveId = setInterval(save, 2000);
+    kick();
+  }
+  function stopLoops() {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (econId) { clearInterval(econId); econId = 0; }
+    if (saveId) { clearInterval(saveId); saveId = 0; }
+  }
+  function econTick() {
+    if (d.hidden) return;
+    const t = now();
+    econ((t - lastEcon) / 1000);
+    lastEcon = t;
+    render();
+    if (bugs.length || lasers.length || S.derick || S.agents) kick();
   }
 
   // offline
@@ -938,15 +1111,6 @@
     }
   })();
 
-  let lastEcon = now();
-  setInterval(() => {
-    const t = now();
-    econ((t - lastEcon) / 1000);
-    lastEcon = t;
-    render();
-    if (bugs.length || lasers.length || S.derick || S.agents) kick();
-  }, 250);
-
   function save() {
     S.t = Date.now();
     if (S.optedIn && !S.paused) {
@@ -956,14 +1120,20 @@
         hp: +b.hp.toFixed(2), maxHp: b.maxHp
       }));
     }
-    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+    try {
+      if (S.optedIn || S.shop || S.loc || S.squashed || localStorage.getItem(KEY)) {
+        localStorage.setItem(KEY, JSON.stringify(S));
+      }
+    } catch {}
   }
-  setInterval(save, 1500);
-  addEventListener('pagehide', save);
+  addEventListener('pagehide', () => { save(); stopLoops(); });
   addEventListener('bh-save', save);
-  d.addEventListener('visibilitychange', () => { if (d.hidden) save(); else kick(); });
+  d.addEventListener('visibilitychange', () => {
+    if (d.hidden) { save(); if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+    else { lastEcon = now(); if (S.optedIn && !S.paused) startLoops(); }
+  });
 
-  resize();
+  resize(true);
   // restore bugs after resize so Wd/Hd are valid
   if (S.optedIn && !S.paused && S.bugs && S.bugs.length) {
     bugs = S.bugs.map(b => {
@@ -975,11 +1145,26 @@
     });
   }
   render(true);
-  if (S.optedIn && !S.paused) kick();
+  if (S.optedIn && !S.paused) startLoops();
 
   W.__bugHunt = {
     S, get bugs() { return bugs; }, get derick() { return derickEnt; }, get agents() { return agents; },
-    spawnBug, squash, addCode, rollback, ship, optIn, pauseGame, quitGame,
-    reset() { localStorage.removeItem(KEY); location.reload(); }
+    spawnBug, squash, addCode, rollback, ship, econ, optIn, pauseGame, quitGame,
+    isBoss, clink, cap, idleWrite, idleCodeRate,
+    get quality() { return quality; },
+    setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
+    get spawnLog() { return spawnLog; },
+    quietFor, noteFrame,
+    stats() {
+      return {
+        bugs: bugs.length, backlog: S.backlog, parts: parts.length, lasers: lasers.length,
+        splats: splats.length, ghosts: ghosts.length, bursts: codeBursts.length, shields: shields.length,
+        pulses: pulses.length, hatches: hatches.length, typed, raf: !!raf, econId: !!econId, saveId: !!saveId,
+        quality, dpr: DPR, fps: frameTimes.length ? 1000 / (frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length) : 0,
+        shopItems: ITEMS.filter(i => i.show()).map(i => i.id),
+        clearAcc, spawnQuiet: Math.max(0, spawnQuietUntil - now()),
+      };
+    },
+    reset() { stopLoops(); localStorage.removeItem(KEY); location.reload(); }
   };
 })();
