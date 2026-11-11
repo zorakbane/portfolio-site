@@ -270,6 +270,10 @@ main{position:relative;z-index:2}
 .bh-stat{white-space:nowrap}
 .bh-stat i{font-style:normal;color:var(--muted);border-bottom:1px dotted var(--line);cursor:help}
 .bh-stat[title] i{cursor:help}
+.bh-hb{color:#ff3d81;letter-spacing:.04em}
+.bh-hb i{font-style:normal;border:0;color:#ff3d81;cursor:default}
+.bh-hb.on{animation:hbPulse 1.05s ease-in-out infinite}
+@keyframes hbPulse{0%,100%{opacity:1}50%{opacity:.5}}
 .bh-btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);font:700 .7rem/1 var(--mono);padding:.35rem .42rem;border-radius:7px;cursor:pointer;transition:transform .2s var(--spring),border-color .15s,background .15s}
 .bh-btn:hover{border-color:var(--green)}
 .bh-btn:active{transform:scale(.88)}

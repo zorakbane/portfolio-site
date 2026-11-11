@@ -120,7 +120,7 @@ Radii / wander speeds / HP by tier (`1…3`, boss = 4): radius `[8, 13, 19, 28]`
 
 Only the **next** gated unlock is shown (Hire Agent stays listed after the first one so you can stack turrets). Extra **Unit Tests** ranks stay buyable (up to 5) while the next unlock is Profiler, Collision Editor, CI, or QA.
 
-**Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow (requires 5 agents) → Movement Tuning → Multiplayer Sync → Rollback Netcode → Auto Rollback → Ship.**
+**Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow (requires 5 agents) → Movement Tuning → Multiplayer Sync → Sub-Agent Workflow → Rollback Netcode → Auto Rollback → Ship.**
 
 `nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“missiles launch and fly faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
 
@@ -139,7 +139,8 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 | **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts and pulses them as homing missiles; also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
 | **Movement Tuning** | 100 | once | After Agentic Workflow | Chasing agents move faster: `95 + 70 + ships×12` instead of `95 + ships×12` |
 | **Multiplayer Sync** | 250 | once | After Movement Tuning | Each pulse batch can enlist up to **3** agents; pulse rate `× 1.5` |
-| **Rollback Netcode** | 400 | once | After Sync | ⟲ button clears the board; **30s** cooldown |
+| **Sub-Agent Workflow** | 380 | once | After Multiplayer Sync (which itself is after Agentic Workflow) | Replaces the escort missile. Each agent grows a sub-agent that orbits it and drafts at the agent idle rate (**0.35** LOC/s). Pulses launch the sub as a homing suicide bomb (same blast math); the escort stays in the ring. A new sub respawns after **4s**. Bombs reserve predicted damage so they will not stack on a target already covered (including bosses and the Ship). |
+| **Rollback Netcode** | 400 | once | After Sub-Agent Workflow | ⟲ button clears the board; **30s** cooldown |
 | **Auto Rollback** | 800 | once | After Rollback | Rollback fires by itself when live bugs + backlog ≥ **8** |
 | **Ship vN.0** | — (finale) | repeatable each prestige | Shown once Rollback is owned and LOC ≥ 45% of the goal; clickable at the goal with ≤ 3 live+backlog bugs | See **Ship finale and prestige** below. Goal is `round(1600 × (prestige+1)^1.55 × 1.08^prestige)` |
 
@@ -155,19 +156,20 @@ One engineer, drawn as a green “DJ” orb, about **2.4×** the original size o
 - Laser color: site-accent **green** (`LASER_COLOR.derick` = `rgba(57,255,136,0.85)`).
 - Roam lerp speed 120 (140 in command mode).
 - Agentic Workflow is the only thing that makes him send pulses to agents (any range) and gather them into an escort. His **aura** (see Agents) buffs nearby units automatically. He **always roams** toward the biggest threat — he never parks in a corner. When nothing is on the board he eases back to the center of the play area and hovers there (a small sine bob).
-- After the first prestige he is drawn as a pink beating heart (canvas Bézier, no emoji sprite) instead of the green circle.
+- After the first prestige he is drawn as a pink beating heart (canvas Bézier, no emoji sprite) instead of the green circle — larger and rounder than the first version (`HEART_DJ_SCALE` 1.8) so it reads clearly next to the escorts.
+- Clicking DJ always sprays a handful of pooled, cached heart sprites. Five clicks inside **3 seconds** start a **Heartbeat** buff for **60 seconds**: DJ’s idle LOC rate is **5×**, and escorts inside his range get his **full** combat DPS aura instead of the usual 25% escort share. A pulsing pink glow and a HUD timer (`♥ 0:47`) show while it is active. After it expires there is a **60 second** cooldown so you cannot chain it. Starting Heartbeat also arms the hidden `git blame` boss (same as the Konami code).
 
 ### Agents
 
 Hired as **static turrets** placed around the page. They fire thin lasers (width 0.9) at bugs inside their radius (**92** desktop / **78** coarse, **+22** with Profiler) and take 2 seconds to kill a small bug (base DPS **1**, times **1.08** if CI is owned).
 
-They **do not walk** until Agentic Workflow is owned. Once it is, every agent leaves its turret post and joins an **escort ring** around Derick (slow orbit, radius `min(88, 38 + √n × 14)` on desktop, cap 72 on coarse/small screens). They fire thin lasers from the formation. A pulse no longer starts a long chase: it launches that agent as a **homing missile** (see below). After the blast the agent recoils and flies back to its slot in the ring, not to the old turret.
+They **do not walk** until Agentic Workflow is owned. Once it is, every agent leaves its turret post and joins an **escort ring** around Derick (slow orbit, radius `min(88, 38 + √n × 14)` on desktop, cap 72 on coarse/small screens). They fire thin lasers from the formation. A pulse no longer starts a long chase: without Sub-Agent Workflow it launches that agent as a **homing missile** (see below), and after the blast the agent recoils back to its slot in the ring. With Sub-Agent Workflow the escort itself never leaves — its orbiting sub-agent is the bomb.
 
 **Force multiplier.** Derick is a force multiplier, not just another laser. The pulse missile is the big hit; the aura is a helper.
 
 - **Aura (static turrets, before Agentic):** any turret inside Derick’s combat range adds his full combat DPS to its own laser (`agent DPS + Derick DPS`).
-- **Aura (escorts, after Agentic):** escorts sit in that aura almost all the time, so each one only gets a modest `+ 0.25 × Derick DPS` (`ESCORT_AURA`). The ring does not clone a whole extra Derick per agent.
-- **Pulse:** the launched agent does not keep a stacked laser. The explosion *is* the force-multiplier moment, and both its radius and damage scale with Derick’s combat DPS.
+- **Aura (escorts, after Agentic):** escorts sit in that aura almost all the time, so each one only gets a modest `+ 0.25 × Derick DPS` (`ESCORT_AURA`). The ring does not clone a whole extra Derick per agent. During a **Heartbeat** buff, escorts that are actually inside Derick’s range get the full Derick DPS add instead.
+- **Pulse:** the launched missile (the agent, or its sub-agent once Sub-Agent Workflow is owned) does not keep a stacked laser. The explosion *is* the force-multiplier moment, and both its radius and damage scale with Derick’s combat DPS.
 - Collision Editor pierce shots still deal `0.55 ×` base agent DPS (no extra Derick add on the splash).
 
 **Laser colors** (named constants in `LASER_COLOR`, easy to swap; red is reserved for bosses):
@@ -179,11 +181,12 @@ They **do not walk** until Agentic Workflow is owned. Once it is, every agent le
 ### Agentic Workflow, pulses, and command mode
 
 - While Agentic is owned and at least one agent exists, Derick accumulates pulses at **0.35/s** (0.55/s in command mode), times `(1 + sync × 0.5)`.
-- Each pulse flies to an idle escort (or any agent if all are busy) and **launches it as a homing missile** at the current highest-value prey (the Ship finale first, then bosses, then high tier).
+- Each pulse flies to a ready escort and launches a homing missile at the current highest-value prey that is not already covered by incoming bomb damage (Ship first, then bosses, then high tier). Without Sub-Agent Workflow the escort itself launches; with it, only escorts that have an orbiting sub ready are eligible.
 - **Missile flight:** starts at **220** px/s (**+50** with Movement Tuning, **+8** per Ship), accelerates at **980** px/s² up to **520** (**+90** Movement, **+16** per Ship). A **210** px/s sideways kick plus **~8 rad/s** steering makes a curved path. The aim point sits **22px** past the target (a slight overshoot). It detonates when it comes within `targetRadius + 12` px (after at least **0.08s** of flight), or after **2.4s**, or after **0.35s** with no live target.
 - **Blast:** radius `min(150, base + DerickCombatDPS × 12)` where `base` is **54** on coarse/small screens and **68** on desktop — about **80px** at default power, up to **150px**. Center damage is **`3.6 × DerickCombatDPS`** (about **3.6** HP at the start: enough to delete a tier-1 and dent a tier-2), falling off to **55%** at the rim. That damage scales with Derick’s tools and ships, so he stays the force multiplier.
 - **Bosses:** a single blast is capped at **35%** of the boss’s max HP (`MISSILE_BOSS_FRAC`, 7.7 of 22). A full-health boss always needs at least three missile hits. Ordinary bugs in the radius can die in one shot. The **Ship finale** is not under that cap — missiles deal full scaled damage to it (clicks still cannot kill it).
-- After the explosion the agent recoils opposite its inbound velocity (up to **340** px/s) and lerps back to its escort slot (`dt × 6`).
+- After the explosion (without Sub-Agent Workflow) the agent recoils opposite its inbound velocity (up to **340** px/s) and lerps back to its escort slot (`dt × 6`). Sub-agents are suicide bombers: they vanish on detonation and a new sub respawns on that escort after **4 seconds**.
+- **Reserved damage:** when a bomb is assigned a target it reserves its predicted center damage (`missileDamage()`, capped at 35% of max HP for regular bosses, uncapped for the Ship). Later bombs skip any target whose reserved incoming damage is already ≥ its current HP and pick the next-best prey instead. This applies to normal bugs, bosses, and the Ship.
 - Juice on detonation (skipped or thinned when `prefers-reduced-motion` or quality is low): screen shake **2–5**, a small local blast flash (pooled, max 6), a milder fullscreen tint only at quality 3, **22ms** hit-stop at quality 3 (16ms otherwise), cached spark sprites instead of per-particle gradients, and an expanding blast ring.
 - Agents already standing inside Derick’s range are buffed by his **aura** without needing a pulse (escorts get the modest 25% bonus; see Agents).
 - Without Sync, one agent is pulsed; with Sync, up to three.
@@ -204,7 +207,14 @@ Named: **Desync**, **Memory Leak**, **Race Condition**, **Null Pointer**, **Fram
 - They only start appearing after Hire Derick. Chance accumulates at `0.015 + min(0.04, loc/50000)` per second, and never during a quiet window or when the board is already at cap.
 - Tier 4, 22 HP, 28px radius, red ring plus an HP bar and name.
 - **Clicks cannot kill them.** A click “clinks,” knocks them back, and chips at most **0.05** HP without ever dropping them below **1**. Derick or an agent has to finish the job. QA can mark them so the kill does not split (bosses do not split anyway).
-- After prestige, the name pool also includes **Merge Conflict**, **Hotfix Friday**, **Semantic Versioning**, **Changelog Ghost**, and **Rebase Hell**. A hidden **git blame** boss can appear (about 8% after prestige 1, or 35% once you have armed it via the Konami code or 10 DJ pokes).
+- After prestige, live-ops / “2.0” boss names unlock **two per prestige level** and are added to the regular pool (still skipping the immediately previous name):
+
+  1. Prestige 1: **Day-One Patch**, **Server Queue**
+  2. Prestige 2: **Desync Storm**, **Shader Compile Stutter**
+  3. Prestige 3: **Crunch Time**, **Cert Failure**
+  4. Prestige 4+: **Save Corruption**, **Loot Box Backlash**
+
+  A hidden **git blame** boss can appear (about 8% after prestige 1, or 35% once you have armed it via the Konami code or a Heartbeat proc).
 
 ### Ship finale and prestige
 
@@ -219,18 +229,19 @@ Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switche
 
 **Small prestige extras**
 
-1. Pink beating-heart DJ at `prestige >= 1`.
+1. Pink beating-heart DJ at `prestige >= 1` (larger, rounder Bézier heart).
 2. HUD title becomes `BUG HUNT vN.0`.
 3. Konami (`↑↑↓↓←→←→BA`) launches an extra missile volley (no `preventDefault`) and arms `git blame`.
-4. Clicking DJ 10 times plays a heartbeat burst, grants **+10 commits**, and may arm `git blame`.
-5. Prestige-only boss names listed above, plus the hidden **git blame** boss.
+4. Clicking DJ sprays pooled hearts; five clicks in 3s starts a 60s **Heartbeat** buff (5× DJ LOC, full aura on nearby escorts, pink glow + HUD timer, 60s cooldown) and arms `git blame`.
+5. Progressive live-ops boss names listed above, plus the hidden **git blame** boss.
 
 ### Idle behavior and away-from-tab
 
 Idle drafting is **per-unit**, not global. Derick and each agent write code independently whenever *that* unit has no target in range / is not lasering — even if bugs exist elsewhere on the page. There is no “wait until the board has been clear for 3 seconds.”
 
 - Derick drafts at **1.4** LOC/s (`IDLE_DERRICK`), plus **0.60** if Agentic Workflow is owned (`IDLE_AGENTIC`).
-- Each agent drafts at **0.35** LOC/s (`IDLE_AGENT`) — about 5× the original rates.
+- Each agent drafts at **0.35** LOC/s (`IDLE_AGENT`) — about 5× the original rates. During Heartbeat, Derick’s own rate (including the Agentic bonus) is multiplied by **5**.
+- Orbiting sub-agents (once Sub-Agent Workflow is owned) also draft at **0.35** LOC/s until they launch.
 - A unit counts as idle when it is **not firing**. Outbound missiles count as firing; a missile on its way back to the ring can draft again. Escorts that happen to be lasering a bug in range still count as busy (correct), even if they are standing near Derick.
 - After a unit stops attacking, idle drafting ramps in within **0.5s** (the accumulator is seeded to `1 - rate × 0.5` so the first line lands quickly instead of waiting a full `1/rate` seconds).
 - A tiny `{}` tick appears near the unit when it drafts (cheap visual cue).
@@ -255,7 +266,7 @@ Quality starts at **3**, or **1** if `prefers-reduced-motion` is on. The last ~4
 - Average frame **> 21ms** for several samples → step quality down.
 - Average **< 13.5ms** for longer → step back up (not above 1 when reduced-motion is on).
 
-Lower quality cuts particle counts, screen shake, and device-pixel ratio (caps: 2 / 1.5 / 1 / 0.7). Particles are pooled (`partN`, caps 140 / 70 / 28) and drawn from cached radial sprites (no per-particle `hsl()` or `createRadialGradient`, and no `shadowBlur` on sparks). Local explosion flashes are capped at 6; the old full-screen fill is a light tint and only at quality ≥ 2. Hit-stop is capped at 26ms (quality 3) / 16ms otherwise so the sim does not freeze-walk for long. Profiler range rings are batched into one faint stroke (`rgba(62,198,255,0.08)`) and skipped entirely below quality 2. Reduced motion also disables the hero glitch and most juice.
+Lower quality cuts particle counts, screen shake, and device-pixel ratio (caps: 2 / 1.5 / 1 / 0.7). Particles are pooled (`partN`, caps 140 / 70 / 28) and drawn from cached radial sprites (no per-particle `hsl()` or `createRadialGradient`, and no `shadowBlur` on sparks). DJ heart bursts use a second pooled sprite (`heartN`, caps 36 / 18 / 8) drawn with `drawImage`. Local explosion flashes are capped at 6; the old full-screen fill is a light tint and only at quality ≥ 2. Hit-stop is capped at 26ms (quality 3) / 16ms otherwise so the sim does not freeze-walk for long. Profiler range rings are batched into one faint stroke (`rgba(62,198,255,0.08)`) and skipped entirely below quality 2. Reduced motion also disables the hero glitch and most juice.
 
 ### Layering and input
 
@@ -286,10 +297,12 @@ These are the explicit asks the implementation is meant to honor:
 14. Bosses cannot be click-killed.
 15. All game code is original to this project — not copied from another site’s clicker.
 16. Derick always roams toward threats. He never parks in a corner, even in command mode.
-17. Pulses are juiced homing missiles with an AoE blast (bosses don’t get one-shot). After the boom the agent returns to the escort ring.
+17. Pulses are juiced homing missiles with an AoE blast (bosses don’t get one-shot). After the boom the agent returns to the escort ring — unless Sub-Agent Workflow is owned, in which case the sub-agent is the bomb and the escort stays put.
 18. After 25 player clicks the game can promote into Play Space: a full-screen playfield with Derick’s name visible but not clickable, plus a way back to the site.
 19. ✕ while in Play Space exits Play Space (chrome + scroll restored) and saves; pause does not. Resume only re-enters Play Space if it was still marked active.
 20. Ship is a juiced finale boss, not a one-click counter. Winning prestiges the run; DJ becomes a pink beating heart.
+21. Clicking DJ sprays hearts; five clicks in a short window starts a cooldown-gated Heartbeat buff.
+22. Sub-Agent Workflow (after Agentic + Multiplayer Sync) replaces escort missiles with orbiting, code-writing suicide bombers that refuse overkill targets.
 
 
 ## Deploying

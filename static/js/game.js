@@ -1,9 +1,10 @@
 /* Bug Hunt — idle/clicker for derickjanssen.com.
    Opt-in → click empty space to write LOC → bugs hatch → squash for Commits.
    Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow
-   (escorts + homing-missile pulses), Movement Tuning / Multiplayer Sync, command mode
-   at 10 agents (faster pulses, no parking), rollback, Ship finale + prestige.
-   Play Space after 25 player actions. Persist in localStorage. Never preventDefault. */
+   (escorts + homing-missile pulses), Sub-Agent Workflow, Movement Tuning / Multiplayer Sync,
+   command mode at 10 agents (faster pulses, no parking), rollback, Ship finale + prestige.
+   Click DJ for hearts / Heartbeat buff. Play Space after 25 player actions.
+   Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
   window.__bugHunt = { __booting: true };
@@ -23,6 +24,11 @@
   let playScrollX = 0, playScrollY = 0;
   let shipBoss = null;
   let djPokes = 0, konamiArmed = false, blameReady = false;
+  let hbTimes = [];
+  let heartbeatUntil = 0, heartbeatCdUntil = 0;
+  const HEARTS = [];
+  let heartN = 0;
+  let heartSprite = null;
   const frameTimes = [];
   const spawnLog = [];
 
@@ -31,7 +37,7 @@
     loc: 0, commits: 0, squashed: 0, spawned: 0, debt: 0,
     derick: 0, agents: 0, agentic: 0, tests: 0, ci: 0, qa: 0,
     profiler: 0, collision: 0, movement: 0, sync: 0, rapid: 0,
-    rollback: 0, autoRb: 0, ships: 0,
+    subagent: 0, rollback: 0, autoRb: 0, ships: 0,
     shop: false, open: true, hidden: false,
     bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0,
     lastBoss: null,
@@ -48,7 +54,7 @@
       derick: v2.derick ? 1 : 0, agents, agentic: v2.agentic ? 1 : 0,
       tests: Math.min(5, v2.tests || 0), ci: v2.ci ? 1 : 0, qa: v2.qa ? 1 : 0,
       profiler: 0, collision: 0, movement: 0, sync: 0, rapid: 0,
-      rollback: v2.rollback ? 1 : 0, autoRb: v2.autoRb ? 1 : 0, ships: v2.ships || 0,
+      subagent: 0, rollback: v2.rollback ? 1 : 0, autoRb: v2.autoRb ? 1 : 0, ships: v2.ships || 0,
       shop: !!v2.shop, open: v2.open !== false, hidden: !!v2.hidden,
       bugs: Array.isArray(v2.bugs) ? v2.bugs.slice(0, 20).map(b => ({
         tier: (b.boss || (b.mass >= 8)) ? 4 : Math.min(3, Math.max(1, b.tier || 1)),
@@ -114,6 +120,14 @@
   const IDLE_AGENT = 0.35;
   const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
+  const HB_CLICKS = 5;
+  const HB_WINDOW = 3000;
+  const HB_DURATION = 60000;
+  const HB_COOLDOWN = 60000;
+  const HB_MULT = 5;
+  const SUB_ORBIT = 16;
+  const SUB_RESPAWN = 4;
+  const HEART_DJ_SCALE = 1.8;
   // Named so they are easy to swap. Red is reserved for bosses.
   const LASER_COLOR = {
     derick: 'rgba(57,255,136,0.85)',   // site accent green
@@ -159,7 +173,12 @@
     // Escorts live inside the aura. A modest +25% of Derick's combat DPS each —
     // not a full extra Derick per agent. Static turrets (before Agentic) still
     // get the full personal add because pulses do not exist yet.
-    if (escorting(a)) return base + derickCombatDps() * ESCORT_AURA;
+    if (escorting(a)) {
+      // Heartbeat upgrades the usual modest escort share to Derick's full DPS
+      // for anyone actually standing inside his range.
+      if (heartbeatActive() && agentBuffed(a)) return base + derickCombatDps();
+      return base + derickCombatDps() * ESCORT_AURA;
+    }
     return base + derickCombatDps();
   }
 
@@ -175,16 +194,18 @@
     rapid: () => Math.ceil(200 * costScale()),
     sync: () => Math.ceil(250 * costScale()),
     agentic: () => Math.ceil(300 * costScale()),
+    subagent: () => Math.ceil(380 * costScale()),
     rollback: () => Math.ceil(400 * costScale()),
     autoRb: () => Math.ceil(800 * costScale()),
   };
 
   // Progression gate: only the next unlock appears (Hire agent stays buyable after the first).
   // Order: Derick → agent → tests (1+) → profiler → collision → ci → qa →
-  // rapid → agentic (requires 5 agents) → movement → sync → rollback → autoRb → Ship.
+  // rapid → agentic (requires 5 agents) → movement → sync → subagent → rollback → autoRb → Ship.
   // Movement Tuning and Multiplayer Sync both require chasing/pulses, so they come
   // after Agentic Workflow (the upgrade that actually makes agents move).
-  const SEQ = ['tests', 'profiler', 'collision', 'ci', 'qa', 'rapid', 'agentic', 'movement', 'sync', 'rollback', 'autoRb'];
+  // Sub-Agent Workflow replaces those missiles once Sync has taught pulses to fan out.
+  const SEQ = ['tests', 'profiler', 'collision', 'ci', 'qa', 'rapid', 'agentic', 'movement', 'sync', 'subagent', 'rollback', 'autoRb'];
   function seqDone(id) {
     if (id === 'tests') return S.tests >= 1; // one purchase unlocks the next tool
     return !!S[id];
@@ -197,7 +218,7 @@
   }
   const ITEMS = [
     { id: 'derick', name: 'HIRE DERICK', desc: () => 'One engineer. Thin laser. Roams and squashes.', once: true, show: () => nextUnlock() === 'derick' },
-    { id: 'agent', name: 'HIRE AGENT', desc: () => S.agentic ? `Escort · fires from Derick's ring. (${S.agents})` : `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
+    { id: 'agent', name: 'HIRE AGENT', desc: () => S.subagent ? `Escort · orbiting sub-agent bomber. (${S.agents})` : S.agentic ? `Escort · fires from Derick's ring. (${S.agents})` : `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
     { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'ci', 'qa'].includes(nextUnlock())) },
     { id: 'profiler', name: 'PROFILER', desc: () => 'Reveal hatching bugs · larger agent radius.', once: true, show: () => nextUnlock() === 'profiler' },
     { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce to a second bug.', once: true, show: () => nextUnlock() === 'collision' },
@@ -207,6 +228,7 @@
     { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
     { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse launches several missiles.', once: true, show: () => nextUnlock() === 'sync' },
     { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts and pulses them as homing missiles.', once: true, show: () => nextUnlock() === 'agentic' && S.agents >= 5 },
+    { id: 'subagent', name: 'SUB-AGENT WORKFLOW', desc: () => 'Each escort grows a sub-agent. Pulses launch the sub as a suicide bomb; the escort stays in the ring.', once: true, show: () => nextUnlock() === 'subagent' },
     { id: 'rollback', name: 'ROLLBACK NETCODE', desc: () => '⟲ Clears the screen. 30s cooldown.', once: true, show: () => nextUnlock() === 'rollback' },
     { id: 'autoRb', name: 'AUTO ROLLBACK', desc: () => 'Rollback fires when 8+ bugs are live.', once: true, show: () => nextUnlock() === 'autoRb' },
   ];
@@ -240,6 +262,7 @@
         <span class="bh-stat" title="Lines of code written this run — the build counter. Writing LOC hatches bugs."><i>LOC</i> <span data-k="loc">0</span></span>
         <span class="bh-stat"><i>BUGS</i> <span data-k="bugs">0</span></span>
         <span class="bh-stat" title="Commits earned by squashing bugs."><i>COMMITS</i> <span data-k="commits">0</span></span>
+        <span class="bh-stat bh-hb" data-k="hbwrap" hidden title="Heartbeat: DJ writes 5× LOC and nearby agents share his full aura."><i>♥</i> <span data-k="hb">60s</span></span>
       </div>
       <button class="bh-btn" type="button" data-act="pause" title="Pause">❚❚</button>
       <button class="bh-btn" type="button" data-act="rb" hidden title="Rollback">⟲</button>
@@ -348,13 +371,21 @@
   const HUE = [0, 145, 110, 300, 0];
   const HP = [0, 2, 4.5, 8, 22];
   const BOSS_NAMES = ['Desync', 'Memory Leak', 'Race Condition', 'Null Pointer', 'Frame Spike', 'Packet Loss', 'Rollback Ghost', 'Stale Snapshot'];
-  const PRESTIGE_BOSSES = ['Merge Conflict', 'Hotfix Friday', 'Semantic Versioning', 'Changelog Ghost', 'Rebase Hell'];
+  const PRESTIGE_BOSSES = [
+    'Day-One Patch', 'Server Queue', 'Desync Storm', 'Shader Compile Stutter',
+    'Crunch Time', 'Cert Failure', 'Save Corruption', 'Loot Box Backlash'
+  ];
+  function prestigeBossPool(prestige) {
+    const p = prestige == null ? (S.prestige || 0) : prestige;
+    if (p < 1) return [];
+    return PRESTIGE_BOSSES.slice(0, Math.min(PRESTIGE_BOSSES.length, p * 2));
+  }
   function pickBossName() {
     if ((S.prestige >= 1 || blameReady) && Math.random() < (blameReady ? 0.35 : 0.08)) {
       blameReady = false;
       return 'git blame';
     }
-    const extra = S.prestige >= 1 ? PRESTIGE_BOSSES : [];
+    const extra = prestigeBossPool();
     const all = BOSS_NAMES.concat(extra);
     const pool = all.filter(n => n !== S.lastBoss);
     const src = pool.length ? pool : all;
@@ -497,6 +528,25 @@
       });
     }
     while (agents.length > S.agents) agents.pop();
+    if (S.subagent) ensureSubs();
+    else for (const a of agents) a.sub = null;
+  }
+  function mkSub(agent, i) {
+    return {
+      parent: agent, isSub: true,
+      x: agent.x + SUB_ORBIT, y: agent.y,
+      ang: (i || 0) * 1.7 + Math.random(),
+      state: 'orbit', cd: 0,
+      vx: 0, vy: 0, trail: [], flight: 0,
+      missile: false, missilePhase: null, chasing: false,
+      chaseRoot: null, target: null,
+      reserved: null, reservedAmt: 0,
+      idleAcc: 0, pop: 1
+    };
+  }
+  function ensureSubs() {
+    if (!S.subagent) return;
+    agents.forEach((a, i) => { if (!a.sub) a.sub = mkSub(a, i); });
   }
   function commandMode() { return S.derick && S.agents >= 10; }
 
@@ -517,6 +567,41 @@
       p.hue = hue + (Math.random() - .5) * 30;
       p.color = sparkColor(p.hue);
       partN++;
+    }
+  }
+  function heartCap() { return quality >= 3 ? 36 : quality >= 2 ? 18 : quality >= 1 ? 8 : 0; }
+  function getHeartSprite() {
+    if (heartSprite) return heartSprite;
+    const c = d.createElement('canvas'); c.width = 20; c.height = 20;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ff3d81';
+    pathHeart(x, 10, 8, 7.2);
+    x.fill();
+    x.fillStyle = 'rgba(255,245,248,0.55)';
+    pathHeart(x, 10, 7.4, 4.4);
+    x.fill();
+    heartSprite = c;
+    return c;
+  }
+  function spitHearts(x, y) {
+    let n = quality >= 3 ? 7 : quality >= 2 ? 5 : quality >= 1 ? 3 : 0;
+    if (RM) n = Math.min(n, 2);
+    const capH = heartCap();
+    for (let i = 0; i < n; i++) {
+      if (heartN >= capH) break;
+      let h = HEARTS[heartN];
+      if (!h) { h = {}; HEARTS[heartN] = h; }
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.5;
+      const v = 90 + Math.random() * 150;
+      h.x = x; h.y = y;
+      h.vx = Math.cos(a) * v;
+      h.vy = Math.sin(a) * v - 50;
+      h.life = 0.65 + Math.random() * 0.3;
+      h.max = h.life;
+      h.r = 5 + Math.random() * 5;
+      h.spin = (Math.random() - 0.5) * 7;
+      h.rot = Math.random() * 6;
+      heartN++;
     }
   }
   function boomFlash(x, y, str) {
@@ -558,10 +643,11 @@
     });
     if (lasers.length > 40) lasers.shift();
   }
-  function sendPulse(from, agent, target) {
+  function sendPulse(from, agent, target, reservedAmt) {
     pulses.push({
       x: from.x, y: from.y, tx: agent.x, ty: agent.y,
-      agent, target, life: 0.45, max: 0.45, arrived: false
+      agent, target, reservedAmt: reservedAmt || 0,
+      life: 0.45, max: 0.45, arrived: false, handed: false
     });
     if (pulses.length > 16) pulses.shift();
   }
@@ -847,12 +933,13 @@
     ctx.restore();
   }
   function pathHeart(ctx, x, y, s) {
+    // Rounder lobes, less pointy than the original tall heart.
     ctx.beginPath();
-    ctx.moveTo(x, y + s * 0.32);
-    ctx.bezierCurveTo(x, y - s * 0.05, x - s * 0.95, y - s * 0.15, x - s * 0.95, y + s * 0.28);
-    ctx.bezierCurveTo(x - s * 0.95, y + s * 0.72, x - s * 0.15, y + s * 0.92, x, y + s * 1.12);
-    ctx.bezierCurveTo(x + s * 0.15, y + s * 0.92, x + s * 0.95, y + s * 0.72, x + s * 0.95, y + s * 0.28);
-    ctx.bezierCurveTo(x + s * 0.95, y - s * 0.15, x, y - s * 0.05, x, y + s * 0.32);
+    ctx.moveTo(x, y + s * 0.28);
+    ctx.bezierCurveTo(x + s * 0.08, y - s * 0.12, x + s * 1.08, y - s * 0.18, x + s * 1.08, y + s * 0.3);
+    ctx.bezierCurveTo(x + s * 1.08, y + s * 0.68, x + s * 0.32, y + s * 0.92, x, y + s * 1.12);
+    ctx.bezierCurveTo(x - s * 0.32, y + s * 0.92, x - s * 1.08, y + s * 0.68, x - s * 1.08, y + s * 0.3);
+    ctx.bezierCurveTo(x - s * 1.08, y - s * 0.18, x - s * 0.08, y - s * 0.12, x, y + s * 0.28);
     ctx.closePath();
   }
 
@@ -983,17 +1070,59 @@
     hint.hidden = false; hintUntil = now() + 5500; S.hintSeen = true;
   }
 
+  function heartbeatActive() { return heartbeatUntil > now(); }
+  function heartbeatCooling() { return !heartbeatActive() && heartbeatCdUntil > now(); }
+  function pollHeartbeat() {
+    if (heartbeatUntil && now() >= heartbeatUntil) {
+      heartbeatUntil = 0;
+      heartbeatCdUntil = now() + HB_COOLDOWN;
+      log('Heartbeat faded. Cooling down.');
+    }
+  }
+  function startHeartbeat() {
+    hbTimes = [];
+    heartbeatUntil = now() + HB_DURATION;
+    heartbeatCdUntil = 0;
+    blameReady = true;
+    punch(5);
+    log('Heartbeat! LOC ×5 for 60s. Nearby agents share Derick’s full aura.');
+    if (derickEnt) gain(derickEnt.x, derickEnt.y - 22, 'HEARTBEAT', '#ff3d81');
+    syncHbHud();
+    kick();
+  }
+  function derickHitRadius() {
+    const extra = S.prestige >= 1 ? derickRadius() * HEART_DJ_SCALE * 0.8 : 0;
+    return derickRadius() + 10 + extra;
+  }
+  function derickDraftRate() {
+    const base = IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0);
+    return base * (heartbeatActive() ? HB_MULT : 1);
+  }
+  function syncHbHud() {
+    pollHeartbeat();
+    const wrap = hud.querySelector('[data-k=hbwrap]');
+    const lab = hud.querySelector('[data-k=hb]');
+    if (!wrap) return;
+    if (heartbeatActive()) {
+      wrap.hidden = false;
+      wrap.classList.add('on');
+      const sec = Math.max(0, Math.ceil((heartbeatUntil - now()) / 1000));
+      if (lab) lab.textContent = sec >= 60 ? (Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')) : (sec + 's');
+    } else {
+      wrap.hidden = true;
+      wrap.classList.remove('on');
+    }
+  }
   function noteDjPoke(x, y) {
     if (!derickEnt) return;
     djPokes++;
-    burst(derickEnt.x, derickEnt.y, S.prestige ? 330 : 145, 6, 140, 0.35);
-    if (djPokes >= 10) {
-      djPokes = 0;
-      blameReady = true;
-      S.commits += 10;
-      punch(4);
-      log(S.prestige ? "DJ blushed. +10 commits. Someone queued git blame…" : 'DJ approved this commit. +10 commits.');
-      gain(derickEnt.x, derickEnt.y - 18, '♥ +10', '#ff3d81');
+    spitHearts(derickEnt.x, derickEnt.y);
+    pollHeartbeat();
+    const t = now();
+    if (!heartbeatActive() && !heartbeatCooling()) {
+      hbTimes.push(t);
+      hbTimes = hbTimes.filter(ts => t - ts <= HB_WINDOW);
+      if (hbTimes.length >= HB_CLICKS) startHeartbeat();
     }
     kick(); dirty = true;
   }
@@ -1008,7 +1137,7 @@
     if (e.target.closest && e.target.closest(IGNORE)) return;
     const sel = W.getSelection && W.getSelection(); if (sel && String(sel).length) return;
     const x = e.clientX, y = e.clientY, pad = e.pointerType === 'touch' ? 20 : 12;
-    if (derickEnt && S.derick && Math.hypot(derickEnt.x - x, derickEnt.y - y) <= derickRadius() + 10) {
+    if (derickEnt && S.derick && Math.hypot(derickEnt.x - x, derickEnt.y - y) <= derickHitRadius()) {
       noteDjPoke(x, y);
       return;
     }
@@ -1045,10 +1174,15 @@
     if (!ok) return;
     konamiBuf = [];
     konamiArmed = true; blameReady = true;
-    const prey = pickThreat();
-    if (S.optedIn && !S.paused && prey && agents.length) {
-      for (const a of agents.slice(0, Math.min(5, agents.length))) launchMissile(a, prey);
-      log('↑↑↓↓←→←→BA — extra pulse volley.');
+    if (S.optedIn && !S.paused && agents.length) {
+      let n = 0;
+      for (const a of agents) {
+        if (n >= 5) break;
+        const prey = pickLaunchTarget();
+        if (!prey) break;
+        if (launchPulseShot(a, prey, 0)) n++;
+      }
+      log(n ? '↑↑↓↓←→←→BA — extra pulse volley.' : '↑↑↓↓ Konami armed.');
     } else log('↑↑↓↓ Konami armed.');
     punch(6); kick();
   }, { passive: true });
@@ -1080,6 +1214,7 @@
         if (buy === 'derick') { ensureDerick(); log('Derick hired.'); }
         else if (buy === 'agent') { ensureAgents(); log(`Agent #${S.agents} online.`); }
         else if (buy === 'agentic') log('Agentic Workflow online. Agents falling in around Derick.');
+        else if (buy === 'subagent') { ensureAgents(); log('Sub-Agent Workflow online. Escorts grow orbiting bombers.'); }
         else if (buy === 'rollback') log('Rollback unlocked.');
         else if (buy === 'qa') { retargetQA(); log('QA marking big bugs.'); }
         else log(`${it.name} unlocked.`);
@@ -1107,6 +1242,7 @@
     el.loc.textContent = fmt(S.loc);
     el.bugs.textContent = fmt(bugs.length + S.backlog);
     el.commits.textContent = fmt(S.commits);
+    syncHbHud();
     el.rb.hidden = !S.rollback;
     if (S.rollback) {
       const left = Math.max(0, RB_CD - (Date.now() - S.rbAt));
@@ -1124,6 +1260,7 @@
       if (S.derick) bits.push(`Derick ${derickKillTime().toFixed(1)}s`);
       if (S.agents) bits.push(`${S.agents} agent${S.agents === 1 ? '' : 's'}`);
       if (commandMode()) bits.push('CMD');
+      if (heartbeatActive()) bits.push('♥ Heartbeat');
       bits.push(`Ship ${fmt(shipGoal())} LOC ≤3 bugs`);
       el.tip.textContent = bits.join(' · ');
     }
@@ -1231,22 +1368,87 @@
       pulseAcc += dt * (cmd ? 0.55 : 0.35) * (1 + S.sync * 0.5);
       while (pulseAcc >= 1) {
         pulseAcc -= 1;
-        const idle = agents.filter(a => !a.chasing);
-        const pool = idle.length ? idle : agents;
-        const n = Math.min(pool.length, S.sync ? 3 : 1);
-        // Prefer boss / large
-        const prey = pickThreat();
-        if (!prey) break;
+        const ready = agents.filter(agentReadyForPulse);
+        if (!ready.length) break;
+        const n = Math.min(ready.length, S.sync ? 3 : 1);
+        const used = [];
         for (let i = 0; i < n; i++) {
-          const ag = pool[Math.floor(Math.random() * pool.length)];
-          sendPulse(derickEnt, ag, prey);
+          const prey = pickLaunchTarget();
+          if (!prey) break;
+          const free = ready.filter(a => !used.includes(a));
+          if (!free.length) break;
+          const ag = free[Math.floor(Math.random() * free.length)];
+          used.push(ag);
+          const amt = predictedMissileDamage(prey);
+          reserveOn(prey, amt);
+          sendPulse(derickEnt, ag, prey, amt);
         }
       }
     }
   }
 
+  function predictedMissileDamage(t) {
+    if (!t) return 0;
+    let dmg = missileDamage();
+    if (isBoss(t) && !t.ship) dmg = Math.min(dmg, t.maxHp * MISSILE_BOSS_FRAC);
+    return dmg;
+  }
+  function pendingOn(t) { return (t && t._pending) || 0; }
+  function reserveOn(t, amt) {
+    if (!t || !amt) return;
+    t._pending = (t._pending || 0) + amt;
+  }
+  function releaseOn(t, amt) {
+    if (!t || !amt) return;
+    t._pending = Math.max(0, (t._pending || 0) - amt);
+  }
+  function releaseReserve(proj) {
+    if (!proj) return;
+    if (proj.reserved) releaseOn(proj.reserved, proj.reservedAmt || 0);
+    proj.reserved = null;
+    proj.reservedAmt = 0;
+  }
+  function targetHasCover(t) { return !t || pendingOn(t) >= t.hp - 1e-6; }
+  function pickLaunchTarget() {
+    let best = null;
+    const score = b => (b.ship ? 100 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
+    const consider = b => {
+      if (!b || b.hatching || (b.ship && b.hp <= 0)) return;
+      if (targetHasCover(b)) return;
+      if (!best) { best = b; return; }
+      const ds = score(b) - score(best);
+      if (ds > 0) { best = b; return; }
+      if (ds < 0 || !derickEnt) return;
+      if (preyDist(derickEnt.x, derickEnt.y, b) < preyDist(derickEnt.x, derickEnt.y, best)) best = b;
+    };
+    for (const b of bugs) consider(b);
+    if (shipBoss && shipBoss.hp > 0) consider(shipBoss);
+    return best;
+  }
+  function agentReadyForPulse(a) {
+    if (!a) return false;
+    if (S.subagent) return !!(a.sub && a.sub.state === 'orbit');
+    return !a.chasing && !(a.missile && a.missilePhase === 'out');
+  }
+  function startMissile(proj, target) {
+    if (!proj || !target) return;
+    proj.chasing = true;
+    proj.missile = true;
+    proj.missilePhase = 'out';
+    proj.chaseRoot = target;
+    proj.target = target;
+    proj.flight = 0;
+    const ang = Math.atan2(target.y - proj.y, target.x - proj.x);
+    const side = proj.kickSign || (Math.random() < 0.5 ? -1 : 1);
+    proj.kickSign = -side;
+    const s0 = missileSpeed0();
+    proj.vx = Math.cos(ang) * s0 + Math.cos(ang + Math.PI / 2) * side * 210;
+    proj.vy = Math.sin(ang) * s0 + Math.sin(ang + Math.PI / 2) * side * 210;
+    proj.trail = [];
+  }
   function endMissile(agent) {
     if (!agent) return;
+    releaseReserve(agent);
     agent.chasing = false;
     agent.missile = false;
     agent.missilePhase = null;
@@ -1258,24 +1460,53 @@
   }
   function launchMissile(agent, target) {
     if (!agent || !target) return;
+    if (S.subagent && !agent.isSub) { launchPulseShot(agent, target, 0); return; }
     if (agent.missile && agent.missilePhase === 'out') return;
-    agent.chasing = true;
-    agent.missile = true;
-    agent.missilePhase = 'out';
-    agent.chaseRoot = target;
-    agent.target = target;
-    agent.flight = 0;
-    const ang = Math.atan2(target.y - agent.y, target.x - agent.x);
-    const side = agent.kickSign || (Math.random() < 0.5 ? -1 : 1);
-    agent.kickSign = -side;
-    const s0 = missileSpeed0();
-    agent.vx = Math.cos(ang) * s0 + Math.cos(ang + Math.PI / 2) * side * 210;
-    agent.vy = Math.sin(ang) * s0 + Math.sin(ang + Math.PI / 2) * side * 210;
-    agent.trail = [];
+    startMissile(agent, target);
+    const amt = predictedMissileDamage(target);
+    reserveOn(target, amt);
+    agent.reserved = target;
+    agent.reservedAmt = amt;
   }
-  function activateChase(agent, target) { launchMissile(agent, target); }
+  function launchPulseShot(agent, target, reservedAmt) {
+    if (!agent) return false;
+    let t = target && preyAlive(target) ? target : null;
+    let amt = reservedAmt || 0;
+    if (!t) {
+      if (amt && target) releaseOn(target, amt);
+      t = pickLaunchTarget();
+      amt = 0;
+    }
+    if (!t) return false;
+    if (!amt) {
+      amt = predictedMissileDamage(t);
+      reserveOn(t, amt);
+    }
+    if (S.subagent) {
+      const s = agent.sub;
+      if (!s || s.state !== 'orbit') {
+        releaseOn(t, amt);
+        return false;
+      }
+      startMissile(s, t);
+      s.state = 'out';
+      s.reserved = t;
+      s.reservedAmt = amt;
+      return true;
+    }
+    if (agent.missile && agent.missilePhase === 'out') {
+      releaseOn(t, amt);
+      return false;
+    }
+    startMissile(agent, t);
+    agent.reserved = t;
+    agent.reservedAmt = amt;
+    return true;
+  }
+  function activateChase(agent, target) { return launchPulseShot(agent, target, 0); }
   function detonateMissile(agent) {
     if (!agent) return;
+    releaseReserve(agent);
     const x = agent.x, y = agent.y;
     const rad = missileRadius();
     const base = missileDamage();
@@ -1314,6 +1545,17 @@
     }
     explosions.push({ x, y, r: rad, life: 0.42, max: 0.42 });
     if (explosions.length > 10) explosions.shift();
+    if (agent.isSub) {
+      agent.missile = false;
+      agent.missilePhase = null;
+      agent.chasing = false;
+      agent.chaseRoot = null;
+      agent.target = null;
+      agent.trail = [];
+      agent.state = 'cd';
+      agent.cd = SUB_RESPAWN;
+      return;
+    }
     const spd = Math.hypot(agent.vx || 0, agent.vy || 0) || 200;
     const hang = Math.atan2(agent.vy || 0, agent.vx || 1);
     agent.vx = -Math.cos(hang) * Math.min(340, spd * 0.55);
@@ -1329,9 +1571,17 @@
       a.flight = (a.flight || 0) + dt;
       let t = a.chaseRoot && preyAlive(a.chaseRoot) ? a.chaseRoot : null;
       if (!t || t.hatching) {
-        t = nearestBug(a.x, a.y, 320, b => true);
+        releaseReserve(a);
+        t = nearestBug(a.x, a.y, 320, b => !targetHasCover(b));
+        if (!t) t = nearestBug(a.x, a.y, 320, b => true);
         a.chaseRoot = t;
         a.target = t;
+        if (t) {
+          const amt = predictedMissileDamage(t);
+          reserveOn(t, amt);
+          a.reserved = t;
+          a.reservedAmt = amt;
+        }
       }
       if (t) {
         const dx = t.x - a.x, dy = t.y - a.y;
@@ -1392,25 +1642,57 @@
     }
   }
 
+  function updateSub(a, dt) {
+    const s = a && a.sub;
+    if (!s) return;
+    if (s.state === 'cd') {
+      s.cd -= dt;
+      if (s.cd <= 0) {
+        s.state = 'orbit';
+        s.ang = Math.random() * Math.PI * 2;
+        s.x = a.x + Math.cos(s.ang) * SUB_ORBIT;
+        s.y = a.y + Math.sin(s.ang) * SUB_ORBIT;
+        s.pop = 0.15;
+        s.missile = false; s.missilePhase = null; s.chasing = false;
+        s.trail = [];
+        if (quality >= 2 && !RM) burst(s.x, s.y, 200, 3, 80, 0.28);
+      }
+      return;
+    }
+    if (s.state === 'out') {
+      updateMissile(s, dt);
+      return;
+    }
+    s.ang += dt * 2.5;
+    s.pop += (1 - (s.pop || 1)) * Math.min(1, dt * 8);
+    s.x = a.x + Math.cos(s.ang) * SUB_ORBIT;
+    s.y = a.y + Math.sin(s.ang) * SUB_ORBIT;
+  }
   function updatePulses(dt) {
     for (let i = pulses.length - 1; i >= 0; i--) {
       const p = pulses[i];
       p.life -= dt;
-      const e = 1 - Math.max(0, p.life) / p.max;
+      if (p.agent) { p.tx = p.agent.x; p.ty = p.agent.y; }
       p.x = p.x + (p.tx - p.x) * Math.min(1, dt * 8);
       p.y = p.y + (p.ty - p.y) * Math.min(1, dt * 8);
       if (!p.arrived && Math.hypot(p.x - p.tx, p.y - p.ty) < 10) {
         p.arrived = true;
-        if (p.agent && p.target && preyAlive(p.target)) activateChase(p.agent, p.target);
+        p.handed = !!(p.agent && launchPulseShot(p.agent, p.target, p.reservedAmt || 0));
       }
-      if (p.life <= 0) pulses.splice(i, 1);
+      if (p.life <= 0) {
+        if (!p.arrived && !p.handed && p.target && p.reservedAmt) releaseOn(p.target, p.reservedAmt);
+        pulses.splice(i, 1);
+      }
     }
   }
 
   // ---------- sim ----------
   function idleCodeRate() {
     if (!S.derick && !S.agents) return 0;
-    return (S.derick ? IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0) : 0) + S.agents * IDLE_AGENT;
+    const d = S.derick ? derickDraftRate() : 0;
+    const a = S.agents * IDLE_AGENT;
+    const subs = S.subagent ? agents.filter(ag => ag.sub && ag.sub.state === 'orbit').length * IDLE_AGENT : 0;
+    return d + a + subs;
   }
   function unitLasering(unit, isDerick) {
     if (!unit) return false;
@@ -1441,7 +1723,7 @@
     ensureDerick();
     ensureAgents();
     if (S.derick && derickEnt) {
-      const rate = IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0);
+      const rate = derickDraftRate();
       const firing = unitLasering(derickEnt, true);
       if (firing) derickEnt._firing = true;
       else {
@@ -1462,6 +1744,7 @@
         }
         draftAt(a, dt, IDLE_AGENT);
       }
+      if (S.subagent && a.sub && a.sub.state === 'orbit') draftAt(a.sub, dt, IDLE_AGENT);
     }
     if (canAutoSpawn() && S.debt >= 1) {
       S.debt -= 1;
@@ -1558,12 +1841,23 @@
       }
     }
     updatePulses(dt);
+    if (S.subagent) for (const a of agents) updateSub(a, dt);
+    pollHeartbeat();
+    syncHbHud();
 
     for (let i = partN - 1; i >= 0; i--) {
       const p = parts[i];
       p.life -= dt;
       if (p.life <= 0) { parts[i] = parts[partN - 1]; parts[partN - 1] = p; partN--; continue; }
       p.vy += 700 * dt; p.vx *= 0.985; p.x += p.vx * dt; p.y += p.vy * dt;
+    }
+    for (let i = heartN - 1; i >= 0; i--) {
+      const h = HEARTS[i];
+      h.life -= dt;
+      if (h.life <= 0) { HEARTS[i] = HEARTS[heartN - 1]; HEARTS[heartN - 1] = h; heartN--; continue; }
+      h.vy += 220 * dt; h.vx *= 0.99;
+      h.x += h.vx * dt; h.y += h.vy * dt;
+      h.rot = (h.rot || 0) + (h.spin || 0) * dt;
     }
     for (let i = splats.length - 1; i >= 0; i--) { splats[i].life -= dt; if (splats[i].life <= 0) splats.splice(i, 1); }
     for (let i = flashes.length - 1; i >= 0; i--) { flashes[i].life -= dt; if (flashes[i].life <= 0) flashes.splice(i, 1); }
@@ -1636,17 +1930,26 @@
     const sc = derickScale();
     const body = 6 * sc;
     ctx.save();
+    if (heartbeatActive()) {
+      const pulse = 1 + 0.16 * Math.sin(now() / 180);
+      const glowR = (S.prestige >= 1 ? body * 3.6 : 20 * sc) * pulse;
+      ctx.fillStyle = 'rgba(255,61,129,0.20)';
+      ctx.beginPath(); ctx.arc(x, y, glowR, 0, 7); ctx.fill();
+      ctx.strokeStyle = `rgba(255,61,129,${0.38 + 0.22 * pulse})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, glowR * 0.7, 0, 7); ctx.stroke();
+    }
     if (S.prestige >= 1) {
-      const beat = 1 + 0.14 * Math.sin(now() / 260);
-      const s = body * 1.05 * beat;
-      ctx.fillStyle = 'rgba(255,61,129,0.18)';
-      pathHeart(ctx, x, y - s * 0.55, s * 1.35);
+      const beat = 1 + 0.12 * Math.sin(now() / 280);
+      const s = body * HEART_DJ_SCALE * beat;
+      ctx.fillStyle = 'rgba(255,61,129,0.2)';
+      pathHeart(ctx, x, y - s * 0.12, s * 1.16);
       ctx.fill();
       ctx.fillStyle = '#ff3d81';
-      pathHeart(ctx, x, y - s * 0.42, s);
+      pathHeart(ctx, x, y - s * 0.12, s);
       ctx.fill();
       ctx.fillStyle = '#fff5f8';
-      ctx.font = `800 ${Math.round(6.2 * sc * beat)}px ui-monospace, sans-serif`;
+      ctx.font = `800 ${Math.round(7.6 * sc * beat)}px ui-monospace, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('DJ', x, y + s * 0.08);
     } else {
@@ -1725,6 +2028,44 @@
     ctx.fillStyle = boosted ? 'rgba(255,177,66,0.7)' : (a.chasing ? 'rgba(62,198,255,0.6)' : 'rgba(62,198,255,0.3)');
     ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, 7); ctx.fill();
     // Range rings are batched in drawRangeRings (skipped at low quality).
+    ctx.restore();
+    drawSub(a);
+  }
+  function drawSub(a) {
+    const s = a && a.sub;
+    if (!s || s.state === 'cd') return;
+    ctx.save();
+    if (s.trail && s.trail.length) {
+      for (const p of s.trail) {
+        const al = Math.max(0, p.life / 0.28);
+        ctx.globalAlpha = al * 0.55;
+        ctx.fillStyle = 'rgba(255,80,160,0.95)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.2 + al * 2, 0, 7); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (s.state === 'out' || (s.missile && s.missilePhase === 'out')) {
+      const ang = Math.atan2(s.vy || 0, s.vx || 1);
+      ctx.translate(s.x, s.y);
+      ctx.rotate(ang);
+      ctx.scale(1.45, 0.58);
+      ctx.fillStyle = 'rgba(255,80,160,0.28)';
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#ff3d81';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(0, 0, 4.4, 0, 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,220,230,0.95)';
+      ctx.beginPath(); ctx.arc(0, 0, 2.1, 0, 7); ctx.fill();
+    } else {
+      const pop = s.pop || 1;
+      ctx.fillStyle = 'rgba(255,61,129,0.22)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 7 * pop, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,61,129,0.85)';
+      ctx.lineWidth = 1.05;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 3.3 * pop, 0, 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,180,200,0.95)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 1.6 * pop, 0, 7); ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -1812,6 +2153,21 @@
       ctx.drawImage(spr, p.x - sz, p.y - sz, sz * 2, sz * 2);
     }
     ctx.globalAlpha = 1;
+    if (heartN) {
+      const spr = getHeartSprite();
+      for (let i = 0; i < heartN; i++) {
+        const h = HEARTS[i];
+        const a = Math.max(0, h.life / h.max);
+        const sz = h.r;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.translate(h.x, h.y);
+        ctx.rotate(h.rot || 0);
+        ctx.drawImage(spr, -sz, -sz, sz * 2, sz * 2);
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha = 1;
     for (const f of flashes) {
       const u = Math.max(0, f.life / f.max);
       ctx.globalAlpha = u * 0.22;
@@ -1845,7 +2201,7 @@
     noteFrame(raw);
     if (!RM && quality >= 2) paintCode();
     const live = S.optedIn && !S.paused && !S.hidden &&
-      (bugs.length || partN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || S.derick || S.agents);
+      (bugs.length || partN || heartN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || heartbeatActive() || S.derick || S.agents);
     if (live) raf = requestAnimationFrame(frame);
     else if (S.optedIn && !S.paused) { raf = 0; }
   }
@@ -1938,11 +2294,21 @@
     startFinale, winFinale, prestigeReset, finaleMaxHp, finaleDpsEstimate,
     shipGoal, step, IDLE_DERRICK, IDLE_AGENT, IDLE_AGENTIC, IDLE_DEBT,
     get shipBoss() { return shipBoss; },
-    pickThreat, noteDjPoke, pathHeart, PRESTIGE_BOSSES,
+    pickThreat, noteDjPoke, pathHeart, PRESTIGE_BOSSES, prestigeBossPool,
     get blameReady() { return blameReady; },
     setBlameReady(v) { blameReady = !!v; },
     get konamiArmed() { return konamiArmed; },
     get djPokes() { return djPokes; },
+    get heartN() { return heartN; },
+    heartbeatActive, startHeartbeat, pollHeartbeat, spitHearts,
+    HB_CLICKS, HB_WINDOW, HB_DURATION, HB_COOLDOWN, HB_MULT, HEART_DJ_SCALE,
+    SUB_ORBIT, SUB_RESPAWN,
+    forceHeartbeat() { heartbeatUntil = now() + HB_DURATION; heartbeatCdUntil = 0; },
+    expireHeartbeat() { heartbeatUntil = 1; pollHeartbeat(); },
+    clearHeartbeatCd() { heartbeatCdUntil = 0; hbTimes = []; },
+    pickLaunchTarget, predictedMissileDamage, pendingOn, reserveOn, releaseOn, targetHasCover,
+    launchPulseShot, ensureSubs, agentReadyForPulse,
+    derickDraftRate, derickHitRadius,
 
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
