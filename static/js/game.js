@@ -52,7 +52,8 @@
     lastBoss: null,
     clicks: 0, playSpace: false, playUnlocked: false,
     prestige: 0,
-    shipPending: null
+    shipPending: null,
+    shelved: false
   };
   function migrateV2(v2) {
     const agents = Math.max(0, v2.ai | 0);
@@ -103,7 +104,16 @@
   const mult = () => 1 + (S.prestige || S.ships || 0) * 0.5;
   const costScale = () => (S.rapid ? 0.78 : 1);
   const bugsPerLoc = () => 0.38 * Math.pow(0.82, Math.min(5, S.tests)) * (S.ci ? 0.85 : 1);
-  const shipGoal = () => Math.round(1600 * Math.pow((S.prestige || 0) + 1, 1.55) * Math.pow(1.08, S.prestige || 0));
+  // Flattened so each prestige's Ship is a similar session (see shipGoalAt).
+  // Old curve: round(1600 * (prestige+1)^1.55 * 1.08^prestige)
+  //   p0=1600 p1=5060 p2=10245 p3=17282 p4=26377 p5=37790 p6=51828 p7=68846
+  const SHIP_GOAL_BASE = 1100;
+  const SHIP_GOAL_GROWTH = 1.075;
+  function shipGoalAt(p) {
+    p = Math.max(0, p | 0);
+    return Math.round(SHIP_GOAL_BASE * Math.pow(SHIP_GOAL_GROWTH, p));
+  }
+  const shipGoal = () => shipGoalAt(S.prestige || 0);
   const RB_CD = 30000;
 
   // Derick: starts at 2s kill on small (HP=2), improves with tools/ships
@@ -413,16 +423,34 @@
   function currentDpr() {
     return Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
   }
+  function celebrateDpr() {
+    // Fanfare does not need the game canvas DPR. Keep it cheap on phones.
+    return Math.min(COARSE ? 1.05 : 1.15, W.devicePixelRatio || 1);
+  }
+  let celebrateDPR = 1;
+  function resizeCelebrate(force) {
+    const next = celebrateDpr();
+    const w = Math.max(1, Math.floor(Wd * next));
+    const h = Math.max(1, Math.floor(Hd * next));
+    if (!force && celebrateDPR === next && celebrateCv.width === w) return;
+    celebrateDPR = next;
+    celebrateCv.width = w;
+    celebrateCv.height = h;
+    celebrateCtx.setTransform(next, 0, 0, next, 0, 0);
+  }
   function resize(force) {
     const next = currentDpr();
     Wd = innerWidth; Hd = innerHeight;
-    if (!force && next === DPR && cv.width === Math.floor(Wd * next)) return;
+    if (!force && next === DPR && cv.width === Math.floor(Wd * next)) {
+      resizeCelebrate(false);
+      return;
+    }
     DPR = next;
     textSprites.clear();
-    for (const c of [cv, codeCv, celebrateCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
+    for (const c of [cv, codeCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    celebrateCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    resizeCelebrate(true);
     // Keep entities on-screen
     if (derickEnt) { derickEnt.x = clamp(derickEnt.x, 20, Wd - 20); derickEnt.y = clamp(derickEnt.y, 60, Hd - 20); }
     for (const a of agents) {
@@ -1013,10 +1041,18 @@
   function canReachShip(x, y, range) {
     return !!(shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) <= range);
   }
+  function bugBodyRadius(t) {
+    if (!t || t.ship || t.shipNode) return 0;
+    return R[Math.min(4, t.tier | 0)] || 8;
+  }
+  function laserDist(x, y, t) {
+    // Center-to-edge for regular bugs (cheap). Ship hull stays an AABB via preyDist.
+    return Math.max(0, preyDist(x, y, t) - bugBodyRadius(t));
+  }
   function inLaserRange(x, y, t, range) {
     if (!t) return false;
     if (t.shipNode && canReachShip(x, y, range)) return true;
-    return preyDist(x, y, t) <= range;
+    return laserDist(x, y, t) <= range;
   }
   function pickLaserTarget(x, y, range) {
     // Nearby trash always wins. Ship nodes and bosses were monopolizing every
@@ -1095,19 +1131,19 @@
   let emitBurstAcc = 0;
   const CONFETTI_COLORS = ['#39ff88', '#3de0ff', '#ff3d81', '#ffb142', '#fff36a', '#ececf6', '#7cffc0'];
   function confettiCap() {
-    if (COARSE) return quality >= 2 ? 48 : quality >= 1 ? 32 : 24;
-    return quality >= 3 ? 80 : quality >= 2 ? 56 : quality >= 1 ? 36 : 24;
+    if (COARSE) return quality >= 2 ? 20 : quality >= 1 ? 16 : 12;
+    return quality >= 3 ? 36 : quality >= 2 ? 28 : quality >= 1 ? 20 : 12;
   }
   function fallEmitRate() {
-    if (COARSE) return quality >= 2 ? 10 : 6;
-    return quality >= 3 ? 16 : quality >= 2 ? 12 : 8;
+    if (COARSE) return quality >= 2 ? 5 : 3;
+    return quality >= 3 ? 8 : quality >= 2 ? 6 : 4;
   }
   function burstEvery() {
-    return COARSE ? (quality >= 2 ? 1.05 : 1.35) : (quality >= 3 ? 0.75 : 1.0);
+    return COARSE ? (quality >= 2 ? 1.6 : 2.0) : (quality >= 3 ? 1.2 : 1.5);
   }
   function burstSparks() {
-    if (COARSE) return quality >= 2 ? 8 : 6;
-    return quality >= 3 ? 12 : quality >= 2 ? 9 : 6;
+    if (COARSE) return quality >= 2 ? 5 : 4;
+    return quality >= 3 ? 7 : quality >= 2 ? 6 : 4;
   }
   function addConfetti(init) {
     if (confettiN >= confettiCap()) return null;
@@ -1164,11 +1200,11 @@
     if (confettiN > 0) return;
     const cap = confettiCap();
     const seed = Math.min(cap, COARSE
-      ? (quality >= 2 ? 22 : quality >= 1 ? 14 : 10)
-      : (quality >= 3 ? 36 : quality >= 2 ? 24 : quality >= 1 ? 16 : 10));
+      ? (quality >= 2 ? 10 : quality >= 1 ? 8 : 8)
+      : (quality >= 3 ? 16 : quality >= 2 ? 12 : quality >= 1 ? 10 : 8));
     for (let i = 0; i < seed; i++) spawnFallPiece();
     const sparks = burstSparks();
-    const bursts = COARSE ? (quality >= 2 ? 3 : 2) : (quality >= 3 ? 4 : 3);
+    const bursts = COARSE ? (quality >= 2 ? 2 : 1) : (quality >= 3 ? 3 : 2);
     for (let k = 0; k < bursts; k++) {
       spawnFirework(Wd * (0.22 + Math.random() * 0.56), Hd * (0.28 + Math.random() * 0.34), sparks);
     }
@@ -1217,38 +1253,49 @@
       }
     }
   }
+  const CONFETTI_SPRITES = { spark: new Map(), fall: new Map() };
+  function confettiSprite(kind, color) {
+    const map = kind === 'spark' ? CONFETTI_SPRITES.spark : CONFETTI_SPRITES.fall;
+    let spr = map.get(color);
+    if (spr) return spr;
+    const c = d.createElement('canvas');
+    const g = c.getContext('2d');
+    if (kind === 'spark') {
+      c.width = 24; c.height = 24;
+      g.fillStyle = color;
+      g.beginPath(); g.arc(12, 12, 7, 0, 7); g.fill();
+      g.fillStyle = '#fff';
+      g.globalAlpha = 0.85;
+      g.beginPath(); g.arc(12, 12, 2.8, 0, 7); g.fill();
+    } else {
+      c.width = 16; c.height = 10;
+      g.fillStyle = color;
+      g.fillRect(0, 0, 16, 10);
+    }
+    map.set(color, c);
+    return c;
+  }
   function drawConfetti() {
     if (!celebrateCtx) return;
     celebrateCtx.clearRect(0, 0, Wd, Hd);
     if (!confettiN) return;
     const cctx = celebrateCtx;
-    cctx.save();
     for (let i = 0; i < confettiN; i++) {
       const c = CONFETTI[i];
       const a = Math.max(0, c.life / c.max);
+      const spr = confettiSprite(c.kind === 'spark' ? 'spark' : 'fall', c.color);
       cctx.save();
       cctx.translate(c.x, c.y);
       cctx.rotate(c.rot || 0);
+      cctx.globalAlpha = a;
       if (c.kind === 'spark') {
-        const r = c.r || 5;
-        cctx.fillStyle = c.color;
-        cctx.globalAlpha = a * 0.38;
-        cctx.beginPath(); cctx.arc(0, 0, r * 2.6, 0, 7); cctx.fill();
-        cctx.globalAlpha = Math.min(1, a * 1.15);
-        cctx.beginPath(); cctx.arc(0, 0, r, 0, 7); cctx.fill();
-        cctx.globalAlpha = a;
-        cctx.fillStyle = '#fff';
-        cctx.beginPath(); cctx.arc(0, 0, r * 0.42, 0, 7); cctx.fill();
+        const r = (c.r || 5) * 1.8;
+        cctx.drawImage(spr, -r, -r, r * 2, r * 2);
       } else {
-        cctx.fillStyle = c.color;
-        cctx.globalAlpha = a * 0.42;
-        cctx.fillRect(-c.w, -c.h * 0.85, c.w * 2, c.h * 1.7);
-        cctx.globalAlpha = Math.min(1, a * 1.15);
-        cctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+        cctx.drawImage(spr, -(c.w || 10) / 2, -(c.h || 6) / 2, c.w || 10, c.h || 6);
       }
       cctx.restore();
     }
-    cctx.restore();
   }
   function nextShipLabel() {
     const rec = S.shipPending;
@@ -1481,6 +1528,12 @@
   }
 
   // ---------- opt-in / pause / quit ----------
+  function hideSessionChrome() {
+    hideCelebrateChrome();
+    hideShippedFanfare();
+    d.querySelectorAll('.bh-gain').forEach(n => n.remove());
+    if (hud) hud.classList.remove('open');
+  }
   function syncShell() {
     const playing = S.optedIn && !S.paused;
     ready.hidden = S.optedIn && !S.paused;
@@ -1494,14 +1547,21 @@
       if (label) label.textContent = 'Play Bug Hunt';
       if (small) small.textContent = 'mini-game';
     }
-    hud.hidden = !S.optedIn;
+    // Quit shelves the HUD so only Resume Bug Hunt stays on the site.
+    // Pause leaves the HUD (and everything else) exactly as it was.
+    hud.hidden = !S.optedIn || !!S.shelved;
     d.documentElement.classList.toggle('bh-playing', playing);
     d.documentElement.classList.toggle('bh-hidden', S.hidden);
     if (!playing && (S.paused || !S.optedIn)) ctx.clearRect(0, 0, Wd, Hd);
-    paintCode(true);
+    if (S.shelved) {
+      codeCtx.clearRect(0, 0, Wd, Hd);
+      if (celebrateCtx) celebrateCtx.clearRect(0, 0, Wd, Hd);
+    } else {
+      paintCode(true);
+    }
   }
   function optIn() {
-    S.optedIn = true; S.paused = false; S.hidden = false; S.open = true;
+    S.optedIn = true; S.paused = false; S.hidden = false; S.open = true; S.shelved = false;
     if (!S.hintSeen) { S.hintSeen = true; hint.hidden = false; hintUntil = now() + 5500; }
     log(S.squashed || S.loc ? 'Welcome back.' : 'Write some code. Squash the bugs.');
     ensureDerick(); ensureAgents();
@@ -1520,7 +1580,10 @@
       S.playSpace = false;
       applyPlaySpace();
     }
-    S.paused = true; save(); stopLoops(); syncShell(); log('Quit. Progress kept.');
+    S.paused = true;
+    S.shelved = true;
+    hideSessionChrome();
+    save(); stopLoops(); syncShell(); log('Quit. Progress kept.');
   }
   function clearSaveKeys() {
     for (const k of SAVE_KEYS) {
@@ -1864,7 +1927,7 @@
       if (!b || b.hatching) return;
       if (b.ship && b.hp <= 0) return;
       if (pred && !pred(b)) return;
-      const dd = preyDist(x, y, b);
+      const dd = laserDist(x, y, b);
       if (dd < bd) { bd = dd; best = b; }
     };
     for (const b of bugs) consider(b);
@@ -2352,7 +2415,7 @@
     if (isDerick) return !!(unit.target && preyAlive(unit.target));
     const t = unit.target && preyAlive(unit.target) ? unit.target : null;
     if (!t) return false;
-    return preyDist(unit.x, unit.y, t) <= (unit.chasing ? 9999 : agentRange());
+    return unit.chasing ? true : inLaserRange(unit.x, unit.y, t, agentRange());
   }
   function draftAt(unit, dt, rate) {
     if (!unit || !rate) return 0;
@@ -2573,10 +2636,17 @@
     context.drawImage(spr.c, dx, y - spr.h / 2, spr.w, spr.h);
   }
 
+  function bugDrawPop(b) {
+    // Never let a live bug shrink to a sub-pixel speck (0.08 pop * 8px = 0.64px).
+    return Math.max(0.55, (b && b.pop) || 0);
+  }
   function drawBug(b) {
-    if (b.appearIn > 0) return;
+    if (!b || b.hp <= 0) return;
+    // Always paint live bugs, including while appearIn > 0 and at quality 0.
+    // Skipping here was the "lasers at nothing" bug: targeting ignores appearIn.
+    const pop = bugDrawPop(b);
     const tier = Math.min(4, b.tier);
-    const r = R[tier] * b.pop, w = Math.sin(b.ph) * 0.13;
+    const r = R[tier] * pop, w = Math.sin(b.ph) * 0.13;
     ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
     ctx.scale(1 + w + b.sq * .5, 1 - w - b.sq * .4);
     const h = b.boss ? 8 : HUE[tier];
@@ -2604,15 +2674,15 @@
     ctx.restore();
     if (b.boss && b.name) {
       ctx.save();
-      drawCachedText(ctx, b.name, '700 10px ui-monospace, monospace', 'rgba(255,100,100,.9)', b.x, b.y - R[tier] * b.pop - 10, 'center');
+      drawCachedText(ctx, b.name, '700 10px ui-monospace, monospace', 'rgba(255,100,100,.9)', b.x, b.y - R[tier] * pop - 10, 'center');
       // hp bar
       const bw = 36, pct = Math.max(0, b.hp / b.maxHp);
-      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * b.pop - 6, bw, 3);
-      ctx.fillStyle = '#ff5a5a'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * b.pop - 6, bw * pct, 3);
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * pop - 6, bw, 3);
+      ctx.fillStyle = '#ff5a5a'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * pop - 6, bw * pct, 3);
       ctx.restore();
     }
     if (b.targeted) {
-      const tr = R[tier] * 1.5 * b.pop;
+      const tr = R[tier] * 1.5 * pop;
       const pulse = 0.65 + Math.sin(now() / 120) * 0.35;
       ctx.save();
       ctx.strokeStyle = `rgba(255,209,102,${0.8 * pulse})`;
@@ -2757,7 +2827,11 @@
     ctx.restore();
   }
 
+  function shipCardUp() {
+    return !!(S.shipPending && shipped && !shipped.hidden);
+  }
   function draw() {
+    if (shipCardUp()) { drawConfetti(); return; }
     ctx.save(); ctx.clearRect(0, 0, Wd, Hd);
     if (!S.optedIn || S.paused) { ctx.restore(); return; }
     if (shake) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
@@ -2896,9 +2970,14 @@
     const t = now(); const raw = t - last; last = t;
     let dt = Math.min(0.05, raw / 1000);
     if (t < freezeUntil) dt = 0;
-    step(dt); draw();
+    if (shipCardUp()) {
+      if (dt) updateConfetti(dt);
+      drawConfetti();
+    } else {
+      step(dt); draw();
+      if (!RM && quality >= 2) paintCode();
+    }
     noteFrame(raw);
-    if (!RM && quality >= 2) paintCode();
     const live = S.optedIn && !S.paused && !S.hidden &&
       (bugs.length || partN || heartN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || heartbeatActive() || S.derick || S.agents || celebrateOn || confettiN || (S.shipPending && shipped && !shipped.hidden));
     if (live) raf = requestAnimationFrame(frame);
@@ -2980,7 +3059,7 @@
     evictUnkillableBosses();
   }
   render(true);
-  if (S.shipPending) showShippedFanfare(false);
+  if (S.shipPending && !S.shelved) showShippedFanfare(false);
   if (S.optedIn && !S.paused) startLoops();
 
   W.__bugHunt = {
@@ -2992,9 +3071,9 @@
     escortCount, escorting, notePlayerClick, applyPlaySpace, PLAY_UNLOCK,
     launchMissile, detonateMissile, updateMissile, missileRadius, missileDamage,
     ESCORT_AURA, MISSILE_BOSS_FRAC, ensureDerick, ensureAgents,
-    startFinale, winFinale, prestigeReset, confirmShip, dismissShip, reopenShip, showShippedFanfare, hideShippedFanfare, fmtTtk, confettiCap,
+    startFinale, winFinale, prestigeReset, confirmShip, dismissShip, reopenShip, showShippedFanfare, hideShippedFanfare, hideSessionChrome, fmtTtk, confettiCap,
     finaleMaxHp, finaleDpsEstimate, PULSE_BUFF, pulseBuffActive, applyPulseBuff,
-    shipGoal, step, IDLE_DERRICK, IDLE_AGENT, IDLE_AGENTIC, IDLE_DEBT,
+    shipGoal, shipGoalAt, SHIP_GOAL_BASE, SHIP_GOAL_GROWTH, step, draw, updateConfetti, shipCardUp, IDLE_DERRICK, IDLE_AGENT, IDLE_AGENTIC, IDLE_DEBT,
     get shipBoss() { return shipBoss; },
     pickThreat, noteDjPoke, pathHeart, PRESTIGE_BOSSES, prestigeBossPool,
     get blameReady() { return blameReady; },
@@ -3024,6 +3103,7 @@
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
     syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange,
+    bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
