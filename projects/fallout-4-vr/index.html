@@ -6,7 +6,7 @@
 <title>Fallout 4 VR | Derick Janssen</title>
 <meta name="description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:c531f09414;js:fbf1d00811;game:725aa5b629">
+<meta name="asset-rev" content="css:ca7bb57322;js:fbf1d00811;game:2b7009778e">
 <meta property="og:title" content="Fallout 4 VR | Derick Janssen">
 <meta property="og:description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta property="og:type" content="website">
@@ -285,6 +285,10 @@ main{position:relative;z-index:2}
 .bh-stat{white-space:nowrap}
 .bh-stat i{font-style:normal;color:var(--muted);border-bottom:1px dotted var(--line);cursor:help}
 .bh-stat[title] i{cursor:help}
+.bh-hb{color:#ff3d81;letter-spacing:.04em}
+.bh-hb i{font-style:normal;border:0;color:#ff3d81;cursor:default}
+.bh-hb.on{animation:hbPulse 1.05s ease-in-out infinite}
+@keyframes hbPulse{0%,100%{opacity:1}50%{opacity:.5}}
 .bh-btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);font:700 .7rem/1 var(--mono);padding:.35rem .42rem;border-radius:7px;cursor:pointer;transition:transform .2s var(--spring),border-color .15s,background .15s}
 .bh-btn:hover{border-color:var(--green)}
 .bh-btn:active{transform:scale(.88)}
@@ -365,7 +369,7 @@ body.bh-play #bh-shipbar{z-index:55}
 }
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=725aa5b629"></script>
+<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=2b7009778e"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
