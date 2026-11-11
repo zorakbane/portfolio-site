@@ -156,7 +156,7 @@ One engineer, drawn as a green “DJ” orb, about **2.4×** the original size o
 - Laser color: site-accent **green** (`LASER_COLOR.derick` = `rgba(57,255,136,0.85)`).
 - Roam lerp speed 120 (140 in command mode).
 - Agentic Workflow is the only thing that makes him send pulses to agents (any range) and gather them into an escort. His **aura** (see Agents) buffs nearby units automatically. He **always roams** toward the biggest threat — he never parks in a corner. When nothing is on the board he eases back to the center of the play area and hovers there (a small sine bob).
-- After the first prestige he is drawn as a pink beating heart (canvas Bézier, no emoji sprite) instead of the green circle — larger and rounder than the first version (`HEART_DJ_SCALE` 1.8) so it reads clearly next to the escorts.
+- After the first prestige he is drawn as a pink beating heart (canvas Bézier, no emoji sprite) instead of the green circle. The path is left/right symmetric with roughly equal width and height (`~2s × 2s`) so it stays a round heart at every size — including mobile / coarse scale 2.0 and the `HEART_DJ_SCALE` 1.8 desktop draw. The beat pulse and canvas DPR both apply a uniform scale (no single-axis squash).
 - Clicking DJ always sprays a handful of pooled, cached heart sprites. Five clicks inside **5 seconds** start a **Heartbeat** buff for **60 seconds**: DJ’s idle LOC rate is **5×**, and escorts inside his range get his **full** combat DPS aura instead of the usual 25% escort share. A pulsing pink glow and a HUD timer (`♥ 0:47`) show while it is active. After it expires there is a **60 second** cooldown so you cannot chain it. Starting Heartbeat also arms the hidden `git blame` boss (same as the Konami code).
 
 ### Agents
@@ -221,15 +221,17 @@ Named: **Desync**, **Memory Leak**, **Race Condition**, **Null Pointer**, **Fram
 Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switches into Play Space and starts a finale rather than instantly incrementing a counter.
 
 - A giant ship enters from the top at full play-area width, with a warning banner, screen shake, and a named HP bar at the bottom center (`Ship v1.0`, then `v2.0`, …).
-- It constantly drops regular bugs (~every 0.55s) and an occasional named boss (~every 6.2s).
-- **Only lasers and missiles damage it.** Clicks clink just like a normal boss.
+- The **7 teal dots** along the top band are individually targetable **hardpoints**. Each node gets an equal share of the ship’s HP; the bottom bar shows the **sum**. The ship dies only when every node is destroyed.
+- Lasers and bombs pick among live nodes: they prefer the least-targeted / nearest node and respect the same reserved-damage dedupe per node (a bomb will not stack onto a hardpoint that incoming bombs would already kill). Anyone who could reach the hull can still fire, but they aim at a node so the beams spread out instead of converging on the center.
+- Destroying a node is juiced (flash, sparks, “DOWN”) and the node goes dark/cracked. Regular bugs (~every 0.55s when all 7 are up) and named bosses (~every 6.2s) spawn **from live nodes only**, so the drop rate relaxes as hardpoints fall (interval scales by `7 / liveNodes`).
+- **Only lasers and missiles damage nodes.** Clicks clink (hull or node) just like a normal boss and cannot finish a hardpoint.
 - Its max HP is `max(500, estimatedDPS × 106)` (the 106× multiplier is calibrated so a full-unlocks / 10-agent team takes about **90 seconds**, ±15s).
 - On a win: a juiced “SHIPPED” beat, then a **prestige** reset. Run progress (tools, agents, LOC, commits, live bugs) clears; Derick stays hired, the shop stays open, Play Space stays unlocked, and `prestige` / `ships` increment together. The next Ship goal scales up. DJ becomes a pink beating heart.
 - Prestige persists on the `dj-bughunt-v3` save. Older saves that already have `ships` but no `prestige` migrate `prestige = ships`.
 
 **Small prestige extras**
 
-1. Pink beating-heart DJ at `prestige >= 1` (larger, rounder Bézier heart).
+1. Pink beating-heart DJ at `prestige >= 1` (symmetric round Bézier heart).
 2. HUD title becomes `BUG HUNT vN.0`.
 3. Konami (`↑↑↓↓←→←→BA`) launches an extra missile volley (no `preventDefault`) and arms `git blame`.
 4. Clicking DJ sprays pooled hearts; five clicks in 5s starts a 60s **Heartbeat** buff (5× DJ LOC, full aura on nearby escorts, pink glow + HUD timer, 60s cooldown) and arms `git blame`.
@@ -300,7 +302,7 @@ These are the explicit asks the implementation is meant to honor:
 17. Pulses are juiced homing missiles with an AoE blast (bosses don’t get one-shot). After the boom the agent returns to the escort ring — unless Sub-Agent Workflow is owned, in which case the sub-agent is the bomb and the escort stays put.
 18. After 25 player clicks the game can promote into Play Space: a full-screen playfield with Derick’s name visible but not clickable, plus a way back to the site.
 19. ✕ while in Play Space exits Play Space (chrome + scroll restored) and saves; pause does not. Resume only re-enters Play Space if it was still marked active.
-20. Ship is a juiced finale boss, not a one-click counter. Winning prestiges the run; DJ becomes a pink beating heart.
+20. Ship is a juiced finale boss, not a one-click counter. Its seven hardpoint nodes share its HP and are what lasers and bombs actually hit; winning prestiges the run and DJ becomes a pink beating heart.
 21. Clicking DJ sprays hearts; five clicks in 5 seconds starts a cooldown-gated Heartbeat buff.
 22. Sub-Agent Workflow (after Agentic + Multiplayer Sync) replaces escort missiles with orbiting, code-writing suicide bombers that refuse overkill targets.
 
