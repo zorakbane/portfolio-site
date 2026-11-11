@@ -204,7 +204,7 @@ function home() {
       <h3>Let's make something that feels great.</h3>
       <p>Open to conversations about gameplay, multiplayer, performance, tools, and agentic AI work.</p>
       <a class="btn primary big" href="mailto:${esc(S.email)}">${esc(S.email)}</a>
-      <ul class="links">${S.links.filter(l => l.label !== 'Email').map(l => l.url ? `<li><a href="${esc(l.url)}" rel="noopener">${esc(l.label)} ↗</a></li>` : (SHOW_TODOS ? `<li>${esc(l.label)} ${todo(l.todo)}</li>` : '')).join('')}</ul>
+      <ul class="links">${S.links.filter(l => l.label !== 'Email').map(l => l.url ? `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a></li>` : (SHOW_TODOS ? `<li>${esc(l.label)} ${todo(l.todo)}</li>` : '')).join('')}</ul>
       <p class="resume-dl">${resumeDownload('btn primary')}</p>
     </div>
   </div>
