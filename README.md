@@ -67,9 +67,7 @@ Order in the JSON = order on the page. Rebuild after editing.
 - `todo[]` and top-level `aboutTodo` are **blockers**. A default `node build.mjs` shows them as orange notes on project pages, small cards, and the About photo. `node build.mjs --hide-todos` (preview and production) strips those notes.
 - `niceToHave[]` is a documented backlog the builder **never renders**, even on a default build. Use it for media and write-ups that can wait until after go-live.
 
-Current blocker:
-
-- `aboutTodo` — newer headshot (Derick is sending one).
+There are currently no blocker TODOs.
 
 Current nice-to-haves (kept on each project in `data/projects.json`):
 
