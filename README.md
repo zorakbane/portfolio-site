@@ -109,10 +109,12 @@ Bugs per LOC starts at **0.38**, then `× 0.82` per Unit Tests rank (max 5) and 
 - Nothing spawns until you opt in **and** click empty space (or later idle/QA/debt sources kick in).
 - A click-hatch picks a tier: chance of tier 3 is `min(0.5, 0.1 + loc/3000)`; otherwise 70% tier 2 / 30% tier 1.
 - **Cap:** 8 live bugs on coarse pointers or viewports under 700px, otherwise 15. Overflow goes to a **backlog** and drains back in when there is room (never during a post-kill quiet window).
-- **Split:** a non-targeted, non-boss tier 2 or 3 becomes two kids of `tier - 1` if `live + 2 ≤ cap`.
+- **Split:** a non-targeted, non-boss tier 2 or 3 becomes two kids of `tier - 1` if `live + 2 ≤ cap`. The kids are created immediately (so lasers can keep chewing), but their *visible* pop-in is sequenced through the same hatch gate as automatic spawns (~180–350ms apart) so a laser wipe does not make a pile of bugs appear on one frame.
 - **Merge:** if live bugs exceed the cap, the two closest non-boss bugs fuse. The survivor’s tier is `min(3, max(a, b))` and it keeps some of the combined HP. Merges never create a boss.
 - After an automatic kill the spawner stays quiet for **0.7s** (or **3.2s** if the board is empty) so a laser kill does not instantly hatch a replacement. Player squashes use a **1.2s** quiet if they clear the board.
 - With the **Profiler**, some hatches appear as dashed “hatching” outlines for **1.2s**. Hatching bugs cannot be clicked or lasered yet.
+- Automatic hatches (idle debt, leftover click debt, backlog, QA) go through a global hatch queue and drain at a jittered **180–350ms** interval (`HATCH_MIN` + random `HATCH_SPAN`). A live econ tick — including a hitch that arrives with a large `dt` — only births **one** queued bug, so a lagged phone frame cannot dump the queue at once. Player clicks and Ship-finale spawns are still immediate; a click also reserves the next automatic slot so a queued hatch does not share that frame.
+- Same-frame births (several splits, a hitch that somehow queues extras) get a staggered `appearIn` delay so their pop-in animations do not land on the same video frame. `prefers-reduced-motion` does not skip the stagger (it is gameplay pacing, not juice).
 
 Radii / wander speeds / HP by tier (`1…3`, boss = 4): radius `[8, 13, 19, 28]`, speed `[62, 44, 30, 22]`, HP `[2, 4.5, 8, 22]`.
 
@@ -227,7 +229,7 @@ Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switche
 - Destroying a node is juiced (flash, sparks, “DOWN”) and the node goes dark/cracked. Regular bugs (~every 0.55s when all 7 are up) and named bosses (~every 6.2s) spawn **from live nodes only**, so the drop rate relaxes as hardpoints fall (interval scales by `7 / liveNodes`).
 - **Only lasers and missiles damage nodes.** Clicks clink (hull or node) just like a normal boss and cannot finish a hardpoint.
 - Its max HP is `max(500, estimatedDPS × 106)` (the 106× multiplier is calibrated so a full-unlocks / 10-agent team takes about **90 seconds**, ±15s).
-- On a win: the ship dies, the field clears (live bugs, backlog, hatch queue), and a juiced fanfare plays — fireworks/confetti (skipped when `prefers-reduced-motion` is on), a **SHIPPED vN.0!** banner, and run stats (time-to-kill, total LOC, bugs squashed). A confirmation button labeled **Ship (N+1).0?** waits for the player. Prestige does **not** happen automatically.
+- On a win: the ship dies, the field clears (live bugs, backlog, hatch queue), and a juiced fanfare plays — fireworks/confetti (skipped only when `prefers-reduced-motion` is on; low quality still gets a lighter shower), a **SHIPPED vN.0!** banner, and run stats (time-to-kill, total LOC, bugs squashed). A confirmation button labeled **Ship (N+1).0?** waits for the player. Prestige does **not** happen automatically.
 - Tapping that button runs the prestige reset: run progress (tools, agents, LOC, commits, live bugs) clears; Derick stays hired, the shop stays open, Play Space stays unlocked, and `prestige` / `ships` increment together. The next Ship goal scales up. DJ becomes a pink beating heart.
 - The pending confirmation is stored on the save as `shipPending` (`version`, `nextVersion`, `ttk`, `loc`, `squashed`, `name`). Reloading while it is set brings the banner and button back (without replaying the fireworks if you prefer a quiet restore). Reduced motion still shows the card and button, just without confetti, shake, or the entrance animation.
 - Prestige persists on the `dj-bughunt-v3` save. Older saves that already have `ships` but no `prestige` migrate `prestige = ships`.
@@ -251,7 +253,7 @@ Idle drafting is **per-unit**, not global. Derick and each agent write code inde
 - After a unit stops attacking, idle drafting ramps in with a **per-unit phase offset** (`idlePhase`, rolled when the unit is created). The first line lands in about **0.45–1.15s** (`1 - rate × (0.45 + idlePhase × 0.7)`), so a whole squad that stops firing together does not start typing on the same beat.
 - A tiny `{}` tick appears near the unit when it drafts (cheap visual cue; the glyph is drawn from a cached sprite).
 - Each drafted line adds only `bugsPerLoc() × 0.045` debt (`IDLE_DEBT`), and hatches still respect the post-kill quiet window, so the faster idle typing does not instantly refill the board.
-- Automatic hatches (idle debt, leftover click debt, backlog, QA) go through a global hatch queue and drain at a jittered **180–350ms** interval (`HATCH_MIN` + random `HATCH_SPAN`). Player clicks and Ship-finale spawns are still immediate. This stops the “everyone flipped to idle coding and a pile of bugs popped at once” burst.
+- Automatic hatches (idle debt, leftover click debt, backlog, QA) go through a global hatch queue and drain at a jittered **180–350ms** interval, one birth per live econ tick even when a phone hitch delivers a large `dt`. Player clicks and Ship-finale spawns are still immediate. Split kids and any same-frame extras stagger their visible pop-in so a pile does not appear on one frame.
 
 If you leave and come back still opted-in and unpaused, up to **900s** of absence is estimated: a capped number of auto-kills and commit payout, logged when you were away more than 20 seconds. Pause and quit both save and stop the loops.
 
@@ -300,9 +302,9 @@ These are the explicit asks the implementation is meant to honor:
 11. Excess bugs merge, and animation quality steps down if frames get slow.
 12. Long sessions must not leak memory or gradually hitch.
 13. Once opted in with staff hired, idle Derick/agents write LOC when they are not firing (per-unit, including a short ramp after they stop attacking).
-14. Bosses cannot be click-killed.
+14. Bosses cannot be click-killed, and they never appear unless the player already has a damage source that can hurt them (Derick’s laser or at least one agent). A leftover boss meter cannot fire during the Ship, the SHIPPED card, or the first 20 seconds after prestige. If a boss is loaded with no damage source (the old “Frame Spike you can only clink” case), it is downgraded to a clickable tier-3 bug.
 15. All game code is original to this project — not copied from another site’s clicker.
-16. Derick always roams toward threats. He never parks in a corner, even in command mode.
+16. Derick always roams toward threats. He never parks in a corner, even in command mode. Agents (and Derick’s laser) shoot the nearest non-boss bug in range; a boss or Ship node never monopolizes every beam while trash sits next to someone.
 17. Regular agents never fly out as bombs, at any stage. Before Sub-Agent Workflow, a pulse stacks Derick’s full DPS on that agent’s laser. After Sub-Agent Workflow, pulses launch the sub-agent as a juiced homing bomb (bosses don’t get one-shot) while the escort stays in the ring.
 18. After 25 player clicks the game can promote into Play Space: a full-screen playfield with Derick’s name visible but not clickable, plus a way back to the site.
 19. ✕ while in Play Space exits Play Space (chrome + scroll restored) and saves; pause does not. Resume only re-enters Play Space if it was still marked active.
