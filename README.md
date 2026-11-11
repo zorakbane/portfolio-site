@@ -12,6 +12,10 @@ tools/optimize_images.py← source images → resized WebP (needs Python + Pillo
 build.mjs               ← builds dist/ (home + one page per project + 404)
 ```
 
+The outlined **JANSSEN** in the hero is a baked SVG path (Inter 900), not live text, so it cannot pick up a fallback font or a bad `getComputedTextLength()` and overlap or overflow on phones. It is sized to `min(100%, 5.4em)` of the title and clamped to the container in both portrait and landscape.
+
+Each build stamps JS URLs with a content hash (`js/main.js?v=<hash>`, and `main.js` loads `js/game.js?v=<hash>` via a `data-game` attribute) so phones fetch new scripts without a manual cache clear. CSS is inlined, so it updates whenever the HTML document does; a `asset-rev` meta tag records the CSS/JS hashes.
+
 ## Run locally
 
 ```bash
@@ -178,7 +182,7 @@ If you leave and come back still opted-in and unpaused, up to **900s** of absenc
 - An unused/empty v3 slot will import `dj-bughunt-v2` (`cash` becomes `commits`, `ai` becomes `agents`, a few v2 flags become 0-or-1 ranks). The old `dj-bughunt-v1` key is removed.
 - `lastBoss` (the previous boss name) is persisted so a reload cannot immediately repeat it.
 - Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide, and on `bh-save` (used before in-site navigations).
-- `__bugHunt.reset()` (or the Reset progress button) wipes the save and reloads.
+- **Reset progress** (and `__bugHunt.reset()`) confirms, then clears `dj-bughunt-v3` **and** any leftover `v1`/`v2` keys, wipes in-memory state, and sets a flag so the pagehide / visibilitychange / 2s-interval savers cannot write the old run back before reload. That last step is what made Reset appear to do nothing on phones.
 
 ### Performance tiers
 

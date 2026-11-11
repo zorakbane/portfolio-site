@@ -4,6 +4,7 @@
 //   BASE=/repo-name/ node build.mjs  (when hosting under a sub-path)
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const OUT = path.join(ROOT, 'dist');
@@ -12,7 +13,15 @@ const SHOW_TODOS = !process.argv.includes('--hide-todos');
 const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/projects.json'), 'utf8'));
 const IMG = JSON.parse(fs.readFileSync(path.join(ROOT, 'static/img/images.json'), 'utf8'));
 const CSS = fs.readFileSync(path.join(ROOT, 'static/css/site.css'), 'utf8');
+const hashOf = buf => crypto.createHash('sha256').update(buf).digest('hex').slice(0, 10);
+const CSS_HASH = hashOf(CSS);
+const MAIN_HASH = hashOf(fs.readFileSync(path.join(ROOT, 'static/js/main.js')));
+const GAME_HASH = hashOf(fs.readFileSync(path.join(ROOT, 'static/js/game.js')));
 const S = data.site;
+
+// Baked Inter 900 outlines — no runtime font measurement, so mobile can't
+// mis-fit the viewBox or overlap A/E from fallback metrics / letter-spacing bugs.
+const JANSSEN_OUTLINE = `<svg class="ht-outline" viewBox="0 0 593 98" preserveAspectRatio="xMinYMid meet" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round" d="M37.33 90.18Q23.25 90.18 15.63 83.41Q8 76.64 8 64.07V59.08H29.70V64.50Q29.70 68.91 31.69 71.11Q33.67 73.31 37.33 73.31Q40.98 73.31 42.91 71.11Q44.85 68.91 44.85 64.40V9.07H66.22V63.97Q66.22 76.59 58.73 83.38Q51.24 90.18 37.33 90.18ZM81.85 89.10 107.79 9.07H137.44L164.35 89.10H139.75L130.46 58.06Q127.45 47.96 124.82 37.08Q122.19 26.21 119.82 15.47H124.76Q122.51 26.21 120.20 37.08Q117.89 47.96 114.99 58.06L106.13 89.10ZM101.08 73.74V57.52H145.12V73.74ZM179.98 89.10V9.07H203.61L222.68 40.50Q225.15 44.58 227.30 48.66Q229.44 52.74 231.46 57.66Q233.47 62.57 235.57 69.12H233.69Q233.42 64.77 233.02 59.05Q232.61 53.33 232.29 47.77Q231.97 42.21 231.97 38.40V9.07H254.31V89.10H230.68L212.90 59.88Q209.89 54.89 207.61 50.57Q205.33 46.24 203.21 41.41Q201.08 36.57 198.35 30.24H200.60Q201.03 35.88 201.43 41.46Q201.84 47.05 202.08 51.83Q202.32 56.61 202.32 59.88V89.10ZM305.17 90.07Q294.75 90.07 286.99 86.98Q279.23 83.89 274.93 77.45Q270.64 71.00 270.58 60.96H291.21Q291.42 64.61 293.06 67.14Q294.70 69.66 297.68 70.95Q300.66 72.24 304.85 72.24Q308.34 72.24 310.71 71.38Q313.07 70.52 314.28 68.99Q315.49 67.46 315.49 65.47Q315.49 63.64 314.33 62.27Q313.18 60.91 310.54 59.78Q307.91 58.65 303.46 57.74L295.40 56.02Q284.82 53.76 278.72 48.31Q272.62 42.86 272.62 33.46Q272.62 25.83 276.76 20.11Q280.90 14.39 288.17 11.20Q295.45 8 304.96 8Q314.68 8 321.74 11.25Q328.81 14.50 332.65 20.38Q336.49 26.26 336.54 34.10H315.70Q315.43 30.18 312.83 28.01Q310.22 25.83 304.96 25.83Q301.63 25.83 299.48 26.61Q297.33 27.39 296.31 28.79Q295.29 30.18 295.29 31.96Q295.29 33.83 296.39 35.26Q297.49 36.68 299.88 37.73Q302.27 38.78 306.03 39.58L312.59 40.98Q319.19 42.38 323.95 44.68Q328.70 46.99 331.73 50.08Q334.77 53.17 336.19 57.04Q337.62 60.91 337.62 65.47Q337.62 73.37 333.72 78.87Q329.83 84.38 322.58 87.22Q315.33 90.07 305.17 90.07ZM386.44 90.07Q376.02 90.07 368.25 86.98Q360.49 83.89 356.20 77.45Q351.90 71.00 351.85 60.96H372.47Q372.69 64.61 374.32 67.14Q375.96 69.66 378.94 70.95Q381.92 72.24 386.11 72.24Q389.60 72.24 391.97 71.38Q394.33 70.52 395.54 68.99Q396.75 67.46 396.75 65.47Q396.75 63.64 395.59 62.27Q394.44 60.91 391.81 59.78Q389.17 58.65 384.72 57.74L376.66 56.02Q366.08 53.76 359.98 48.31Q353.89 42.86 353.89 33.46Q353.89 25.83 358.02 20.11Q362.16 14.39 369.44 11.20Q376.71 8 386.22 8Q395.94 8 403.01 11.25Q410.07 14.50 413.91 20.38Q417.75 26.26 417.80 34.10H396.96Q396.69 30.18 394.09 28.01Q391.48 25.83 386.22 25.83Q382.89 25.83 380.74 26.61Q378.59 27.39 377.57 28.79Q376.55 30.18 376.55 31.96Q376.55 33.83 377.65 35.26Q378.75 36.68 381.15 37.73Q383.54 38.78 387.29 39.58L393.85 40.98Q400.45 42.38 405.21 44.68Q409.96 46.99 413.00 50.08Q416.03 53.17 417.45 57.04Q418.88 60.91 418.88 65.47Q418.88 73.37 414.98 78.87Q411.09 84.38 403.84 87.22Q396.59 90.07 386.44 90.07ZM435.15 89.10V9.07H492.83V26.58H456.85V40.12H489.83V57.20H456.85V71.59H492.62V89.10ZM510.56 89.10V9.07H534.19L553.26 40.50Q555.73 44.58 557.88 48.66Q560.02 52.74 562.04 57.66Q564.05 62.57 566.15 69.12H564.27Q564.00 64.77 563.60 59.05Q563.19 53.33 562.87 47.77Q562.55 42.21 562.55 38.40V9.07H584.89V89.10H561.26L543.48 59.88Q540.47 54.89 538.19 50.57Q535.91 46.24 533.79 41.41Q531.66 36.57 528.92 30.24H531.18Q531.61 35.88 532.01 41.46Q532.42 47.05 532.66 51.83Q532.90 56.61 532.90 59.88V89.10Z"/></svg>`;
 
 const esc = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const u = p => BASE + p.replace(/^\//, '');
@@ -59,6 +68,7 @@ function layout({ title, desc, body, bodyClass = '', canonical = '', home = fals
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <meta name="theme-color" content="#07070d">
+<meta name="asset-rev" content="css:${CSS_HASH};js:${MAIN_HASH};game:${GAME_HASH}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:type" content="website">
@@ -67,7 +77,7 @@ ${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ''}
 <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
 <style>${CSS}</style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="${u('js/main.js')}" defer></script>
+<script src="${u('js/main.js')}?v=${MAIN_HASH}" defer data-game="${u('js/game.js')}?v=${GAME_HASH}"></script>
 </head>
 <body class="${bodyClass}">
 <a class="skip" href="#main">Skip to content</a>
@@ -132,7 +142,7 @@ function home() {
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-bg" aria-hidden="true"><div class="grid"></div><div class="glow g1"></div><div class="glow g2"></div></div>
   <div class="wrap hero-inner">
-    <h1 id="hero-title" class="hero-title"><span class="ht-line" data-text="Derick">Derick</span><span class="ht-line ht-2" data-text="Janssen"><svg class="ht-outline" viewBox="0 0 980 140" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><text x="16" y="108" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">JANSSEN</text></svg><span class="ht-sr">Janssen</span></span></h1>
+    <h1 id="hero-title" class="hero-title"><span class="ht-line" data-text="Derick">Derick</span><span class="ht-line ht-2" data-text="Janssen">${JANSSEN_OUTLINE}<span class="ht-sr">Janssen</span></span></h1>
     <p class="hero-role">${esc(S.title)} <span class="sep">//</span> Santa Barbara Games</p>
     <p class="hero-tag">${esc(S.tagline)}</p>
     <div class="hero-cta">
