@@ -6,7 +6,7 @@
 <title>Puppies In Spaaace! | Derick Janssen</title>
 <meta name="description" content="An all-ages first-person shooter. You play Puddles, a dog with shoulder-mounted tennis ball launchers, in a 3-stage boss battle against a vacuum cleaner piloted by a cat.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:693622c76f;js:fbf1d00811;game:adaa9ca237">
+<meta name="asset-rev" content="css:6c16f52421;js:fbf1d00811;game:adaa9ca237">
 <meta property="og:title" content="Puppies In Spaaace! | Derick Janssen">
 <meta property="og:description" content="An all-ages first-person shooter. You play Puddles, a dog with shoulder-mounted tennis ball launchers, in a 3-stage boss battle against a vacuum cleaner piloted by a cat.">
 <meta property="og:type" content="website">
@@ -36,7 +36,7 @@ p{margin:0 0 1em}
 .brand-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#05050a;font:900 15px/1 var(--mono);transition:transform .35s var(--spring)}
 .brand:hover .brand-mark{transform:rotate(-12deg) scale(1.12)}
 .brand:active .brand-mark{transform:scale(.8,1.15)}
-.nav{display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none}
+.nav{display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
 .nav::-webkit-scrollbar{display:none}
 .nav a{padding:.45rem .7rem;border-radius:8px;text-decoration:none;color:var(--muted);font:600 .85rem/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:color .15s,background .15s,transform .2s var(--spring)}
 .nav a:hover{color:var(--text);background:var(--panel);transform:translateY(-2px)}
@@ -52,6 +52,8 @@ p{margin:0 0 1em}
 .btn.primary{background:var(--green);color:#04120a;border-color:var(--green)}
 .btn.primary:hover{box-shadow:0 10px 30px -8px var(--green)}
 .btn.big{font-size:1.05rem;padding:1rem 1.4rem;word-break:break-all}
+.btn.top-resume{flex-shrink:0;padding:.48rem .7rem;font:700 .72rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--green);border-color:var(--green);background:rgba(57,255,136,.08)}
+.btn.top-resume:hover{color:#04120a;background:var(--green)}
 .chips{list-style:none;display:flex;flex-wrap:wrap;gap:.35rem;padding:0;margin:.6rem 0 0}
 .chips li{font:600 .72rem/1 var(--mono);padding:.4rem .55rem;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--muted)}
 .chips.gold li{color:var(--gold);border-color:rgba(255,209,102,.35);background:rgba(255,209,102,.07)}
@@ -193,6 +195,8 @@ p{margin:0 0 1em}
 .contact-card{position:sticky;top:90px;padding:1.6rem;border-radius:var(--r);border:1px solid var(--green);background:radial-gradient(circle at 100% 0,rgba(57,255,136,.14),transparent 55%),var(--panel)}
 .contact-card h3{font-size:1.6rem}
 .contact-card p{color:var(--muted)}
+.resume-dl{margin:1.15rem 0 0}
+.resume-dl .btn{width:100%;justify-content:center}
 .links{list-style:none;display:flex;flex-wrap:wrap;gap:.5rem 1rem;padding:0;margin:1.2rem 0 0}
 .links a{font:700 .9rem var(--mono);color:var(--cyan);text-decoration:none;border-bottom:1px dashed var(--cyan)}
 .links a:hover{color:var(--green);border-color:var(--green)}
@@ -402,6 +406,7 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
 <header class="top">
   <a class="brand" href="/portfolio-site/"><span class="brand-mark" aria-hidden="true">DJ</span><span class="brand-name">Derick Janssen</span></a>
   <nav class="nav" aria-label="Sections"><a href="/portfolio-site/#work">Work</a><a href="/portfolio-site/#earlier">Earlier</a><a href="/portfolio-site/#lab">Lab</a><a href="/portfolio-site/#awards">Awards</a><a href="/portfolio-site/#about">About</a><a href="/portfolio-site/#contact">Contact</a></nav>
+  <a class="btn top-resume" href="/portfolio-site/resume.pdf" download="Derick-Janssen-Resume.pdf">Download resume</a>
 </header>
 <main id="main">
 
