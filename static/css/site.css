@@ -314,3 +314,21 @@ main{position:relative;z-index:2}
   .grid{animation:none}
   @view-transition{navigation:none}
 }
+
+/* ---- Play Space (full-screen playfield, site chrome hidden) ---- */
+body.bh-play{overflow:hidden}
+body.bh-play .top,body.bh-play main,body.bh-play footer,body.bh-play .skip{visibility:hidden!important;pointer-events:none!important}
+#bh-playscene{position:fixed;inset:0;z-index:2;background:var(--bg);pointer-events:auto}
+#bh-playscene[hidden]{display:none!important}
+body.bh-play #bh-code{z-index:3}
+body.bh-play #bh-canvas{z-index:4}
+#bh-playmark{position:fixed;left:max(1.2rem,env(safe-area-inset-left));top:18%;width:min(720px,calc(100vw - 2.4rem));z-index:5;pointer-events:none;user-select:none;-webkit-user-select:none;font:900 clamp(2.4rem,10vw,6.5rem)/.86 var(--sans);text-transform:uppercase;letter-spacing:-.04em;color:var(--text)}
+#bh-playmark[hidden]{display:none!important}
+#bh-playmark .bh-play-derick{display:block}
+#bh-playmark .ht-outline{display:block;width:5.4em;max-width:100%;height:auto;aspect-ratio:593/98;overflow:hidden;color:var(--green);margin:.05em 0 0}
+#bh-promote{position:fixed;left:50%;top:16%;transform:translate(-50%,0);z-index:60;pointer-events:none;padding:.85rem 1.25rem;border:2px solid var(--green);border-radius:14px;background:rgba(8,16,12,.94);color:var(--green);font:900 .95rem/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;box-shadow:0 0 0 1px #39ff8833,0 16px 40px -10px #39ff88aa,inset 0 0 24px #39ff8814;text-align:center}
+#bh-promote[hidden]{display:none!important}
+#bh-promote.in{animation:promoteIn .45s var(--spring) both,promoteOut 3.4s ease 0s forwards}
+@keyframes promoteIn{from{opacity:0;transform:translate(-50%,-18px) scale(.86)}}
+@keyframes promoteOut{0%,70%{opacity:1}100%{opacity:0}}
+.bh-playbtn{white-space:nowrap}

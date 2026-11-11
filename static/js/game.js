@@ -1,8 +1,9 @@
 /* Bug Hunt — idle/clicker for derickjanssen.com.
    Opt-in → click empty space to write LOC → bugs hatch → squash for Commits.
-   Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow,
-   then Movement Tuning / Multiplayer Sync (after agents actually chase), command mode
-   at 10 agents, rollback, Ship. Persist in localStorage. Never preventDefault. */
+   Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow
+   (escorts + homing-missile pulses), Movement Tuning / Multiplayer Sync, command mode
+   at 10 agents (faster pulses, no parking), rollback, Ship. Play Space after 25
+   player actions. Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
   window.__bugHunt = { __booting: true };
@@ -17,6 +18,8 @@
   let pulseAcc = 0, bossAcc = 0, hatchAcc = 0, idleAcc = 0, clearAcc = 0, qaRevealAcc = 0;
   let quality = RM ? 1 : 3, qHold = 0, econId = 0, saveId = 0, lastEcon = now();
   let spawnQuietUntil = 0;
+  let escortPhase = 0;
+  const PLAY_UNLOCK = 25;
   const frameTimes = [];
   const spawnLog = [];
 
@@ -28,7 +31,8 @@
     rollback: 0, autoRb: 0, ships: 0,
     shop: false, open: true, hidden: false,
     bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0,
-    lastBoss: null
+    lastBoss: null,
+    clicks: 0, playSpace: false, playUnlocked: false
   };
   function migrateV2(v2) {
     const agents = Math.max(0, v2.ai | 0);
@@ -50,7 +54,8 @@
       })) : [],
       backlog: v2.backlog || 0, t: v2.t || Date.now(), rbAt: v2.rbAt || 0,
       intro: !!v2.intro, hintSeen: !!v2.hintSeen, codeIdx: v2.codeIdx || 0,
-      lastBoss: v2.lastBoss || null
+      lastBoss: v2.lastBoss || null,
+      clicks: v2.clicks || 0, playSpace: !!v2.playSpace, playUnlocked: !!v2.playUnlocked
     };
   }
   let S, fresh = false;
@@ -91,7 +96,7 @@
   const derickRange = () => {
     let r = COARSE ? 110 : 140;
     r += S.profiler * 36 + S.agentic * 28 + S.ships * 18;
-    if (S.agents >= 10) r = Math.min(r, 160); // command corner focus
+    if (commandMode()) r = Math.min(r, 160); // tighter focus, not a park
     return r;
   };
   const derickDps = () => 2 / derickKillTime(); // HP/s vs small
@@ -117,9 +122,38 @@
     if (a.chasing) return true; // pulse: any range
     return Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) <= derickCombatRange();
   }
+  function escorting(a) { return !!(S.agentic && a && !a.chasing); }
+  function escortCount() { return agents.filter(a => !a.chasing).length; }
+  function escortRadius(n) {
+    n = Math.max(1, n == null ? agents.length : n);
+    return Math.min((COARSE || Wd < 700) ? 72 : 88, 38 + Math.sqrt(n) * 14);
+  }
+  function escortSlot(i, n, phase) {
+    n = Math.max(1, n == null ? agents.length : n);
+    const ang = (i / n) * Math.PI * 2 + (phase == null ? escortPhase : phase);
+    const r = escortRadius(n);
+    const cx = derickEnt ? derickEnt.x : Wd * 0.5;
+    const cy = derickEnt ? derickEnt.y : Hd * 0.4;
+    return { x: clamp(cx + Math.cos(ang) * r, 24, Math.max(25, Wd - 24)), y: clamp(cy + Math.sin(ang) * r, 64, Math.max(65, Hd - 24)) };
+  }
+  const ESCORT_AURA = 0.25; // modest share of Derick DPS while holding formation
+  const MISSILE_BOSS_FRAC = 0.35; // one blast never deletes a full-health boss
+  function missileSpeed0() { return 220 + (S.movement ? 50 : 0) + S.ships * 8; }
+  function missileSpeedMax() { return 520 + (S.movement ? 90 : 0) + S.ships * 16; }
+  function missileRadius() {
+    return Math.min(150, ((COARSE || Wd < 700) ? 54 : 68) + derickCombatDps() * 12);
+  }
+  function missileDamage() { return 3.6 * derickCombatDps(); }
   function agentCombatDps(a) {
     const base = agentDps() * (S.ci ? 1.08 : 1);
-    return base + (agentBuffed(a) ? derickCombatDps() : 0);
+    if (!agentBuffed(a)) return base;
+    // Missiles are the big hit (see detonateMissile). No extra laser DPS while flying.
+    if (a.chasing || a.missile) return base;
+    // Escorts live inside the aura. A modest +25% of Derick's combat DPS each —
+    // not a full extra Derick per agent. Static turrets (before Agentic) still
+    // get the full personal add because pulses do not exist yet.
+    if (escorting(a)) return base + derickCombatDps() * ESCORT_AURA;
+    return base + derickCombatDps();
   }
 
   const cost = {
@@ -156,16 +190,16 @@
   }
   const ITEMS = [
     { id: 'derick', name: 'HIRE DERICK', desc: () => 'One engineer. Thin laser. Roams and squashes.', once: true, show: () => nextUnlock() === 'derick' },
-    { id: 'agent', name: 'HIRE AGENT', desc: () => `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
+    { id: 'agent', name: 'HIRE AGENT', desc: () => S.agentic ? `Escort · fires from Derick's ring. (${S.agents})` : `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
     { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'ci', 'qa'].includes(nextUnlock())) },
     { id: 'profiler', name: 'PROFILER', desc: () => 'Reveal hatching bugs · larger agent radius.', once: true, show: () => nextUnlock() === 'profiler' },
     { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce to a second bug.', once: true, show: () => nextUnlock() === 'collision' },
-    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Chasing agents move faster.', once: true, show: () => nextUnlock() === 'movement' },
+    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Homing missiles launch and fly faster.', once: true, show: () => nextUnlock() === 'movement' },
     { id: 'ci', name: 'CI PIPELINE', desc: () => 'Faster lasers · fewer bugs pre-merge.', once: true, show: () => nextUnlock() === 'ci' },
     { id: 'qa', name: 'QA', desc: () => 'Reveals more bugs & marks the largest (incl. bosses) to die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
     { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
-    { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse chains to several agents.', once: true, show: () => nextUnlock() === 'sync' },
-    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick pulses an agent to chase & clear a lineage.', once: true, show: () => nextUnlock() === 'agentic' },
+    { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse launches several missiles.', once: true, show: () => nextUnlock() === 'sync' },
+    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts and pulses them as homing missiles.', once: true, show: () => nextUnlock() === 'agentic' },
     { id: 'rollback', name: 'ROLLBACK NETCODE', desc: () => '⟲ Clears the screen. 30s cooldown.', once: true, show: () => nextUnlock() === 'rollback' },
     { id: 'autoRb', name: 'AUTO ROLLBACK', desc: () => 'Rollback fires when 8+ bugs are live.', once: true, show: () => nextUnlock() === 'autoRb' },
   ];
@@ -202,6 +236,7 @@
       </div>
       <button class="bh-btn" type="button" data-act="pause" title="Pause">❚❚</button>
       <button class="bh-btn" type="button" data-act="rb" hidden title="Rollback">⟲</button>
+      <button class="bh-btn bh-playbtn" type="button" data-act="playspace" hidden title="Play Space">Play Space</button>
       <button class="bh-btn" type="button" data-act="min" aria-label="Minimize Bug Hunt">–</button>
       <button class="bh-btn" type="button" data-act="quit" aria-label="Quit Bug Hunt">✕</button>
     </div>
@@ -209,11 +244,24 @@
     <div class="bh-footer"><button class="bh-btn bh-reset" type="button" data-act="reset">Reset progress</button></div></div>`;
   const hint = d.createElement('div'); hint.id = 'bh-hint'; hint.hidden = true;
   hint.textContent = (COARSE ? 'Tap' : 'Click') + ' empty space to write code… uh oh, bugs.';
-  d.body.append(codeCv, cv, ready, hud, hint);
+  const playScene = d.createElement('div');
+  playScene.id = 'bh-playscene';
+  playScene.hidden = true;
+  const playMark = d.createElement('div');
+  playMark.id = 'bh-playmark';
+  playMark.hidden = true;
+  playMark.setAttribute('aria-hidden', 'true');
+  playMark.innerHTML = '<span class="bh-play-derick">Derick</span><span class="bh-play-janssen"></span>';
+  const promote = d.createElement('div');
+  promote.id = 'bh-promote';
+  promote.hidden = true;
+  promote.textContent = 'Promoted: Play Space unlocked';
+  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote);
   const $ = s => hud.querySelector(s);
   const el = {
     loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), commits: $('[data-k=commits]'),
     pause: $('[data-act=pause]'), rb: $('[data-act=rb]'), min: $('[data-act=min]'), quit: $('[data-act=quit]'),
+    play: $('[data-act=playspace]'),
     log: $('.bh-log'), tip: $('.bh-tip'), shop: $('.bh-shop')
   };
 
@@ -271,7 +319,10 @@
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     // Keep entities on-screen
     if (derickEnt) { derickEnt.x = clamp(derickEnt.x, 20, Wd - 20); derickEnt.y = clamp(derickEnt.y, 60, Hd - 20); }
-    for (const a of agents) { a.homeX = clamp(a.homeX, 24, Wd - 24); a.homeY = clamp(a.homeY, 70, Hd - 24); if (!a.chasing) { a.x = a.homeX; a.y = a.homeY; } }
+    for (const a of agents) {
+      a.homeX = clamp(a.homeX, 24, Wd - 24); a.homeY = clamp(a.homeY, 70, Hd - 24);
+      if (!a.chasing && !a.missile && !S.agentic) { a.x = a.homeX; a.y = a.homeY; }
+    }
     paintCode(true); kick();
   }
   addEventListener('resize', resize, { passive: true });
@@ -322,7 +373,7 @@
   let bugs = [];
   let derickEnt = null;
   let agents = [];
-  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [], shields = [];
+  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [], shields = [], explosions = [];
   let shake = 0, freezeUntil = 0, flash = 0;
 
   function mkBug(tier, x, y, a, opts = {}) {
@@ -405,10 +456,6 @@
     while (agents.length > S.agents) agents.pop();
   }
   function commandMode() { return S.derick && S.agents >= 10; }
-  function commandCorner() {
-    // Park away from HUD (bottom-right): use top-left
-    return { x: 48, y: 88 };
-  }
 
   // ---------- juice ----------
   function burst(x, y, hue, n, spd = 260, life = 0.6) {
@@ -507,11 +554,17 @@
       burst(b.x, b.y, b.boss ? 8 : 50, 12, 280, .65);
       punch(auto ? 3 : 6);
       for (const ag of agents) {
-        if (ag.chaseRoot === b) { ag.chasing = false; ag.chaseRoot = null; ag.target = null; }
+        if (ag.chaseRoot === b) {
+          ag.chaseRoot = null; ag.target = null;
+          if (!ag.missile) ag.chasing = false;
+        }
       }
     } else {
       for (const ag of agents) {
-        if (ag.chaseRoot === b) { ag.chasing = false; ag.chaseRoot = null; ag.target = null; }
+        if (ag.chaseRoot === b) {
+          ag.chaseRoot = null; ag.target = null;
+          if (!ag.missile) ag.chasing = false;
+        }
       }
     }
     if (!S.shop && S.squashed >= 5) openShop();
@@ -559,7 +612,11 @@
     bugs.forEach(b => { gainC += b.boss ? 8 : b.tier; ghosts.push({ x: b.x, y: b.y, tx: b.ox, ty: b.oy, r: R[b.tier], hue: HUE[Math.min(3, b.tier)], t: 0 }); });
     gainC = Math.round((gainC + S.backlog) * 0.5 * mult());
     S.commits += gainC; S.squashed += n; S.backlog = 0; bugs = [];
-    for (const a of agents) { a.chasing = false; a.target = null; a.chaseRoot = null; a.x = a.homeX; a.y = a.homeY; }
+    for (const a of agents) {
+      a.chasing = false; a.missile = false; a.missilePhase = null;
+      a.target = null; a.chaseRoot = null; a.vx = 0; a.vy = 0; a.trail = [];
+      a.x = a.homeX; a.y = a.homeY;
+    }
     flash = 1; punch(8);
     log(`⟲ Rolled back${auto ? ' (auto)' : ''}. ${n} bugs never happened. +${fmt(gainC)} commits`);
     kick(); dirty = true;
@@ -627,8 +684,50 @@
     wipeProgress();
     location.reload();
   }
+  function fillPlayWordmark() {
+    const slot = playMark.querySelector('.bh-play-janssen');
+    if (!slot || slot.querySelector('svg')) return;
+    const tpl = d.getElementById('bh-wordmark-outline');
+    if (tpl && tpl.content) slot.append(tpl.content.cloneNode(true));
+    else {
+      const hero = d.querySelector('.ht-outline');
+      if (hero) slot.append(hero.cloneNode(true));
+    }
+  }
+  function applyPlaySpace() {
+    const on = !!(S.playSpace && S.optedIn);
+    d.body.classList.toggle('bh-play', on);
+    playScene.hidden = !on;
+    playMark.hidden = !on;
+    if (on) fillPlayWordmark();
+    if (el.play) {
+      el.play.hidden = !S.playUnlocked;
+      el.play.textContent = S.playSpace ? 'Site' : 'Play Space';
+      el.play.title = S.playSpace ? 'Back to the site' : 'Open Play Space';
+    }
+  }
+  function showPromote() {
+    promote.hidden = false;
+    promote.classList.remove('in');
+    void promote.offsetWidth;
+    promote.classList.add('in');
+    log('Promoted: Play Space unlocked.');
+    setTimeout(() => { promote.hidden = true; promote.classList.remove('in'); }, 3400);
+  }
+  function notePlayerClick() {
+    if (!S.optedIn) return;
+    S.clicks = (S.clicks || 0) + 1;
+    if (!S.playUnlocked && S.clicks >= PLAY_UNLOCK) {
+      S.playUnlocked = true;
+      S.playSpace = true;
+      showPromote();
+      applyPlaySpace();
+      save();
+    }
+  }
 
   syncShell();
+  applyPlaySpace();
   if (S.optedIn && !S.paused) { ensureDerick(); ensureAgents(); }
   if (S.optedIn && !S.paused && !S.hintSeen && !S.intro) {
     hint.hidden = false; hintUntil = now() + 5500; S.hintSeen = true;
@@ -653,9 +752,11 @@
     if (best) {
       if (isBoss(best)) { clink(best, x, y); return; }
       squash(best, {});
+      notePlayerClick();
       return;
     }
     addCode(1, x, y, true);
+    notePlayerClick();
     codeBurstAt(x, y);
     gain(x, y, '+1 LOC', '#ececf6');
     if (!S.intro) { S.intro = true; log('Code written. Bugs crawl out. Squash them!'); hint.hidden = true; }
@@ -674,6 +775,7 @@
     else if (act === 'pause') pauseGame();
     else if (act === 'quit') quitGame();
     else if (act === 'reset') resetAll();
+    else if (act === 'playspace' && S.playUnlocked) { S.playSpace = !S.playSpace; applyPlaySpace(); }
     else if (act === 'rb') rollback(false);
     else if (act === 'ship') ship();
     else if (buy) {
@@ -687,11 +789,11 @@
         const r = b.getBoundingClientRect(); burst(r.left + r.width / 2, r.top, 50, 8, 180, .45);
         if (buy === 'derick') { ensureDerick(); log('Derick hired.'); }
         else if (buy === 'agent') { ensureAgents(); log(`Agent #${S.agents} online.`); }
-        else if (buy === 'agentic') log('Agentic Workflow online.');
+        else if (buy === 'agentic') log('Agentic Workflow online. Agents falling in around Derick.');
         else if (buy === 'rollback') log('Rollback unlocked.');
         else if (buy === 'qa') { retargetQA(); log('QA marking big bugs.'); }
         else log(`${it.name} unlocked.`);
-        if (S.agents >= 10 && buy === 'agent') log('Command mode: Derick directing from the corner.');
+        if (S.agents >= 10 && buy === 'agent') log('Command mode: faster pulses. Agents escort Derick.');
         kick();
       }
     }
@@ -705,6 +807,11 @@
     hud.classList.toggle('bh-min', !S.open);
     el.min.textContent = S.open ? '–' : '+';
     el.pause.textContent = S.paused ? '▶' : '❚❚';
+    if (el.play) {
+      el.play.hidden = !S.playUnlocked;
+      el.play.textContent = S.playSpace ? 'Site' : 'Play Space';
+      el.play.title = S.playSpace ? 'Back to the site' : 'Open Play Space';
+    }
     el.loc.textContent = fmt(S.loc);
     el.bugs.textContent = fmt(bugs.length + S.backlog);
     el.commits.textContent = fmt(S.commits);
@@ -764,24 +871,19 @@
     ensureDerick();
     if (!derickEnt || !S.derick) return;
     const cmd = commandMode();
-    if (cmd) {
-      const c = commandCorner();
-      derickEnt.tx = c.x; derickEnt.ty = c.y;
+    // Always roam toward the biggest threat. Never park — it made DJ look lazy.
+    const threat = bugs.filter(b => !b.hatching).sort((a, b) => (b.boss - a.boss) || (b.tier - a.tier) || (Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) - Math.hypot(b.x - derickEnt.x, b.y - derickEnt.y)))[0];
+    if (threat) {
+      const ang = Math.atan2(threat.y - derickEnt.y, threat.x - derickEnt.x);
+      const prefer = derickRange() * 0.55;
+      derickEnt.tx = threat.x - Math.cos(ang) * prefer;
+      derickEnt.ty = threat.y - Math.sin(ang) * prefer;
     } else {
-      // roam toward densest / largest threat
-      const threat = bugs.filter(b => !b.hatching).sort((a, b) => (b.boss - a.boss) || (b.tier - a.tier) || (Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) - Math.hypot(b.x - derickEnt.x, b.y - derickEnt.y)))[0];
-      if (threat) {
-        const ang = Math.atan2(threat.y - derickEnt.y, threat.x - derickEnt.x);
-        const prefer = derickRange() * 0.55;
-        derickEnt.tx = threat.x - Math.cos(ang) * prefer;
-        derickEnt.ty = threat.y - Math.sin(ang) * prefer;
-      } else {
-        derickEnt.tx += (Math.random() - .5) * 40 * dt;
-        derickEnt.ty += (Math.random() - .5) * 40 * dt;
-      }
-      derickEnt.tx = clamp(derickEnt.tx, 30, Wd - 30);
-      derickEnt.ty = clamp(derickEnt.ty, 70, Hd - 30);
+      derickEnt.tx += (Math.random() - .5) * 40 * dt;
+      derickEnt.ty += (Math.random() - .5) * 40 * dt;
     }
+    derickEnt.tx = clamp(derickEnt.tx, 30, Wd - 30);
+    derickEnt.ty = clamp(derickEnt.ty, 70, Hd - 30);
     const sp = cmd ? 140 : 120;
     derickEnt.x += (derickEnt.tx - derickEnt.x) * Math.min(1, dt * (sp / 40));
     derickEnt.y += (derickEnt.ty - derickEnt.y) * Math.min(1, dt * (sp / 40));
@@ -814,11 +916,148 @@
     }
   }
 
-  function activateChase(agent, target) {
+  function endMissile(agent) {
+    if (!agent) return;
+    agent.chasing = false;
+    agent.missile = false;
+    agent.missilePhase = null;
+    agent.chaseRoot = null;
+    agent.target = null;
+    agent.vx = 0; agent.vy = 0;
+    agent.trail = [];
+    agent.flight = 0;
+  }
+  function launchMissile(agent, target) {
     if (!agent || !target) return;
+    if (agent.missile && agent.missilePhase === 'out') return;
     agent.chasing = true;
+    agent.missile = true;
+    agent.missilePhase = 'out';
     agent.chaseRoot = target;
     agent.target = target;
+    agent.flight = 0;
+    const ang = Math.atan2(target.y - agent.y, target.x - agent.x);
+    const side = agent.kickSign || (Math.random() < 0.5 ? -1 : 1);
+    agent.kickSign = -side;
+    const s0 = missileSpeed0();
+    agent.vx = Math.cos(ang) * s0 + Math.cos(ang + Math.PI / 2) * side * 210;
+    agent.vy = Math.sin(ang) * s0 + Math.sin(ang + Math.PI / 2) * side * 210;
+    agent.trail = [];
+  }
+  function activateChase(agent, target) { launchMissile(agent, target); }
+  function detonateMissile(agent) {
+    if (!agent) return;
+    const x = agent.x, y = agent.y;
+    const rad = missileRadius();
+    const base = missileDamage();
+    for (const b of bugs.slice()) {
+      if (!b || b.hatching) continue;
+      const dist = Math.hypot(b.x - x, b.y - y);
+      if (dist > rad) continue;
+      const fall = 1 - (dist / rad) * 0.45;
+      let dmg = base * fall;
+      if (isBoss(b)) dmg = Math.min(dmg, b.maxHp * MISSILE_BOSS_FRAC);
+      b.hp -= dmg;
+      b.flash = 1;
+      b.sq = Math.max(b.sq || 0, 0.85);
+      const bang = Math.atan2(b.y - y, b.x - x) || 0;
+      b.a = bang;
+      b.boost = isBoss(b) ? 1.8 : 3.4;
+      if (b.hp <= 0) {
+        const qaBoss = isBoss(b) && b.targeted;
+        squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
+      }
+    }
+    if (!RM) {
+      if (quality >= 1) punch(quality >= 3 ? 7 : quality >= 2 ? 5 : 2.5);
+      if (quality >= 2) {
+        flash = Math.max(flash, 0.55);
+        freezeUntil = Math.max(freezeUntil, now() + 42);
+      } else if (quality >= 1) {
+        flash = Math.max(flash, 0.25);
+      }
+      const n = quality >= 3 ? 20 : quality >= 2 ? 12 : quality >= 1 ? 6 : 0;
+      if (n) burst(x, y, 42, n, 280, 0.55);
+      if (n && quality >= 2) burst(x, y, 195, Math.ceil(n * 0.5), 200, 0.4);
+    }
+    explosions.push({ x, y, r: rad, life: 0.42, max: 0.42 });
+    if (explosions.length > 10) explosions.shift();
+    const spd = Math.hypot(agent.vx || 0, agent.vy || 0) || 200;
+    const hang = Math.atan2(agent.vy || 0, agent.vx || 1);
+    agent.vx = -Math.cos(hang) * Math.min(340, spd * 0.55);
+    agent.vy = -Math.sin(hang) * Math.min(340, spd * 0.55);
+    agent.missilePhase = 'back';
+    agent.flight = 0;
+    agent.chaseRoot = null;
+    agent.target = null;
+  }
+  function updateMissile(a, dt) {
+    if (!a || !a.missile) return;
+    if (a.missilePhase === 'out') {
+      a.flight = (a.flight || 0) + dt;
+      let t = a.chaseRoot && bugs.includes(a.chaseRoot) ? a.chaseRoot : null;
+      if (!t || t.hatching) {
+        t = nearestBug(a.x, a.y, 320, b => true);
+        a.chaseRoot = t;
+        a.target = t;
+      }
+      if (t) {
+        const dx = t.x - a.x, dy = t.y - a.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const aimX = t.x + (dx / dist) * 22;
+        const aimY = t.y + (dy / dist) * 22;
+        const desired = Math.atan2(aimY - a.y, aimX - a.x);
+        const cur = Math.atan2(a.vy, a.vx);
+        let diff = desired - cur;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const turn = clamp(diff, -8 * dt, 8 * dt);
+        const spd = Math.hypot(a.vx, a.vy);
+        const nspd = Math.min(missileSpeedMax(), spd + 980 * dt);
+        const nang = cur + turn;
+        a.vx = Math.cos(nang) * nspd;
+        a.vy = Math.sin(nang) * nspd;
+      } else {
+        const spd = Math.hypot(a.vx, a.vy);
+        const nspd = Math.min(missileSpeedMax(), spd + 400 * dt);
+        const ang = Math.atan2(a.vy, a.vx);
+        a.vx = Math.cos(ang) * nspd;
+        a.vy = Math.sin(ang) * nspd;
+      }
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      if (a.x < 16) { a.x = 16; a.vx = Math.abs(a.vx) * 0.6; }
+      if (a.x > Wd - 16) { a.x = Wd - 16; a.vx = -Math.abs(a.vx) * 0.6; }
+      if (a.y < 56) { a.y = 56; a.vy = Math.abs(a.vy) * 0.6; }
+      if (a.y > Hd - 16) { a.y = Hd - 16; a.vy = -Math.abs(a.vy) * 0.6; }
+      if (quality >= 1 && !RM) {
+        a.trail = a.trail || [];
+        a.trail.push({ x: a.x, y: a.y, life: 0.28 });
+        const capT = quality >= 3 ? 16 : 8;
+        if (a.trail.length > capT) a.trail.shift();
+      }
+      if (a.trail) for (const p of a.trail) p.life -= dt;
+      const hitR = t ? (R[Math.min(4, t.tier)] || 8) + 12 : 0;
+      const close = t && Math.hypot(t.x - a.x, t.y - a.y) <= hitR;
+      if ((close && a.flight >= 0.08) || a.flight >= 2.4 || (!t && a.flight >= 0.35)) {
+        detonateMissile(a);
+      }
+    } else if (a.missilePhase === 'back') {
+      a.flight = (a.flight || 0) + dt;
+      a.vx *= Math.pow(0.08, dt);
+      a.vy *= Math.pow(0.08, dt);
+      const idx = Math.max(0, agents.indexOf(a));
+      const slot = (derickEnt && S.agentic)
+        ? escortSlot(idx, Math.max(1, agents.length))
+        : { x: a.homeX, y: a.homeY };
+      a.x += (slot.x - a.x) * Math.min(1, dt * 6) + a.vx * dt;
+      a.y += (slot.y - a.y) * Math.min(1, dt * 6) + a.vy * dt;
+      if (a.trail) {
+        for (const p of a.trail) p.life -= dt;
+        a.trail = a.trail.filter(pt => pt.life > 0);
+      }
+      if (Math.hypot(slot.x - a.x, slot.y - a.y) < 10 || a.flight > 1.8) endMissile(a);
+    }
   }
 
   function updatePulses(dt) {
@@ -844,6 +1083,7 @@
   function unitLasering(unit, isDerick) {
     if (!unit) return false;
     if (isDerick) return !!(unit.target && bugs.includes(unit.target));
+    if (unit.missile) return true;
     const t = unit.target && bugs.includes(unit.target) ? unit.target : null;
     if (!t) return false;
     return Math.hypot(t.x - unit.x, t.y - unit.y) <= (unit.chasing ? 9999 : agentRange());
@@ -934,29 +1174,28 @@
     updateDerick(dt);
     // agents with correct pierce
     ensureAgents();
+    if (S.agentic && derickEnt) escortPhase += dt * 0.45;
     const range = agentRange();
+    const ringN = escortCount();
+    let escortI = 0;
     for (const a of agents) {
       a.beam = Math.max(0, a.beam - dt * 4);
-      if (a.chasing) {
-        let t = a.chaseRoot && bugs.includes(a.chaseRoot) ? a.chaseRoot : null;
-        if (!t) {
-          t = nearestBug(a.x, a.y, 240, b => true);
-          if (t) a.chaseRoot = t; else { a.chasing = false; a.chaseRoot = null; a.target = null; }
-        }
-        a.target = t;
-        if (t) {
-          const ang = Math.atan2(t.y - a.y, t.x - a.x);
-          a.x += Math.cos(ang) * chaseSpeed() * dt;
-          a.y += Math.sin(ang) * chaseSpeed() * dt;
-        }
+      if (a.missile) {
+        updateMissile(a, dt);
+      } else if (S.agentic && derickEnt) {
+        const slot = escortSlot(escortI++, ringN);
+        a.x += (slot.x - a.x) * Math.min(1, dt * 5);
+        a.y += (slot.y - a.y) * Math.min(1, dt * 5);
+        a.target = nearestBug(a.x, a.y, range, b => true);
       } else {
         a.x += (a.homeX - a.x) * Math.min(1, dt * 3);
         a.y += (a.homeY - a.y) * Math.min(1, dt * 3);
         a.target = nearestBug(a.x, a.y, range, b => true);
       }
+      if (a.missile) continue;
       const t = a.target && bugs.includes(a.target) ? a.target : null;
       const boosted = agentBuffed(a);
-      if (t && Math.hypot(t.x - a.x, t.y - a.y) <= (a.chasing ? 9999 : range)) {
+      if (t && Math.hypot(t.x - a.x, t.y - a.y) <= range) {
         addLaser(a.x, a.y, t.x, t.y, { wide: 0.9, life: 0.09, color: boosted ? LASER_COLOR.buffed : LASER_COLOR.agent, boosted });
         damageBug(t, agentCombatDps(a), dt, a);
         if (S.collision) {
@@ -976,6 +1215,7 @@
     for (let i = ghosts.length - 1; i >= 0; i--) { const g = ghosts[i]; g.t += dt * 2.6; if (g.t >= 1) ghosts.splice(i, 1); }
     for (let i = codeBursts.length - 1; i >= 0; i--) { codeBursts[i].life -= dt; if (codeBursts[i].life <= 0) codeBursts.splice(i, 1); }
     for (let i = shields.length - 1; i >= 0; i--) { shields[i].life -= dt; if (shields[i].life <= 0) shields.splice(i, 1); }
+    for (let i = explosions.length - 1; i >= 0; i--) { explosions[i].life -= dt; if (explosions[i].life <= 0) explosions.splice(i, 1); }
     for (let i = hatches.length - 1; i >= 0; i--) { if (!hatches[i].hatching) hatches.splice(i, 1); }
     shake *= Math.pow(0.0005, dt); if (shake < .3) shake = 0;
     flash = Math.max(0, flash - dt * 2.5);
@@ -1057,7 +1297,32 @@
 
   function drawAgent(a) {
     const boosted = agentBuffed(a);
+    if (a.trail && a.trail.length) {
+      ctx.save();
+      for (const p of a.trail) {
+        const al = Math.max(0, p.life / 0.28);
+        ctx.globalAlpha = al * 0.6;
+        ctx.fillStyle = a.missilePhase === 'out' ? 'rgba(255,177,66,0.95)' : 'rgba(62,198,255,0.8)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.5 + al * 2.4, 0, 7); ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.save();
+    if (a.missile && a.missilePhase === 'out') {
+      const ang = Math.atan2(a.vy || 0, a.vx || 1);
+      ctx.translate(a.x, a.y);
+      ctx.rotate(ang);
+      ctx.scale(1.65, 0.62);
+      ctx.fillStyle = 'rgba(255,177,66,0.28)';
+      ctx.beginPath(); ctx.arc(0, 0, 12, 0, 7); ctx.fill();
+      ctx.strokeStyle = LASER_COLOR.buffed;
+      ctx.lineWidth = 1.35;
+      ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,220,140,0.95)';
+      ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, 7); ctx.fill();
+      ctx.restore();
+      return;
+    }
     if (boosted) {
       ctx.fillStyle = 'rgba(255,177,66,0.22)';
       ctx.beginPath(); ctx.arc(a.x, a.y, 10, 0, 7); ctx.fill();
@@ -1067,7 +1332,7 @@
     ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, 7); ctx.stroke();
     ctx.fillStyle = boosted ? 'rgba(255,177,66,0.7)' : (a.chasing ? 'rgba(62,198,255,0.6)' : 'rgba(62,198,255,0.3)');
     ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, 7); ctx.fill();
-    if (S.profiler && !a.chasing) {
+    if (S.profiler && !a.chasing && !a.missile) {
       ctx.strokeStyle = 'rgba(62,198,255,0.08)';
       ctx.beginPath(); ctx.arc(a.x, a.y, agentRange(), 0, 7); ctx.stroke();
     }
@@ -1135,6 +1400,18 @@
     ctx.globalAlpha = 1;
     for (const a of agents) drawAgent(a);
     drawDerick();
+    for (const e of explosions) {
+      const u = Math.max(0, e.life / e.max);
+      const r = e.r * (0.22 + (1 - u) * 0.85);
+      ctx.globalAlpha = u * 0.7;
+      ctx.strokeStyle = 'rgba(255,177,66,0.95)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, 7); ctx.stroke();
+      ctx.globalAlpha = u * 0.14;
+      ctx.fillStyle = 'rgba(255,177,66,0.9)';
+      ctx.beginPath(); ctx.arc(e.x, e.y, r * 0.88, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = `hsl(${p.hue},95%,60%)`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
     ctx.globalAlpha = 1;
     if (flash) { ctx.fillStyle = `rgba(61,224,255,${flash * .22})`; ctx.fillRect(-20, -20, Wd + 40, Hd + 40); }
@@ -1246,7 +1523,10 @@
     spawnBug, squash, addCode, rollback, ship, econ, optIn, pauseGame, quitGame,
     isBoss, clink, cap, idleWrite, idleCodeRate, qaRevealPerSec, mergeIfOver,
     pickBossName, agentBuffed, agentCombatDps, derickCombatDps, derickCombatRange,
-    derickScale, derickRadius, LASER_COLOR,
+    derickScale, derickRadius, LASER_COLOR, commandMode, escortRadius, escortSlot, updateDerick,
+    escortCount, escorting, notePlayerClick, applyPlaySpace, PLAY_UNLOCK,
+    launchMissile, detonateMissile, updateMissile, missileRadius, missileDamage,
+    ESCORT_AURA, MISSILE_BOSS_FRAC, ensureDerick, ensureAgents,
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },
@@ -1261,6 +1541,8 @@
         nextUnlock: nextUnlock(),
         lastBoss: S.lastBoss,
         derickScale: derickScale(),
+        commandMode: commandMode(),
+        clicks: S.clicks, playSpace: !!S.playSpace, playUnlocked: !!S.playUnlocked,
         clearAcc, spawnQuiet: Math.max(0, spawnQuietUntil - now()),
       };
     },
