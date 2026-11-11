@@ -31,6 +31,11 @@
   let heartSprite = null;
   const frameTimes = [];
   const spawnLog = [];
+  const hatchQ = [];
+  let hatchWait = 0, hatchReadyAt = 0;
+  let lastCodePaint = 0, lastHudAt = 0, lastHbHud = 0, lastShipBar = 0;
+  const _liveNodes = [];
+  const textSprites = new Map();
 
   const DEF = {
     v: 3, optedIn: false, paused: false,
@@ -120,6 +125,8 @@
   const IDLE_AGENT = 0.35;
   const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
+  const HATCH_MIN = 0.18;
+  const HATCH_SPAN = 0.17; // jittered 180–350ms between automatic hatches
   const HB_CLICKS = 5;
   const HB_WINDOW = 5000;
   const HB_DURATION = 60000;
@@ -145,7 +152,11 @@
     return Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) <= derickCombatRange();
   }
   function escorting(a) { return !!(S.agentic && a && !a.chasing); }
-  function escortCount() { return agents.filter(a => !a.chasing).length; }
+  function escortCount() {
+    let n = 0;
+    for (const a of agents) if (!a.chasing) n++;
+    return n;
+  }
   function escortRadius(n) {
     n = Math.max(1, n == null ? agents.length : n);
     return Math.min((COARSE || Wd < 700) ? 72 : 88, 38 + Math.sqrt(n) * 14);
@@ -316,42 +327,63 @@
   }
   function paintCode(force) {
     if (!force && !codeDirty) return;
+    // Coarse/phone: ~5Hz. Desktop: ~7Hz. Keep dirty so a skipped frame paints later.
+    if (!force && now() - lastCodePaint < (COARSE ? 200 : 140)) return;
     codeDirty = false;
+    lastCodePaint = now();
     codeCtx.clearRect(0, 0, Wd, Hd);
     if (!S.optedIn || S.paused || typed <= 0) return;
     const fs = COARSE ? 11 : 12;
     const lh = fs + 3;
     const cols = Math.max(1, Math.floor(Wd / (fs * 0.62)));
     const rows = Math.ceil(Hd / lh) + 1;
-    const maxChars = Math.min(typed, cols * rows);
+    const budget = COARSE ? Math.min(cols * rows, 960) : Math.min(cols * rows, 2800);
+    const maxChars = Math.min(typed, budget);
     codeCtx.font = `${fs}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     codeCtx.fillStyle = 'rgba(57,255,136,0.11)';
     codeCtx.textBaseline = 'top';
     let i = Math.max(0, (typed - maxChars) % CORPUS.length);
     let drawn = 0, x = 8, y = 8;
+    let line = '', lx = 8, ly = 8;
+    const cw = fs * 0.62;
+    const flush = () => {
+      if (line) { codeCtx.fillText(line, lx, ly); line = ''; }
+    };
     while (drawn < maxChars && y < Hd) {
       const ch = CORPUS[i % CORPUS.length];
       i++;
-      if (ch === '\n' || x > Wd - 20) { x = 8; y += lh; if (ch === '\n') { drawn++; continue; } }
-      codeCtx.fillText(ch, x, y);
-      x += fs * 0.62;
+      if (ch === '\n' || x > Wd - 20) {
+        flush();
+        x = 8; y += lh;
+        lx = 8; ly = y;
+        if (ch === '\n') { drawn++; continue; }
+      }
+      if (!line) { lx = x; ly = y; }
+      line += ch;
+      x += cw;
       drawn++;
     }
+    flush();
     if (!RM && (Math.floor(now() / 400) % 2)) {
       codeCtx.fillStyle = 'rgba(61,224,255,0.35)';
       codeCtx.fillRect(x, y, 7, fs);
     }
   }
 
+  function dprCapFor(q, coarse) {
+    let capD = q >= 3 ? 2 : q >= 2 ? 1.5 : q >= 1 ? 1 : 0.7;
+    if (coarse) capD = Math.min(capD, q >= 3 ? 1.5 : q >= 2 ? 1.25 : capD);
+    return capD;
+  }
   function currentDpr() {
-    const capD = quality >= 3 ? 2 : quality >= 2 ? 1.5 : quality >= 1 ? 1 : 0.7;
-    return Math.min(capD, W.devicePixelRatio || 1);
+    return Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
   }
   function resize(force) {
     const next = currentDpr();
     Wd = innerWidth; Hd = innerHeight;
     if (!force && next === DPR && cv.width === Math.floor(Wd * next)) return;
     DPR = next;
+    textSprites.clear();
     for (const c of [cv, codeCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -497,24 +529,18 @@
       const hb = spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20, hbOpts);
       if (hb && hb.hatching) hatches.push(hb);
       S.debt = Math.max(0, S.debt - 1);
+      enqueueDebt('click-debt');
     } else {
       // ~1 bug per 8 LOC automatically, not 1:1 with kills
       S.debt += n * bugsPerLoc() * 0.32;
-    }
-    if (!fromClick && !canAutoSpawn()) return;
-    let guard = 0;
-    while (S.debt >= 1 && guard++ < 8) {
-      S.debt -= 1;
-      const bx = x != null ? x + (Math.random() - .5) * 36 : null;
-      const by = y != null ? y + (Math.random() - .5) * 36 : null;
-      spawnBug(bx, by, { src: fromClick ? 'click-debt' : 'debt', hatching: !!(S.profiler && Math.random() < 0.4) });
+      enqueueDebt('debt');
     }
   }
 
   function ensureDerick() {
     if (!S.derick) { derickEnt = null; return; }
     if (!derickEnt) {
-      derickEnt = { x: Wd * 0.2, y: Hd * 0.35, tx: Wd * 0.2, ty: Hd * 0.35, target: null, aimX: 0, aimY: 0, beam: 0, idleAcc: 0 };
+      derickEnt = { x: Wd * 0.2, y: Hd * 0.35, tx: Wd * 0.2, ty: Hd * 0.35, target: null, aimX: 0, aimY: 0, beam: 0, idleAcc: Math.random() * 0.85, idlePhase: Math.random() };
     }
   }
   function ensureAgents() {
@@ -525,7 +551,7 @@
       const hy = clamp(Hd / 2 + Math.sin(ang) * rad, 80, Hd - 40);
       agents.push({
         x: hx, y: hy, homeX: hx, homeY: hy,
-        target: null, chaseRoot: null, chasing: false, beam: 0, aimX: hx, aimY: hy, pierce: null, idleAcc: 0
+        target: null, chaseRoot: null, chasing: false, beam: 0, aimX: hx, aimY: hy, pierce: null, idleAcc: Math.random() * 0.85, idlePhase: Math.random()
       });
     }
     while (agents.length > S.agents) agents.pop();
@@ -542,7 +568,7 @@
       missile: false, missilePhase: null, chasing: false,
       chaseRoot: null, target: null,
       reserved: null, reservedAmt: 0,
-      idleAcc: 0, pop: 1
+      idleAcc: Math.random() * 0.85, idlePhase: Math.random(), pop: 1
     };
   }
   function ensureSubs() {
@@ -802,8 +828,10 @@
   }
   function finaleMaxHp() { return Math.max(500, finaleDpsEstimate() * 106); }
   function shipName() { return `Ship v${(S.prestige || 0) + 1}.0`; }
-  function syncShipBar() {
+  function syncShipBar(force) {
     const on = !!(shipBoss && shipBoss.hp > 0);
+    if (!force && now() - lastShipBar < 200 && shipBar.hidden === !on) return;
+    lastShipBar = now();
     shipBar.hidden = !on;
     if (!on) return;
     const name = shipBar.querySelector('.bh-shipname');
@@ -830,7 +858,11 @@
     setTimeout(() => { shipWarn.hidden = true; shipWarn.classList.remove('in'); }, 2800);
   }
   function liveShipNodes() {
-    return (shipBoss && shipBoss.nodes) ? shipBoss.nodes.filter(n => n && n.hp > 0 && !n._dead) : [];
+    _liveNodes.length = 0;
+    if (shipBoss && shipBoss.nodes) {
+      for (const n of shipBoss.nodes) if (n && n.hp > 0 && !n._dead) _liveNodes.push(n);
+    }
+    return _liveNodes;
   }
   function syncShipNodePositions() {
     const s = shipBoss;
@@ -931,7 +963,7 @@
     punch(10); boomFlash(Wd * 0.5, 80, 1.2); hitStop(26);
     log(`${shipBoss.name} incoming. Lasers and missiles only.`);
     kick(); dirty = true;
-    syncShipBar();
+    syncShipBar(true);
     return shipBoss;
   }
   function ship() { return startFinale(); }
@@ -951,7 +983,7 @@
     derickEnt = null;
     ensureDerick();
     shipBoss = null;
-    syncShipBar();
+    syncShipBar(true);
     applyPlaySpace();
     log(`Shipped. Prestige ${next + 1}.0 — DJ's all heart now.`);
   }
@@ -964,7 +996,7 @@
     burst(defeated.x, Math.max(80, defeated.y), 42, 16, 300, 0.6);
     showShipWarn('SHIPPED  ' + defeated.name);
     shipBoss = null;
-    syncShipBar();
+    syncShipBar(true);
     prestigeReset();
     kick(); dirty = true;
   }
@@ -1057,10 +1089,8 @@
       }
       ctx.restore();
     }
-    ctx.fillStyle = '#ececf6';
-    ctx.font = `800 ${Math.max(14, Math.min(28, w * 0.035))}px ui-monospace, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(s.name, 0, h * 0.16);
+    const nameFont = `800 ${Math.max(14, Math.min(28, w * 0.035))}px ui-monospace, sans-serif`;
+    drawCachedText(ctx, s.name, nameFont, '#ececf6', 0, h * 0.16, 'center');
     ctx.restore();
   }
   function pathHeart(ctx, x, y, s) {
@@ -1220,7 +1250,7 @@
     punch(5);
     log('Heartbeat! LOC ×5 for 60s. Nearby agents share Derick’s full aura.');
     if (derickEnt) gain(derickEnt.x, derickEnt.y - 22, 'HEARTBEAT', '#ff3d81');
-    syncHbHud();
+    syncHbHud(true);
     kick();
   }
   function derickHitRadius() {
@@ -1231,8 +1261,10 @@
     const base = IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0);
     return base * (heartbeatActive() ? HB_MULT : 1);
   }
-  function syncHbHud() {
+  function syncHbHud(force) {
     pollHeartbeat();
+    if (!force && now() - lastHbHud < 200) return;
+    lastHbHud = now();
     const wrap = hud.querySelector('[data-k=hbwrap]');
     const lab = hud.querySelector('[data-k=hb]');
     if (!wrap) return;
@@ -1367,6 +1399,8 @@
   function render(force) {
     syncShell();
     if (!S.optedIn) return;
+    if (!force && now() - lastHudAt < 200) return;
+    lastHudAt = now();
     hud.classList.toggle('bh-min', !S.open);
     el.min.textContent = S.open ? '–' : '+';
     el.pause.textContent = S.paused ? '▶' : '❚❚';
@@ -1782,8 +1816,12 @@
       a.x += (slot.x - a.x) * Math.min(1, dt * 6) + a.vx * dt;
       a.y += (slot.y - a.y) * Math.min(1, dt * 6) + a.vy * dt;
       if (a.trail) {
-        for (const p of a.trail) p.life -= dt;
-        a.trail = a.trail.filter(pt => pt.life > 0);
+        let w = 0;
+        for (let i = 0; i < a.trail.length; i++) {
+          a.trail[i].life -= dt;
+          if (a.trail[i].life > 0) a.trail[w++] = a.trail[i];
+        }
+        a.trail.length = w;
       }
       if (Math.hypot(slot.x - a.x, slot.y - a.y) < 10 || a.flight > 1.8) endMissile(a);
     }
@@ -1834,6 +1872,58 @@
   }
 
   // ---------- sim ----------
+  function nextHatchDelay() { return HATCH_MIN + Math.random() * HATCH_SPAN; }
+  function requestHatch(opts) {
+    if (hatchQ.length >= 48) return;
+    if (typeof opts === 'string') opts = { src: opts };
+    hatchQ.push(opts || { src: 'debt' });
+  }
+  function enqueueDebt(src) {
+    while (S.debt >= 1 && hatchQ.length < 48) {
+      S.debt -= 1;
+      requestHatch({ src: src || 'debt' });
+    }
+  }
+  function tryHatchOne() {
+    if (!hatchQ.length || !canAutoSpawn() || bugs.length >= cap()) return false;
+    const opts = hatchQ[0];
+    const b = spawnBug(null, null, opts);
+    if (!b) return false;
+    hatchQ.shift();
+    if (opts && opts.src === 'qa') { log('QA revealed a bug.'); retargetQA(); }
+    return true;
+  }
+  function pumpHatches(dt) {
+    dt = dt || 0;
+    if (dt >= 0.4) {
+      hatchWait -= dt;
+      let n = 0;
+      while (hatchWait <= 0 && n < 12) {
+        if (!tryHatchOne()) {
+          if (hatchWait < 0) hatchWait = 0;
+          break;
+        }
+        hatchWait += nextHatchDelay();
+        n++;
+      }
+      hatchReadyAt = now() + Math.max(0, hatchWait) * 1000;
+      return n;
+    }
+    const t = now();
+    if (t < hatchReadyAt) return 0;
+    if (!tryHatchOne()) return 0;
+    const d = nextHatchDelay();
+    hatchReadyAt = t + d * 1000;
+    hatchWait = d;
+    return 1;
+  }
+  function idleRampSec(unit) {
+    const phase = (unit && unit.idlePhase != null) ? unit.idlePhase : Math.random();
+    return 0.45 + phase * 0.7;
+  }
+  function seedIdleFromFire(unit, rate) {
+    unit.idleAcc = Math.max(unit.idleAcc || 0, 1 - rate * idleRampSec(unit));
+  }
   function idleCodeRate() {
     if (!S.derick && !S.agents) return 0;
     const d = S.derick ? derickDraftRate() : 0;
@@ -1876,7 +1966,7 @@
       else {
         if (derickEnt._firing) {
           derickEnt._firing = false;
-          derickEnt.idleAcc = Math.max(derickEnt.idleAcc || 0, 1 - rate * 0.5);
+          seedIdleFromFire(derickEnt, rate);
         }
         draftAt(derickEnt, dt, rate);
       }
@@ -1887,23 +1977,20 @@
       else {
         if (a._firing) {
           a._firing = false;
-          a.idleAcc = Math.max(a.idleAcc || 0, 1 - IDLE_AGENT * 0.5);
+          seedIdleFromFire(a, IDLE_AGENT);
         }
         draftAt(a, dt, IDLE_AGENT);
       }
       if (S.subagent && a.sub && a.sub.state === 'orbit') draftAt(a.sub, dt, IDLE_AGENT);
     }
-    if (canAutoSpawn() && S.debt >= 1) {
-      S.debt -= 1;
-      spawnBug(null, null, { src: 'idle' });
-    }
+    enqueueDebt('idle');
   }
   function econ(dt) {
     if (!S.optedIn || S.paused) return;
     if (canAutoSpawn()) {
-      while (S.backlog > 0 && bugs.length < cap()) {
+      while (S.backlog > 0 && bugs.length + hatchQ.length < cap()) {
         S.backlog--; S.spawned--;
-        spawnBug(null, null, { src: 'backlog' });
+        requestHatch({ src: 'backlog' });
       }
     }
     // Occasional boss (never before Hire Derick; never during post-kill quiet)
@@ -1917,12 +2004,12 @@
     idleWrite(dt);
     if (S.qa && canAutoSpawn()) {
       qaRevealAcc += qaRevealPerSec() * dt;
-      while (qaRevealAcc >= 1) {
+      while (qaRevealAcc >= 1 && bugs.length + hatchQ.length < cap()) {
         qaRevealAcc -= 1;
-        const b = spawnBug(null, null, { reveal: true, src: 'qa', tier: Math.random() < 0.45 ? 3 : 2 });
-        if (b) { log('QA revealed a bug.'); retargetQA(); }
+        requestHatch({ reveal: true, src: 'qa', tier: Math.random() < 0.45 ? 3 : 2 });
       }
     }
+    pumpHatches(dt);
     if (S.autoRb && bugs.length + S.backlog >= 8) rollback(true);
   }
 
@@ -1991,6 +2078,7 @@
     if (S.subagent) for (const a of agents) updateSub(a, dt);
     pollHeartbeat();
     syncHbHud();
+    pumpHatches(dt);
 
     for (let i = partN - 1; i >= 0; i--) {
       const p = parts[i];
@@ -2018,6 +2106,36 @@
     flash = Math.max(0, flash - dt * 2.5);
     if (hintUntil && now() > hintUntil) { hint.hidden = true; hintUntil = 0; }
     if (shipBoss) syncShipBar();
+  }
+
+  function getTextSprite(text, font, color) {
+    const key = text + '\0' + font + '\0' + color + '\0' + DPR;
+    let spr = textSprites.get(key);
+    if (spr) return spr;
+    const m = d.createElement('canvas').getContext('2d');
+    m.font = font;
+    const w = Math.ceil(m.measureText(text).width) + 6;
+    const h = 32;
+    const scale = Math.max(1, DPR);
+    const c = d.createElement('canvas');
+    c.width = Math.ceil(w * scale);
+    c.height = Math.ceil(h * scale);
+    const cx = c.getContext('2d');
+    cx.setTransform(scale, 0, 0, scale, 0, 0);
+    cx.font = font;
+    cx.fillStyle = color;
+    cx.textAlign = 'left';
+    cx.textBaseline = 'middle';
+    cx.fillText(text, 3, h / 2);
+    spr = { c, w, h };
+    if (textSprites.size > 36) textSprites.clear();
+    textSprites.set(key, spr);
+    return spr;
+  }
+  function drawCachedText(context, text, font, color, x, y, align) {
+    const spr = getTextSprite(text, font, color);
+    const dx = align === 'center' ? x - spr.w / 2 : x;
+    context.drawImage(spr.c, dx, y - spr.h / 2, spr.w, spr.h);
   }
 
   function drawBug(b) {
@@ -2050,10 +2168,7 @@
     ctx.restore();
     if (b.boss && b.name) {
       ctx.save();
-      ctx.font = '700 10px ui-monospace, monospace';
-      ctx.fillStyle = 'rgba(255,100,100,.9)';
-      ctx.textAlign = 'center';
-      ctx.fillText(b.name, b.x, b.y - R[tier] * b.pop - 10);
+      drawCachedText(ctx, b.name, '700 10px ui-monospace, monospace', 'rgba(255,100,100,.9)', b.x, b.y - R[tier] * b.pop - 10, 'center');
       // hp bar
       const bw = 36, pct = Math.max(0, b.hp / b.maxHp);
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * b.pop - 6, bw, 3);
@@ -2095,19 +2210,13 @@
       ctx.fillStyle = '#ff3d81';
       pathHeart(ctx, x, y, s);
       ctx.fill();
-      ctx.fillStyle = '#fff5f8';
-      ctx.font = `800 ${Math.round(7.2 * sc)}px ui-monospace, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('DJ', x, y + s * 0.06);
+      drawCachedText(ctx, 'DJ', `800 ${Math.round(7.2 * sc)}px ui-monospace, sans-serif`, '#fff5f8', x, y + s * 0.06, 'center');
     } else {
       ctx.fillStyle = 'rgba(57,255,136,0.14)';
       ctx.beginPath(); ctx.arc(x, y, 14 * sc, 0, 7); ctx.fill();
       ctx.fillStyle = '#39ff88';
       ctx.beginPath(); ctx.arc(x, y, body, 0, 7); ctx.fill();
-      ctx.fillStyle = '#04120a';
-      ctx.font = `800 ${Math.round(7 * sc)}px ui-monospace, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('DJ', x, y + 0.5);
+      drawCachedText(ctx, 'DJ', `800 ${Math.round(7 * sc)}px ui-monospace, sans-serif`, '#04120a', x, y + 0.5, 'center');
     }
     if (commandMode()) {
       ctx.strokeStyle = S.prestige ? 'rgba(255,61,129,0.5)' : 'rgba(61,224,255,0.5)';
@@ -2164,10 +2273,6 @@
       ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, 7); ctx.fill();
       ctx.restore();
       return;
-    }
-    if (boosted) {
-      ctx.fillStyle = 'rgba(255,177,66,0.22)';
-      ctx.beginPath(); ctx.arc(a.x, a.y, 10, 0, 7); ctx.fill();
     }
     ctx.strokeStyle = boosted ? LASER_COLOR.buffed : (a.chasing ? 'rgba(62,198,255,0.85)' : 'rgba(62,198,255,0.55)');
     ctx.lineWidth = 1.15;
@@ -2229,11 +2334,9 @@
       ctx.globalAlpha = a * 0.85;
       ctx.fillStyle = '#39ff88';
       if (c.tick) {
-        ctx.font = 'bold 9px ui-monospace, monospace';
-        ctx.fillText('{}', c.x - 5, c.y - 10 * (1 - a));
+        drawCachedText(ctx, '{}', 'bold 9px ui-monospace, monospace', '#39ff88', c.x, c.y - 10 * (1 - a), 'center');
       } else {
-        ctx.font = 'bold 10px ui-monospace, monospace';
-        ctx.fillText('{ ++loc }', c.x - 24, c.y - 16 * (1 - a));
+        drawCachedText(ctx, '{ ++loc }', 'bold 10px ui-monospace, monospace', '#39ff88', c.x, c.y - 16 * (1 - a), 'center');
       }
     }
     ctx.globalAlpha = 1;
@@ -2277,6 +2380,18 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, 7); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (quality >= 1) {
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,177,66,0.22)';
+      let anyAura = false;
+      for (const a of agents) {
+        if ((a.missile && a.missilePhase === 'out') || !agentBuffed(a)) continue;
+        ctx.moveTo(a.x + 10, a.y);
+        ctx.arc(a.x, a.y, 10, 0, 7);
+        anyAura = true;
+      }
+      if (anyAura) ctx.fill();
+    }
     for (const a of agents) drawAgent(a);
     drawDerick();
     for (const e of explosions) {
@@ -2462,6 +2577,11 @@
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },
+    get hatchQ() { return hatchQ; },
+    clearHatchQ() { hatchQ.length = 0; hatchWait = 0; hatchReadyAt = 0; },
+    requestHatch, pumpHatches, enqueueDebt,
+    HATCH_MIN, HATCH_SPAN, dprCapFor, currentDpr,
+    get coarse() { return COARSE; },
     quietFor, noteFrame,
     stats() {
       return {
