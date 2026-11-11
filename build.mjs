@@ -72,7 +72,8 @@ function layout({ title, desc, body, bodyClass = '', canonical = '', home = fals
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:type" content="website">
-${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ''}
+${canonical ? `<meta property="og:url" content="${esc(canonical)}">
+<link rel="canonical" href="${esc(canonical)}">` : ''}
 <link rel="icon" href="${u('favicon.svg')}" type="image/svg+xml">
 <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
 <style>${CSS}</style>
@@ -90,7 +91,6 @@ ${body}
 </main>
 <footer class="foot">
   <p>© ${new Date().getFullYear()} Derick Janssen · Built by hand, fast on purpose. <a href="mailto:${esc(S.email)}">${esc(S.email)}</a></p>
-  <p class="foot-hint">Psst: tap empty space. Bugs are coming.</p>
 </footer>
 <div class="wipe" aria-hidden="true"></div>
 <template id="bh-wordmark-outline">${JANSSEN_OUTLINE}</template>
@@ -250,7 +250,15 @@ function projectPage(p, idx, list) {
 // ---- write ----
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
-fs.cpSync(path.join(ROOT, 'static'), OUT, { recursive: true, filter: s => !s.endsWith('.css') && !s.endsWith('images.json') });
+fs.cpSync(path.join(ROOT, 'static'), OUT, {
+  recursive: true,
+  filter: src => !src.endsWith('.css') && !src.endsWith('images.json') && path.basename(src) !== 'CNAME'
+});
+// CNAME publishes the GitHub Pages custom domain. Keep it out of preview / default
+// builds until go-live is approved; set PUBLISH_CNAME=1 for the production deploy.
+if (process.env.PUBLISH_CNAME === '1') {
+  fs.copyFileSync(path.join(ROOT, 'static/CNAME'), path.join(OUT, 'CNAME'));
+}
 fs.writeFileSync(path.join(OUT, 'index.html'), home());
 const paged = projects.filter(hasPage);
 paged.forEach((p, i) => {
@@ -260,4 +268,17 @@ paged.forEach((p, i) => {
 });
 fs.writeFileSync(path.join(OUT, '404.html'), layout({ title: `404 | ${S.name}`, desc: 'Page not found', body: `<section class="sec wrap center"><h1 class="proj-title">404</h1><p>This page desynced. Rolling back…</p><p><a class="btn primary" href="${u('')}">Respawn at home</a></p></section>` }));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
-console.log(`Built ${1 + paged.length + 1} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}`);
+const origin = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
+const atRoot = BASE === '/' || BASE === '';
+if (atRoot) {
+  const sitemapUrls = [origin + '/', ...paged.map(p => `${origin}/projects/${p.slug}/`)];
+  fs.writeFileSync(path.join(OUT, 'sitemap.xml'),
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + sitemapUrls.map(loc => `  <url><loc>${loc}</loc></url>`).join('\n')
+    + '\n</urlset>\n');
+}
+fs.writeFileSync(path.join(OUT, 'robots.txt'), atRoot
+  ? `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`
+  : `User-agent: *\nDisallow: /\n`);
+console.log(`Built ${1 + paged.length + 1} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);

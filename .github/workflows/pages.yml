@@ -25,8 +25,10 @@ jobs:
       - name: Build
         env:
           BASE: ${{ vars.SITE_BASE }}
+          PUBLISH_CNAME: ${{ vars.PUBLISH_CNAME }}
         run: |
           export BASE="${BASE:-/}"
+          # CNAME stays out of dist unless PUBLISH_CNAME=1 (see GO-LIVE.md).
           node build.mjs --hide-todos
           if [ -n "$BASE" ] && [ "$BASE" != "/" ]; then rm -f dist/CNAME; fi
       - uses: actions/configure-pages@v5
