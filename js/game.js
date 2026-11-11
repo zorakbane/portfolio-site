@@ -34,6 +34,8 @@
   const spawnLog = [];
   const hatchQ = [];
   let hatchWait = 0, hatchReadyAt = 0;
+  let appearGate = 0;
+  let bossQuiet = 0;
   let lastCodePaint = 0, lastHudAt = 0, lastHbHud = 0, lastShipBar = 0;
   const _liveNodes = [];
   const textSprites = new Map();
@@ -447,6 +449,34 @@
   }
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
   function isBoss(b) { return !!(b && (b.boss || b.tier >= 4)); }
+  function hasBossDamage() { return !!(S.derick || S.agents > 0); }
+  function canSpawnBoss(opts) {
+    if (opts && opts.force) return true;
+    return hasBossDamage() && bossQuiet <= 0 && !shipBoss && !S.shipPending;
+  }
+  function evictUnkillableBosses() {
+    if (hasBossDamage()) return 0;
+    let n = 0;
+    for (const b of bugs) {
+      if (!b || b.ship || b.shipNode || !isBoss(b)) continue;
+      b.boss = false;
+      b.tier = 3;
+      b.hp = HP[3];
+      b.maxHp = HP[3];
+      b.name = null;
+      n++;
+    }
+    return n;
+  }
+  function takeAppearIn(immediate) {
+    if (immediate) {
+      appearGate = Math.max(appearGate, 0) + HATCH_MIN + Math.random() * HATCH_SPAN;
+      return 0;
+    }
+    const d = Math.max(0, appearGate);
+    appearGate = d + HATCH_MIN + Math.random() * HATCH_SPAN;
+    return d;
+  }
   function noteSpawn(src) {
     spawnLog.push({ src, t: now(), n: bugs.length });
     if (spawnLog.length > 80) spawnLog.shift();
@@ -520,6 +550,10 @@
   }
   function spawnBug(x, y, opts = {}) {
     S.spawned++;
+    if ((opts.boss || opts.tier >= 4) && !canSpawnBoss(opts)) {
+      S.spawned--;
+      return null;
+    }
     if (!opts.force && !opts.fromClick && !canAutoSpawn()) { S.backlog++; return null; }
     if (bugs.length >= cap()) { S.backlog++; return null; }
     let tier = opts.tier;
@@ -533,6 +567,10 @@
     if (x == null) [x, y] = edgePoint();
     const b = mkBug(tier, x, y, Math.atan2(Hd / 2 - y, Wd / 2 - x) + (Math.random() - .5), opts);
     if (opts.reveal || opts.hatching) { b.pop = 0.05; b.flash = 1; }
+    const shipSrc = opts.src === 'ship' || opts.src === 'ship-boss';
+    b.appearIn = takeAppearIn(!!(opts.fromClick || opts.force || shipSrc));
+    b.popRate = 5 + Math.random() * 8;
+    if (b.appearIn > 0) b.pop = 0.08;
     bugs.push(b);
     if (b.boss && b.name) S.lastBoss = b.name;
     noteSpawn(opts.src || (opts.fromClick ? 'click' : opts.reveal ? 'qa' : opts.boss ? 'boss' : opts.force ? 'force' : 'spawn'));
@@ -549,6 +587,9 @@
       const hbOpts = { fromClick: true, src: 'click', hatching: !!(S.profiler && Math.random() < 0.55) };
       const hb = spawnBug(x + (Math.random() - .5) * 20, y + (Math.random() - .5) * 20, hbOpts);
       if (hb && hb.hatching) hatches.push(hb);
+      const delay = nextHatchDelay();
+      hatchReadyAt = Math.max(hatchReadyAt, now() + delay * 1000);
+      hatchWait = Math.max(hatchWait, delay);
       S.debt = Math.max(0, S.debt - 1);
       enqueueDebt('click-debt');
     } else {
@@ -735,7 +776,11 @@
         for (let k = 0; k < 2; k++) {
           const a = b.a + (k ? 1 : -1) * (Math.PI / 2 + Math.random() * .6);
           const c = mkBug(b.tier - 1, b.x + Math.cos(a) * 6, b.y + Math.sin(a) * 6, a);
-          c.boost = 3.2; c.pop = 0.4; c.sq = 1; bugs.push(c); kids.push(c);
+          c.boost = 3.2; c.pop = 0.4; c.sq = 1;
+          c.appearIn = takeAppearIn(false);
+          c.popRate = 5 + Math.random() * 8;
+          if (c.appearIn > 0) { c.pop = 0.08; c.sq = 0; }
+          bugs.push(c); kids.push(c);
           noteSpawn('split');
         }
       }
@@ -959,6 +1004,10 @@
     return preyDist(x, y, t) <= range;
   }
   function pickLaserTarget(x, y, range) {
+    // Nearby trash always wins. Ship nodes and bosses were monopolizing every
+    // laser the moment they were in range, leaving bugs sitting next to agents.
+    const swarm = nearestBug(x, y, range, b => !isBoss(b) && !b.ship && !b.shipNode);
+    if (swarm) return swarm;
     if (canReachShip(x, y, range)) {
       const n = pickShipNode(x, y, { uncovered: true }) || pickShipNode(x, y);
       if (n) return n;
@@ -1004,6 +1053,12 @@
       clicks: keepClicks, intro: true, hintSeen: true
     });
     bugs = []; S.backlog = 0;
+    hatchQ.length = 0;
+    hatchWait = 0; hatchReadyAt = 0;
+    appearGate = 0;
+    bossAcc = 0;
+    qaRevealAcc = 0;
+    bossQuiet = 20;
     agents.length = 0;
     derickEnt = null;
     ensureDerick();
@@ -1020,8 +1075,10 @@
   const CONFETTI = [];
   let confettiN = 0;
   function startShipConfetti() {
-    if (RM || quality < 1) return;
-    const n = quality >= 3 ? 72 : quality >= 2 ? 40 : 18;
+    // Juice scales down with quality, but a phone that stepped to quality 0
+    // still gets a light shower. Only prefers-reduced-motion skips it.
+    if (RM) return;
+    const n = quality >= 3 ? 72 : quality >= 2 ? 40 : quality >= 1 ? 18 : 10;
     for (let i = 0; i < n; i++) {
       const c = CONFETTI[confettiN] || (CONFETTI[confettiN] = {});
       c.x = Math.random() * Wd;
@@ -2072,12 +2129,13 @@
     if (opts && opts.src === 'qa') { log('QA revealed a bug.'); retargetQA(); }
     return true;
   }
-  function pumpHatches(dt) {
+  function pumpHatches(dt, maxN) {
     dt = dt || 0;
     if (dt >= 0.4) {
       hatchWait -= dt;
       let n = 0;
-      while (hatchWait <= 0 && n < 12) {
+      const limit = maxN == null ? 12 : Math.max(1, maxN | 0);
+      while (hatchWait <= 0 && n < limit) {
         if (!tryHatchOne()) {
           if (hatchWait < 0) hatchWait = 0;
           break;
@@ -2166,18 +2224,25 @@
   }
   function econ(dt) {
     if (!S.optedIn || S.paused) return;
+    if (bossQuiet > 0) bossQuiet = Math.max(0, bossQuiet - dt);
     if (canAutoSpawn()) {
       while (S.backlog > 0 && bugs.length + hatchQ.length < cap()) {
         S.backlog--; S.spawned--;
         requestHatch({ src: 'backlog' });
       }
     }
-    // Occasional boss (never before Hire Derick; never during post-kill quiet)
-    bossAcc += dt * (0.015 + Math.min(0.04, S.loc / 50000));
-    if (bossAcc >= 1 && canAutoSpawn() && bugs.length < cap() && S.derick && !shipBoss) {
-      bossAcc = 0;
-      const b = spawnBug(null, null, { boss: true, tier: 4, src: 'boss' });
-      if (b) { log(`${b.name} appeared.`); retargetQA(); }
+    // Occasional boss. Clicks cannot kill them, so never spawn one until
+    // Derick or an agent can actually hurt it, and never bank a spawn
+    // during the Ship, the SHIPPED card, or the post-prestige quiet.
+    if (canSpawnBoss() && canAutoSpawn() && bugs.length < cap()) {
+      bossAcc += dt * (0.015 + Math.min(0.04, S.loc / 50000));
+      if (bossAcc >= 1) {
+        bossAcc = 0;
+        const b = spawnBug(null, null, { boss: true, tier: 4, src: 'boss' });
+        if (b) { log(`${b.name} appeared.`); retargetQA(); }
+      }
+    } else {
+      bossAcc = Math.min(bossAcc, 0.95);
     }
     mergeIfOver();
     idleWrite(dt);
@@ -2188,7 +2253,10 @@
         requestHatch({ reveal: true, src: 'qa', tier: Math.random() < 0.45 ? 3 : 2 });
       }
     }
-    pumpHatches(dt);
+    // Live econ ticks (and hitch catch-up) only birth one automatic hatch
+    // per call so a lagged 250ms interval cannot dump a pile on one frame.
+    // Tests that need sim catch-up call pumpHatches(dt) directly.
+    pumpHatches(dt, 1);
     if (S.autoRb && bugs.length + S.backlog >= 8) rollback(true);
   }
 
@@ -2197,7 +2265,16 @@
       for (let i = lasers.length - 1; i >= 0; i--) { lasers[i].life -= dt; if (lasers[i].life <= 0) lasers.splice(i, 1); }
       return;
     }
+    appearGate = Math.max(0, appearGate - dt);
     for (const b of bugs) {
+      if (b.appearIn > 0) {
+        b.appearIn -= dt;
+        if (b.appearIn <= 0) {
+          b.appearIn = 0;
+          b.pop = Math.max(b.pop || 0, 0.35);
+          b.sq = Math.max(b.sq || 0, 0.85);
+        }
+      }
       if (b.hatching) {
         b.hatchT -= dt;
         b.pop = Math.max(0.15, 1 - b.hatchT / 1.2);
@@ -2212,7 +2289,7 @@
       const m = R[Math.min(4, b.tier)];
       if (b.x < m) { b.x = m; b.a = Math.PI - b.a; } else if (b.x > Wd - m) { b.x = Wd - m; b.a = Math.PI - b.a; }
       if (b.y < m + 56) { b.y = m + 56; b.a = -b.a; } else if (b.y > Hd - m) { b.y = Hd - m; b.a = -b.a; }
-      b.pop += (1 - b.pop) * Math.min(1, dt * 10);
+      b.pop += (1 - b.pop) * Math.min(1, dt * (b.popRate || 10));
       b.sq *= Math.pow(0.002, dt); b.flash = Math.max(0, b.flash - dt * 6);
     }
 
@@ -2319,6 +2396,7 @@
   }
 
   function drawBug(b) {
+    if (b.appearIn > 0) return;
     const tier = Math.min(4, b.tier);
     const r = R[tier] * b.pop, w = Math.sin(b.ph) * 0.13;
     ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
@@ -2721,6 +2799,7 @@
       if (b.hp != null) nb.hp = b.hp;
       return nb;
     });
+    evictUnkillableBosses();
   }
   render(true);
   if (S.shipPending) showShippedFanfare(false);
@@ -2753,6 +2832,16 @@
     clearHeartbeatCd() { heartbeatCdUntil = 0; hbTimes = []; },
     pickLaunchTarget, predictedMissileDamage, pendingOn, reserveOn, releaseOn, targetHasCover,
     launchPulseShot, ensureSubs, agentReadyForPulse,
+    hasBossDamage, canSpawnBoss, evictUnkillableBosses, takeAppearIn,
+    get bossAcc() { return bossAcc; },
+    setBossAcc(v) { bossAcc = Math.max(0, +v || 0); },
+    get bossQuiet() { return bossQuiet; },
+    setBossQuiet(v) { bossQuiet = Math.max(0, +v || 0); },
+    get appearGate() { return appearGate; },
+    setAppearGate(v) { appearGate = Math.max(0, +v || 0); },
+    get reducedMotion() { return RM; },
+    get confettiN() { return confettiN; },
+    kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
     syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange,
