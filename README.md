@@ -76,7 +76,7 @@ Numbers below are taken from `static/js/game.js` as implemented. Costs are in **
 
 ### Juice (design rule)
 
-Bug Hunt is a juiced 2D game inside the site, not a utility overlay. Kills, pulses, missiles, promotions, and shop unlocks should hit with squash/stretch, hit-stop, particles, a flash, and a shake, then settle. Respect `prefers-reduced-motion` and the adaptive quality tier: drop the extra motion before you drop the frame rate. Same standards as the top-level **Juice standards** checklist.
+Bug Hunt is a juiced 2D game inside the site, not a utility overlay. Kills, pulses, bombs, promotions, and shop unlocks should hit with squash/stretch, hit-stop, particles, a flash, and a shake, then settle. Respect `prefers-reduced-motion` and the adaptive quality tier: drop the extra motion before you drop the frame rate. Same standards as the top-level **Juice standards** checklist.
 
 ### Opt-in
 
@@ -124,7 +124,7 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 
 **Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow (requires 5 agents) → Movement Tuning → Multiplayer Sync → Sub-Agent Workflow → Rollback Netcode → Auto Rollback → Ship.**
 
-`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“pulses arrive faster, and bombs launch and fly faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
+`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“pulses arrive faster. After Sub-Agent Workflow, bombs also launch and fly faster.”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
 
 ### Upgrades
 
@@ -138,8 +138,8 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 | **CI Pipeline** | 180 | once | After Collision Editor | Derick kill time `× 0.82` and damage `× 1.1`; agent damage `× 1.08`; bugs per LOC `× 0.85`; QA reveal rate `× 1.6` |
 | **QA** | 150 | once | After CI | Reveals more bugs; paints targets on the largest (see QA below) |
 | **Rapid Prototype** | 200 | once | After QA | All shop prices `× 0.78` |
-| **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts and pulses them with his full combat power (no missiles from the escorts themselves); also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
-| **Movement Tuning** | 100 | once | After Agentic Workflow | Pulses fly from Derick to an escort faster (`dt × 11` instead of `dt × 8`). Once bombs exist, they also launch and fly faster: `95 + 70 + ships×12` chase speed is unused for escorts (they stay in the ring); missile start/top speeds gain **+50 / +90**. |
+| **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts into a ring and pulses them: each pulse buffs an escort’s laser with Derick’s full combat DPS for **5 seconds** (escorts never become missiles or bombs); also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
+| **Movement Tuning** | 100 | once | After Agentic Workflow | Pulses fly from Derick to an escort faster (`dt × 11` instead of `dt × 8`). After Sub-Agent Workflow, bombs also launch and fly faster: start/top speeds gain **+50 / +90**. Escorts stay in the ring and never chase. |
 | **Multiplayer Sync** | 250 | once | After Movement Tuning | Each pulse batch can enlist up to **3** agents; pulse rate `× 1.5` |
 | **Sub-Agent Workflow** | 380 | once | After Multiplayer Sync (which itself is after Agentic Workflow) | The **only** source of bombs. Each agent grows a sub-agent that orbits it and drafts at the agent idle rate (**0.35** LOC/s). Pulses launch the sub as a homing suicide bomb (same blast math); the escort stays in the ring and never flies out. A new sub respawns after **4s**. Bombs reserve predicted damage so they will not stack on a target already covered (including bosses and the Ship). |
 | **Rollback Netcode** | 400 | once | After Sub-Agent Workflow | ⟲ button clears the board; **30s** cooldown |
@@ -185,9 +185,9 @@ They **do not walk** until Agentic Workflow is owned. Once it is, every agent le
 
 - While Agentic is owned and at least one agent exists, Derick accumulates pulses at **0.35/s** (0.55/s in command mode), times `(1 + sync × 0.5)`.
 - Each pulse flies to a ready escort. Without Sub-Agent Workflow that escort is buffed (Derick’s full DPS stacked on its laser for 5s) and never leaves the ring. With Sub-Agent Workflow, only escorts that have an orbiting sub ready are eligible, and the pulse launches that sub as a homing bomb at the current highest-value prey that is not already covered by incoming bomb damage (Ship first, then bosses, then high tier).
-- **Missile flight:** starts at **220** px/s (**+50** with Movement Tuning, **+8** per Ship), accelerates at **980** px/s² up to **520** (**+90** Movement, **+16** per Ship). A **210** px/s sideways kick plus **~8 rad/s** steering makes a curved path. The aim point sits **22px** past the target (a slight overshoot). It detonates when it comes within `targetRadius + 12` px (after at least **0.08s** of flight), or after **2.4s**, or after **0.35s** with no live target.
+- **Bomb flight:** starts at **220** px/s (**+50** with Movement Tuning, **+8** per Ship), accelerates at **980** px/s² up to **520** (**+90** Movement, **+16** per Ship). A **210** px/s sideways kick plus **~8 rad/s** steering makes a curved path. The aim point sits **22px** past the target (a slight overshoot). It detonates when it comes within `targetRadius + 12` px (after at least **0.08s** of flight), or after **2.4s**, or after **0.35s** with no live target.
 - **Blast:** radius `min(150, base + DerickCombatDPS × 12)` where `base` is **54** on coarse/small screens and **68** on desktop — about **80px** at default power, up to **150px**. Center damage is **`3.6 × DerickCombatDPS`** (about **3.6** HP at the start: enough to delete a tier-1 and dent a tier-2), falling off to **55%** at the rim. That damage scales with Derick’s tools and ships, so he stays the force multiplier.
-- **Bosses:** a single blast is capped at **35%** of the boss’s max HP (`MISSILE_BOSS_FRAC`, 7.7 of 22). A full-health boss always needs at least three missile hits. Ordinary bugs in the radius can die in one shot. The **Ship finale** is not under that cap — missiles deal full scaled damage to it (clicks still cannot kill it).
+- **Bosses:** a single blast is capped at **35%** of the boss’s max HP (`MISSILE_BOSS_FRAC`, 7.7 of 22). A full-health boss always needs at least three bomb hits. Ordinary bugs in the radius can die in one shot. The **Ship finale** is not under that cap — bombs deal full scaled damage to it (clicks still cannot kill it).
 - Regular agents never recoil or return from a blast, because they never launch. Sub-agents are suicide bombers: they vanish on detonation and a new sub respawns on that escort after **4 seconds**.
 - **Reserved damage:** when a bomb is assigned a target it reserves its predicted center damage (`missileDamage()`, capped at 35% of max HP for regular bosses, uncapped for the Ship). Later bombs skip any target whose reserved incoming damage is already ≥ its current HP and pick the next-best prey instead. This applies to normal bugs, bosses, and the Ship.
 - Juice on detonation (skipped or thinned when `prefers-reduced-motion` or quality is low): screen shake **2–5**, a small local blast flash (pooled, max 6), a milder fullscreen tint only at quality 3, **22ms** hit-stop at quality 3 (16ms otherwise), cached spark sprites instead of per-particle gradients, and an expanding blast ring.
@@ -227,7 +227,7 @@ Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switche
 - The **7 teal dots** along the top band are individually targetable **hardpoints**. Each node gets an equal share of the ship’s HP; the bottom bar shows the **sum**. The ship dies only when every node is destroyed.
 - Lasers and bombs pick among live nodes: they prefer the least-targeted / nearest node and respect the same reserved-damage dedupe per node (a bomb will not stack onto a hardpoint that incoming bombs would already kill). Anyone who could reach the hull can still fire, but they aim at a node so the beams spread out instead of converging on the center.
 - Destroying a node is juiced (flash, sparks, “DOWN”) and the node goes dark/cracked. Regular bugs (~every 0.55s when all 7 are up) and named bosses (~every 6.2s) spawn **from live nodes only**, so the drop rate relaxes as hardpoints fall (interval scales by `7 / liveNodes`).
-- **Only lasers and missiles damage nodes.** Clicks clink (hull or node) just like a normal boss and cannot finish a hardpoint.
+- **Only lasers and bombs damage nodes.** Clicks clink (hull or node) just like a normal boss and cannot finish a hardpoint.
 - Its max HP is `max(500, estimatedDPS × 106)` (the 106× multiplier is calibrated so a full-unlocks / 10-agent team takes about **90 seconds**, ±15s).
 - On a win: the ship dies, the field clears (live bugs, backlog, hatch queue), and a juiced fanfare plays — looping fireworks and a falling shower on a layer above the dimmer and behind the SHIPPED card and HUD so the stats and button stay readable. The celebration is built to stay cheap on phones: a small pooled cap (12–20 on coarse pointers, 12–36 on desktop), prerendered sprites with a single `drawImage` and no per-particle glow or shadow, a lower emit rate, and a lower-resolution celebration canvas (~1.05× on coarse / ~1.15× on desktop). The game canvas is paused (no `step` / combat `draw`) while the card is up. Skipped only when `prefers-reduced-motion` is on. A **SHIPPED vN.0!** card pops in with run stats (time-to-kill, total LOC, bugs squashed). Time-to-kill never displays **0s** (a finished fight rounds up to at least 1s). Incoming-ship warnings, the tutorial hint, the Play Space promote toast, and the ship HP bar hide so they cannot read through the overlay. A confirmation button labeled **Ship (N+1).0?** waits for the player, and a small **×** dismisses the card without prestiging. Prestige does **not** happen automatically. The celebration keeps looping until the player dismisses the card or confirms.
 - Tapping that button runs the prestige reset: run progress (tools, agents, LOC, commits, live bugs) clears; Derick stays hired, the shop stays open, Play Space stays unlocked, and `prestige` / `ships` increment together. The next Ship goal scales up. DJ becomes a pink beating heart.
@@ -249,7 +249,7 @@ Idle drafting is **per-unit**, not global. Derick and each agent write code inde
 - Derick drafts at **1.4** LOC/s (`IDLE_DERRICK`), plus **0.60** if Agentic Workflow is owned (`IDLE_AGENTIC`).
 - Each agent drafts at **0.35** LOC/s (`IDLE_AGENT`) — about 5× the original rates. During Heartbeat, Derick’s own rate (including the Agentic bonus) is multiplied by **5**.
 - Orbiting sub-agents (once Sub-Agent Workflow is owned) also draft at **0.35** LOC/s until they launch.
-- A unit counts as idle when it is **not firing**. Outbound missiles count as firing; a missile on its way back to the ring can draft again. Escorts that happen to be lasering a bug in range still count as busy (correct), even if they are standing near Derick.
+- A unit counts as idle when it is **not firing**. An outbound sub-agent bomb counts as firing (and therefore does not draft). Subs vanish on detonation rather than flying back; a new sub respawns after **4s** and can draft again once it is orbiting. Escorts that happen to be lasering a bug in range still count as busy (correct), even if they are standing near Derick.
 - After a unit stops attacking, idle drafting ramps in with a **per-unit phase offset** (`idlePhase`, rolled when the unit is created). The first line lands in about **0.45–1.15s** (`1 - rate × (0.45 + idlePhase × 0.7)`), so a whole squad that stops firing together does not start typing on the same beat.
 - A tiny `{}` tick appears near the unit when it drafts (cheap visual cue; the glyph is drawn from a cached sprite).
 - Each drafted line adds only `bugsPerLoc() × 0.045` debt (`IDLE_DEBT`), and hatches still respect the post-kill quiet window, so the faster idle typing does not instantly refill the board.
@@ -315,28 +315,19 @@ These are the explicit asks the implementation is meant to honor:
 
 ## Deploying
 
-### GitHub Pages (recommended, free)
-1. Create a repo (e.g. `zorakbane/derickjanssen.com`) and push this folder to `main`.
-2. Repo **Settings → Pages → Source: GitHub Actions**. The included `.github/workflows/pages.yml` builds and deploys on every push.
-3. **Settings → Pages → Custom domain:** `www.derickjanssen.com`, then tick **Enforce HTTPS** once the certificate is issued. `static/CNAME` already contains `www.derickjanssen.com`.
+Production go-live steps (GoDaddy DNS, GitHub Pages custom domain, HTTPS, rollback, and what not to touch) live in **[GO-LIVE.md](GO-LIVE.md)**. Do not change DNS, the Pages custom domain, or publish the `CNAME` file until that checklist is approved.
 
-### Netlify / Vercel
-Import the repo. `netlify.toml` / `vercel.json` already set build `node build.mjs --hide-todos` and output `dist`. Then add the custom domain in their dashboard and follow the DNS values they show.
+### Preview (current)
+Previews publish from `gh-pages` via `tools/deploy-preview.sh` (or `npm run deploy:preview`) with `BASE=/portfolio-site/`. That script always strips `CNAME`, so the preview stays at `https://zorakbane.github.io/portfolio-site/` and cannot take over derickjanssen.com.
+
+### Production build
+`BASE=/ node build.mjs --hide-todos` (the default `BASE` is already `/`). Canonical and Open Graph URLs use `https://derickjanssen.com`. The `CNAME` file is **not** copied into `dist/` unless you set `PUBLISH_CNAME=1`.
+
+### GitHub Actions / Netlify / Vercel
+`.github/workflows/pages.yml` is **workflow_dispatch** only (it does not deploy on every push). `netlify.toml` / `vercel.json` already set `node build.mjs --hide-todos` and output `dist`.
 
 ### Sub-path hosting
-If the site lives at `https://user.github.io/repo/` without a custom domain, build with `BASE=/repo/ node build.mjs`. In the workflow, change the build step to `BASE=/repo/ node build.mjs --hide-todos`.
-
-## Pointing the GoDaddy domain (GitHub Pages)
-
-In GoDaddy → **My Products → derickjanssen.com → DNS → Manage DNS**:
-
-1. **Remove** the existing `www` CNAME that points to Google Sites (`ghs.googlehosted.com`) and any `@` A records for Google or GoDaddy parking/forwarding.
-2. Add **CNAME** `www` → `zorakbane.github.io` (your GitHub username + `.github.io`).
-3. Add four **A** records for `@`: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`. Optionally add the AAAA records `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`, and `2606:50c0:8003::153`.
-4. Wait for DNS (minutes to a few hours). Then set the custom domain in GitHub Pages settings and enable HTTPS.
-5. Optional but recommended: verify the domain under GitHub **Settings → Pages → Verified domains** so nobody else can claim it.
-
-For Netlify/Vercel, use the records their dashboards give you instead (usually a `www` CNAME plus an apex A/ALIAS record).
+If the site lives at `https://user.github.io/repo/` without a custom domain, build with `BASE=/repo/ node build.mjs`. Preview already does this with `BASE=/portfolio-site/`.
 
 ## Performance notes
 - CSS is inlined, JS is ~25 KB unminified and deferred, and the game loads on idle.
