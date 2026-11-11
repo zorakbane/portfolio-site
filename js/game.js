@@ -128,6 +128,7 @@
   const SUB_ORBIT = 16;
   const SUB_RESPAWN = 4;
   const HEART_DJ_SCALE = 1.8;
+  const SHIP_NODES = 7;
   // Named so they are easy to swap. Red is reserved for bosses.
   const LASER_COLOR = {
     derick: 'rgba(57,255,136,0.85)',   // site accent green
@@ -575,10 +576,10 @@
     const c = d.createElement('canvas'); c.width = 20; c.height = 20;
     const x = c.getContext('2d');
     x.fillStyle = '#ff3d81';
-    pathHeart(x, 10, 8, 7.2);
+    pathHeart(x, 10, 10, 6.8);
     x.fill();
     x.fillStyle = 'rgba(255,245,248,0.55)';
-    pathHeart(x, 10, 7.4, 4.4);
+    pathHeart(x, 10, 9.3, 4.0);
     x.fill();
     heartSprite = c;
     return c;
@@ -724,11 +725,18 @@
 
   function damageBug(b, dps, dt, attacker) {
     if (!b || b.hatching) return;
-    if (b.ship) {
+    if (b.shipNode) {
+      if (b.hp <= 0) return;
       b.hp -= dps * dt;
-      b.flash = Math.max(b.flash || 0, 0.45);
+      b.flash = Math.max(b.flash || 0, 0.55);
       if (attacker) { attacker.beam = 1; attacker.aimX = b.x; attacker.aimY = b.y; }
-      if (b.hp <= 0) winFinale();
+      syncShipHp();
+      if (b.hp <= 0) destroyShipNode(b);
+      return;
+    }
+    if (b.ship) {
+      const n = pickShipNode(attacker ? attacker.x : b.x, attacker ? attacker.y : b.y);
+      if (n) { damageBug(n, dps, dt, attacker); return; }
       return;
     }
     b.hp -= dps * dt;
@@ -745,8 +753,13 @@
   function clink(b, x, y) {
     const ang = Math.atan2(b.y - y, b.x - x);
     b.a = ang; b.boost = 3.6; b.flash = 1; b.sq = 0.7;
-    // negligible chip that can never finish the boss
-    if (b.hp > 1) b.hp = Math.max(1, b.hp - 0.05);
+    // negligible chip that can never finish the boss / a ship node
+    if (b.ship && !b.shipNode) {
+      /* hull clink is visual only — HP lives on the nodes */
+    } else if (b.hp > 1) {
+      b.hp = Math.max(1, b.hp - 0.05);
+      if (b.shipNode) syncShipHp();
+    }
     shields.push({ x: b.x, y: b.y, r: (R[Math.min(4, b.tier)] || 28) + 6, life: 0.4, max: 0.4 });
     if (shields.length > 8) shields.shift();
     if (quality >= 1) gain(b.x, b.y - 20, 'clink', '#ffd166');
@@ -816,6 +829,89 @@
     shipWarn.classList.add('in');
     setTimeout(() => { shipWarn.hidden = true; shipWarn.classList.remove('in'); }, 2800);
   }
+  function liveShipNodes() {
+    return (shipBoss && shipBoss.nodes) ? shipBoss.nodes.filter(n => n && n.hp > 0 && !n._dead) : [];
+  }
+  function syncShipNodePositions() {
+    const s = shipBoss;
+    if (!s || !s.nodes) return;
+    for (let i = 0; i < s.nodes.length; i++) {
+      const n = s.nodes[i];
+      n.x = s.x + (-s.w * 0.28 + i * s.w * 0.093);
+      n.y = s.y - s.h * 0.12;
+    }
+  }
+  function makeShipNodes(s) {
+    if (!s) return;
+    const share = s.maxHp / SHIP_NODES;
+    s.nodes = [];
+    for (let i = 0; i < SHIP_NODES; i++) {
+      s.nodes.push({
+        i, ship: true, shipNode: true, boss: true, hatching: false, tier: 5,
+        name: (s.name || 'Ship') + ' hardpoint',
+        x: s.x, y: s.y, r: 16,
+        hp: share, maxHp: share,
+        flash: 0, _pending: 0, _dead: false
+      });
+    }
+    syncShipNodePositions();
+  }
+  function syncShipHp() {
+    if (!shipBoss || !shipBoss.nodes) return;
+    shipBoss.hp = shipBoss.nodes.reduce((sum, n) => sum + Math.max(0, n.hp || 0), 0);
+  }
+  function destroyShipNode(n) {
+    if (!n || n._dead) return;
+    n._dead = true;
+    n.hp = 0;
+    n.flash = 1;
+    if (!RM) {
+      punch(quality >= 3 ? 4 : quality >= 2 ? 3 : 2);
+      burst(n.x, n.y, 190, quality >= 3 ? 14 : quality >= 2 ? 8 : 4, 280, 0.55);
+      burst(n.x, n.y, 42, quality >= 2 ? 6 : 0, 200, 0.4);
+      boomFlash(n.x, n.y, 0.75);
+      if (quality >= 2) hitStop(16);
+    }
+    gain(n.x, n.y - 16, 'DOWN', '#3de0ff');
+    syncShipHp();
+    if (!liveShipNodes().length) winFinale();
+  }
+  function nodeFocus(n) {
+    if (!n) return 0;
+    let c = (n._pending || 0) / Math.max(1, n.hp || 1);
+    if (derickEnt && derickEnt.target === n) c += 1;
+    for (const a of agents) {
+      if (a.target === n || a.chaseRoot === n) c += 1;
+      if (a.sub && (a.sub.target === n || a.sub.chaseRoot === n)) c += 1;
+    }
+    return c;
+  }
+  function pickShipNode(fromX, fromY, opts = {}) {
+    const nodes = liveShipNodes();
+    let best = null, bestKey = 1e15;
+    for (const n of nodes) {
+      if (opts.uncovered && targetHasCover(n)) continue;
+      const dist = Math.hypot(n.x - (fromX || 0), n.y - (fromY || 0));
+      const key = nodeFocus(n) + dist * 0.0001;
+      if (key < bestKey) { best = n; bestKey = key; }
+    }
+    return best;
+  }
+  function canReachShip(x, y, range) {
+    return !!(shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) <= range);
+  }
+  function inLaserRange(x, y, t, range) {
+    if (!t) return false;
+    if (t.shipNode && canReachShip(x, y, range)) return true;
+    return preyDist(x, y, t) <= range;
+  }
+  function pickLaserTarget(x, y, range) {
+    if (canReachShip(x, y, range)) {
+      const n = pickShipNode(x, y, { uncovered: true }) || pickShipNode(x, y);
+      if (n) return n;
+    }
+    return nearestBug(x, y, range, b => !b.shipNode);
+  }
   function startFinale(opts = {}) {
     if (shipBoss && shipBoss.hp > 0) return shipBoss;
     if (!opts.force && (S.loc < shipGoal() || bugs.length + S.backlog > 3)) return null;
@@ -828,8 +924,9 @@
       name: shipName(),
       x: Wd * 0.5, y: -110, w: Math.max(280, Wd - 24), h: 100,
       hp, maxHp: hp, flash: 0, pop: 1, sq: 0, a: 0, ph: 0,
-      enter: 0, spawnAcc: 0, bossSpawn: 0
+      enter: 0, spawnAcc: 0, bossSpawn: 0, nodes: []
     };
+    makeShipNodes(shipBoss);
     showShipWarn('⚠ ' + shipBoss.name + ' incoming');
     punch(10); boomFlash(Wd * 0.5, 80, 1.2); hitStop(26);
     log(`${shipBoss.name} incoming. Lasers and missiles only.`);
@@ -880,19 +977,25 @@
     shipBoss.y = -110 + (72 + 110) * e;
     shipBoss.flash = Math.max(0, (shipBoss.flash || 0) - dt * 4);
     shipBoss.ph += dt * 3;
+    if (shipBoss.nodes) for (const n of shipBoss.nodes) n.flash = Math.max(0, (n.flash || 0) - dt * 4);
+    syncShipNodePositions();
     if (shipBoss.enter < 1) return;
+    const live = liveShipNodes();
+    if (!live.length) return;
     shipBoss.spawnAcc += dt;
     shipBoss.bossSpawn += dt;
-    if (shipBoss.spawnAcc >= 0.55 && bugs.length < cap()) {
+    const spawnWait = 0.55 * (SHIP_NODES / live.length);
+    if (shipBoss.spawnAcc >= spawnWait && bugs.length < cap()) {
       shipBoss.spawnAcc = 0;
-      const sx = 40 + Math.random() * Math.max(20, Wd - 80);
-      const b = spawnBug(sx, shipBoss.y + shipBoss.h * 0.45, { force: true, tier: Math.random() < 0.35 ? 2 : 1, src: 'ship' });
-      if (b) { b.hatching = false; b.y = shipBoss.y + shipBoss.h * 0.5; }
+      const node = live[Math.floor(Math.random() * live.length)];
+      const b = spawnBug(node.x, node.y + 10, { force: true, tier: Math.random() < 0.35 ? 2 : 1, src: 'ship' });
+      if (b) { b.hatching = false; b.y = node.y + 18; }
     }
-    if (shipBoss.bossSpawn >= 6.2 && bugs.length < cap()) {
+    const bossWait = 6.2 * (SHIP_NODES / live.length);
+    if (shipBoss.bossSpawn >= bossWait && bugs.length < cap()) {
       shipBoss.bossSpawn = 0;
-      const sx = 60 + Math.random() * Math.max(20, Wd - 120);
-      const b = spawnBug(sx, shipBoss.y + shipBoss.h * 0.5, { force: true, boss: true, tier: 4, src: 'ship-boss' });
+      const node = live[Math.floor(Math.random() * live.length)];
+      const b = spawnBug(node.x, node.y + 12, { force: true, boss: true, tier: 4, src: 'ship-boss' });
       if (b) { b.hatching = false; log(`${b.name} dropped from ${shipBoss.name}.`); }
     }
   }
@@ -919,12 +1022,40 @@
     // canopy stripe
     ctx.fillStyle = S.prestige ? 'rgba(255,61,129,0.25)' : 'rgba(57,255,136,0.18)';
     ctx.fillRect(-w * 0.38, -h * 0.22, w * 0.76, h * 0.18);
-    // windows
-    ctx.fillStyle = 'rgba(61,224,255,0.55)';
-    for (let i = 0; i < 7; i++) {
-      ctx.beginPath();
-      ctx.arc(-w * 0.28 + i * w * 0.093, -h * 0.12, 4.5, 0, 7);
-      ctx.fill();
+    // hardpoint nodes (the old window dots, now individually targetable)
+    syncShipNodePositions();
+    const nodes = s.nodes || [];
+    for (let i = 0; i < SHIP_NODES; i++) {
+      const n = nodes[i];
+      const lx = -w * 0.28 + i * w * 0.093;
+      const ly = -h * 0.12;
+      ctx.save();
+      ctx.translate(lx, ly);
+      if (!n || n.hp <= 0 || n._dead) {
+        ctx.fillStyle = 'rgba(16,18,28,0.95)';
+        ctx.beginPath(); ctx.arc(0, 0, 5.4, 0, 7); ctx.fill();
+        ctx.strokeStyle = 'rgba(90,96,120,0.85)';
+        ctx.lineWidth = 1.15;
+        ctx.beginPath(); ctx.moveTo(-3.2, -3.2); ctx.lineTo(3.2, 3.2); ctx.moveTo(3.2, -3.2); ctx.lineTo(-3.2, 3.2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, 6.2, 0, 7); ctx.stroke();
+      } else {
+        const pulse = 0.55 + 0.28 * Math.sin((s.ph || 0) + i * 0.7);
+        const flash = n.flash || 0;
+        ctx.fillStyle = flash ? 'rgba(255,255,255,0.95)' : `rgba(61,224,255,${0.42 + pulse * 0.4})`;
+        ctx.beginPath(); ctx.arc(0, 0, 5.6 + flash * 2.2, 0, 7); ctx.fill();
+        ctx.strokeStyle = `rgba(190,250,255,${0.55 + flash * 0.4})`;
+        ctx.lineWidth = 1.25;
+        ctx.beginPath(); ctx.arc(0, 0, 7.1, 0, 7); ctx.stroke();
+        const pct = Math.max(0, n.hp / (n.maxHp || 1));
+        if (pct < 0.999) {
+          ctx.strokeStyle = 'rgba(255,90,120,0.9)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(0, 0, 8.6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
     }
     ctx.fillStyle = '#ececf6';
     ctx.font = `800 ${Math.max(14, Math.min(28, w * 0.035))}px ui-monospace, sans-serif`;
@@ -933,13 +1064,15 @@
     ctx.restore();
   }
   function pathHeart(ctx, x, y, s) {
-    // Rounder lobes, less pointy than the original tall heart.
+    // Symmetric round heart. (x, y) is the visual center.
+    // Width and height are both ~2s so it does not read as a wide pancake
+    // at any scale. Pulse/DPR apply a uniform scale only.
     ctx.beginPath();
-    ctx.moveTo(x, y + s * 0.28);
-    ctx.bezierCurveTo(x + s * 0.08, y - s * 0.12, x + s * 1.08, y - s * 0.18, x + s * 1.08, y + s * 0.3);
-    ctx.bezierCurveTo(x + s * 1.08, y + s * 0.68, x + s * 0.32, y + s * 0.92, x, y + s * 1.12);
-    ctx.bezierCurveTo(x - s * 0.32, y + s * 0.92, x - s * 1.08, y + s * 0.68, x - s * 1.08, y + s * 0.3);
-    ctx.bezierCurveTo(x - s * 1.08, y - s * 0.18, x - s * 0.08, y - s * 0.12, x, y + s * 0.28);
+    ctx.moveTo(x, y + s * 0.98);
+    ctx.bezierCurveTo(x + s * 0.18, y + s * 0.50, x + s * 0.98, y + s * 0.22, x + s * 0.98, y - s * 0.26);
+    ctx.bezierCurveTo(x + s * 0.98, y - s * 0.78, x + s * 0.40, y - s * 0.98, x, y - s * 0.46);
+    ctx.bezierCurveTo(x - s * 0.40, y - s * 0.98, x - s * 0.98, y - s * 0.78, x - s * 0.98, y - s * 0.26);
+    ctx.bezierCurveTo(x - s * 0.98, y + s * 0.22, x - s * 0.18, y + s * 0.50, x, y + s * 0.98);
     ctx.closePath();
   }
 
@@ -1141,9 +1274,14 @@
       noteDjPoke(x, y);
       return;
     }
-    if (shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) < 12) {
-      clink(shipBoss, x, y);
-      return;
+    if (shipBoss && shipBoss.hp > 0) {
+      let hitNode = null, nd = 20;
+      for (const n of liveShipNodes()) {
+        const dd = Math.hypot(n.x - x, n.y - y);
+        if (dd < nd) { nd = dd; hitNode = n; }
+      }
+      if (hitNode) { clink(hitNode, x, y); return; }
+      if (preyDist(x, y, shipBoss) < 12) { clink(shipBoss, x, y); return; }
     }
     let best = null, bd = 1e9;
     for (const b of bugs) {
@@ -1287,12 +1425,13 @@
   // ---------- combat AI ----------
   function preyAlive(t) {
     if (!t) return false;
+    if (t.shipNode) return !!(shipBoss && t.hp > 0 && !t._dead);
     if (t.ship) return !!(shipBoss && shipBoss === t && shipBoss.hp > 0);
     return bugs.includes(t);
   }
   function preyDist(x, y, t) {
     if (!t) return 1e9;
-    if (t.ship) {
+    if (t.ship && !t.shipNode) {
       const dx = Math.max(0, Math.abs(x - t.x) - (t.w || 0) * 0.5);
       const dy = Math.max(0, Math.abs(y - t.y) - (t.h || 0) * 0.5);
       return Math.hypot(dx, dy);
@@ -1309,7 +1448,7 @@
       if (dd < bd) { bd = dd; best = b; }
     };
     for (const b of bugs) consider(b);
-    if (shipBoss && shipBoss.hp > 0) consider(shipBoss);
+    for (const n of liveShipNodes()) consider(n);
     return best;
   }
   function pickThreat() {
@@ -1324,7 +1463,7 @@
       if (preyDist(derickEnt.x, derickEnt.y, b) < preyDist(derickEnt.x, derickEnt.y, best)) best = b;
     };
     for (const b of bugs) consider(b);
-    if (shipBoss && shipBoss.hp > 0) consider(shipBoss);
+    for (const n of liveShipNodes()) consider(n);
     return best;
   }
 
@@ -1355,10 +1494,10 @@
     derickEnt.y += (derickEnt.ty - derickEnt.y) * Math.min(1, dt * (sp / 40));
 
     const range = derickCombatRange();
-    const t = nearestBug(derickEnt.x, derickEnt.y, range, b => true);
+    const t = pickLaserTarget(derickEnt.x, derickEnt.y, range);
     derickEnt.target = t;
     derickEnt.beam = Math.max(0, derickEnt.beam - dt * 4);
-    if (t) {
+    if (t && inLaserRange(derickEnt.x, derickEnt.y, t, range)) {
       addLaser(derickEnt.x, derickEnt.y, t.x, t.y, { wide: 1, life: 0.1, color: LASER_COLOR.derick });
       damageBug(t, derickCombatDps(), dt, derickEnt);
     }
@@ -1422,7 +1561,10 @@
       if (preyDist(derickEnt.x, derickEnt.y, b) < preyDist(derickEnt.x, derickEnt.y, best)) best = b;
     };
     for (const b of bugs) consider(b);
-    if (shipBoss && shipBoss.hp > 0) consider(shipBoss);
+    const fromX = derickEnt ? derickEnt.x : 0;
+    const fromY = derickEnt ? derickEnt.y : 0;
+    const node = pickShipNode(fromX, fromY, { uncovered: true });
+    if (node) return node;
     return best;
   }
   function agentReadyForPulse(a) {
@@ -1511,7 +1653,7 @@
     const rad = missileRadius();
     const base = missileDamage();
     const blast = bugs.slice();
-    if (shipBoss && shipBoss.hp > 0) blast.push(shipBoss);
+    for (const n of liveShipNodes()) blast.push(n);
     for (const b of blast) {
       if (!b || b.hatching) continue;
       const dist = preyDist(x, y, b);
@@ -1528,11 +1670,16 @@
         b.boost = isBoss(b) ? 1.8 : 3.4;
       }
       if (b.hp <= 0) {
-        if (b.ship) winFinale();
+        if (b.shipNode) {
+          destroyShipNode(b);
+          if (!shipBoss) break;
+        } else if (b.ship) winFinale();
         else {
           const qaBoss = isBoss(b) && b.targeted;
           squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
         }
+      } else if (b.shipNode) {
+        syncShipHp();
       }
     }
     if (!RM) {
@@ -1819,16 +1966,16 @@
         const slot = escortSlot(escortI++, ringN);
         a.x += (slot.x - a.x) * Math.min(1, dt * 5);
         a.y += (slot.y - a.y) * Math.min(1, dt * 5);
-        a.target = nearestBug(a.x, a.y, range, b => true);
+        a.target = pickLaserTarget(a.x, a.y, range);
       } else {
         a.x += (a.homeX - a.x) * Math.min(1, dt * 3);
         a.y += (a.homeY - a.y) * Math.min(1, dt * 3);
-        a.target = nearestBug(a.x, a.y, range, b => true);
+        a.target = pickLaserTarget(a.x, a.y, range);
       }
       if (a.missile) continue;
       const t = a.target && preyAlive(a.target) ? a.target : null;
       const boosted = agentBuffed(a);
-      if (t && preyDist(a.x, a.y, t) <= range) {
+      if (t && inLaserRange(a.x, a.y, t, range)) {
         addLaser(a.x, a.y, t.x, t.y, { wide: 0.9, life: 0.09, color: boosted ? LASER_COLOR.buffed : LASER_COLOR.agent, boosted });
         damageBug(t, agentCombatDps(a), dt, a);
         if (S.collision) {
@@ -1943,15 +2090,15 @@
       const beat = 1 + 0.12 * Math.sin(now() / 280);
       const s = body * HEART_DJ_SCALE * beat;
       ctx.fillStyle = 'rgba(255,61,129,0.2)';
-      pathHeart(ctx, x, y - s * 0.12, s * 1.16);
+      pathHeart(ctx, x, y, s * 1.14);
       ctx.fill();
       ctx.fillStyle = '#ff3d81';
-      pathHeart(ctx, x, y - s * 0.12, s);
+      pathHeart(ctx, x, y, s);
       ctx.fill();
       ctx.fillStyle = '#fff5f8';
-      ctx.font = `800 ${Math.round(7.6 * sc * beat)}px ui-monospace, sans-serif`;
+      ctx.font = `800 ${Math.round(7.2 * sc)}px ui-monospace, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('DJ', x, y + s * 0.08);
+      ctx.fillText('DJ', x, y + s * 0.06);
     } else {
       ctx.fillStyle = 'rgba(57,255,136,0.14)';
       ctx.beginPath(); ctx.arc(x, y, 14 * sc, 0, 7); ctx.fill();
@@ -2309,6 +2456,8 @@
     pickLaunchTarget, predictedMissileDamage, pendingOn, reserveOn, releaseOn, targetHasCover,
     launchPulseShot, ensureSubs, agentReadyForPulse,
     derickDraftRate, derickHitRadius,
+    SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
+    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange,
 
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
