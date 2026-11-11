@@ -134,7 +134,6 @@
   const derickDps = () => 2 / derickKillTime(); // HP/s vs small
   const agentDps = () => 1; // 2s on small (HP=2)
   const agentRange = () => (COARSE ? 78 : 92) + (S.profiler ? 22 : 0);
-  const chaseSpeed = () => 95 + (S.movement ? 70 : 0) + S.ships * 12;
   const qaRevealPerSec = () => (S.qa ? 0.55 * (S.ci ? 1.6 : 1) : 0);
   const IDLE_DERRICK = 1.4;
   const IDLE_AGENT = 0.35;
@@ -254,17 +253,17 @@
     { id: 'derick', name: 'HIRE DERICK', desc: () => 'One engineer. Thin laser. Roams and squashes.', once: true, show: () => nextUnlock() === 'derick' },
     { id: 'agent', name: 'HIRE AGENT', desc: () => S.subagent ? `Escort · orbiting sub-agent bomber. (${S.agents})` : S.agentic ? `Escort · fires from Derick's ring. (${S.agents})` : `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
     { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'ci', 'qa'].includes(nextUnlock())) },
-    { id: 'profiler', name: 'PROFILER', desc: () => 'Reveal hatching bugs · larger agent radius.', once: true, show: () => nextUnlock() === 'profiler' },
+    { id: 'profiler', name: 'PROFILER', desc: () => 'Some bugs hatch visibly · agent range +22 · Derick fires a bit faster and farther.', once: true, show: () => nextUnlock() === 'profiler' },
     { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce to a second bug.', once: true, show: () => nextUnlock() === 'collision' },
-    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Pulses arrive faster, and bombs launch and fly faster.', once: true, show: () => nextUnlock() === 'movement' },
+    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Pulses arrive faster. After Sub-Agent Workflow, bombs also launch and fly faster.', once: true, show: () => nextUnlock() === 'movement' },
     { id: 'ci', name: 'CI PIPELINE', desc: () => 'Faster lasers · fewer bugs pre-merge.', once: true, show: () => nextUnlock() === 'ci' },
     { id: 'qa', name: 'QA', desc: () => 'Reveals more bugs & marks the largest (incl. bosses) to die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
     { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
     { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse chains to several agents.', once: true, show: () => nextUnlock() === 'sync' },
-    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts and pulses them with his full power.', once: true, show: () => nextUnlock() === 'agentic' && S.agents >= 5 },
+    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts into a ring and pulses them — each pulse buffs an escort laser with his full power for 5s. Escorts never become missiles.', once: true, show: () => nextUnlock() === 'agentic' && S.agents >= 5 },
     { id: 'subagent', name: 'SUB-AGENT WORKFLOW', desc: () => 'Each escort grows a sub-agent bomber. Only subs fly out as bombs; escorts stay in the ring.', once: true, show: () => nextUnlock() === 'subagent' },
     { id: 'rollback', name: 'ROLLBACK NETCODE', desc: () => '⟲ Clears the screen. 30s cooldown.', once: true, show: () => nextUnlock() === 'rollback' },
-    { id: 'autoRb', name: 'AUTO ROLLBACK', desc: () => 'Rollback fires when 8+ bugs are live.', once: true, show: () => nextUnlock() === 'autoRb' },
+    { id: 'autoRb', name: 'AUTO ROLLBACK', desc: () => 'Rollback fires when live bugs + backlog reach 8.', once: true, show: () => nextUnlock() === 'autoRb' },
   ];
 
   const CORPUS = [
@@ -1084,7 +1083,7 @@
     makeShipNodes(shipBoss);
     showShipWarn('⚠ ' + shipBoss.name + ' incoming');
     punch(10); boomFlash(Wd * 0.5, 80, 1.2); hitStop(26);
-    log(`${shipBoss.name} incoming. Lasers and missiles only.`);
+    log(`${shipBoss.name} incoming. Lasers and bombs only.`);
     kick(); dirty = true;
     syncShipBar(true);
     return shipBoss;
@@ -1898,7 +1897,7 @@
       } else {
         const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
         if (S.rollback && S.loc >= shipGoal() * 0.45) {
-          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & missiles only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
+          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & bombs only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
         }
       }
     }
@@ -2155,7 +2154,6 @@
     if (reservedAmt && target) releaseOn(target, reservedAmt);
     return applyPulseBuff(agent);
   }
-  function activateChase(agent, target) { return launchPulseShot(agent, target, 0); }
   function detonateMissile(agent) {
     if (!agent) return;
     releaseReserve(agent);
