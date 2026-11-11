@@ -331,11 +331,15 @@
     + '</ul>'
     + '<button type="button" class="bh-btn bh-shipped-go" data-act="confirm-ship">Ship 2.0?</button>'
     + '</div>';
+  const shippedDim = d.createElement('div');
+  shippedDim.id = 'bh-shipped-dim';
+  shippedDim.hidden = true;
+  shippedDim.setAttribute('aria-hidden', 'true');
   const celebrateCv = d.createElement('canvas');
   celebrateCv.id = 'bh-celebrate';
   celebrateCv.setAttribute('aria-hidden', 'true');
   const celebrateCtx = celebrateCv.getContext('2d');
-  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, shipBar, shipWarn, shipped, celebrateCv);
+  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, shipBar, shipWarn, shippedDim, celebrateCv, shipped);
   const $ = s => hud.querySelector(s);
   const el = {
     loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), commits: $('[data-k=commits]'),
@@ -1289,6 +1293,7 @@
     if (btn) btn.textContent = 'Ship ' + next + '.0?';
     hideCelebrateChrome();
     d.body.classList.add('bh-celebrate');
+    if (shippedDim) shippedDim.hidden = false;
     shipped.hidden = false;
     shipped.classList.remove('in', 'rm');
     void shipped.offsetWidth;
@@ -1306,6 +1311,7 @@
     if (!shipped) return;
     shipped.hidden = true;
     shipped.classList.remove('in', 'rm');
+    if (shippedDim) shippedDim.hidden = true;
     d.body.classList.remove('bh-celebrate');
     stopShipConfetti();
   }
@@ -1664,7 +1670,7 @@
   }
 
   // ---------- input (never swallow) ----------
-  const IGNORE = 'a,button,input,textarea,select,summary,label,iframe,video,audio,[role=button],[contenteditable],.bh-hud,#bh-ready,#bh-shipped,.yt';
+  const IGNORE = 'a,button,input,textarea,select,summary,label,iframe,video,audio,[role=button],[contenteditable],.bh-hud,#bh-ready,#bh-shipped,#bh-shipped-dim,.yt';
   let downX = 0, downY = 0, downT = 0;
   d.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = now(); }, { passive: true });
   d.addEventListener('pointerup', e => {

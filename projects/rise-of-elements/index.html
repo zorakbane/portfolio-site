@@ -6,7 +6,7 @@
 <title>Rise of Elements | Derick Janssen</title>
 <meta name="description" content="A PvP match-3 puzzle-battler with a PvE story mode. I worked on nearly every part of the game except backend AWS server scaling.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:0b6d410e41;js:fbf1d00811;game:8603a124d9">
+<meta name="asset-rev" content="css:439865321e;js:fbf1d00811;game:8bdbed9f8d">
 <meta property="og:title" content="Rise of Elements | Derick Janssen">
 <meta property="og:description" content="A PvP match-3 puzzle-battler with a PvE story mode. I worked on nearly every part of the game except backend AWS server scaling.">
 <meta property="og:type" content="website">
@@ -367,10 +367,14 @@ body.bh-play #bh-shipbar{z-index:55}
 @media (max-width:700px){
   #bh-shipbar{bottom:max(7.8rem,calc(env(safe-area-inset-bottom) + 7.4rem));width:min(380px,calc(100vw - 1.4rem))}
 }
+#bh-shipped-dim{position:fixed;inset:0;z-index:72;background:rgba(6,8,14,.72);pointer-events:auto}
+#bh-shipped-dim[hidden]{display:none!important}
 #bh-celebrate{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:73}
-#bh-shipped{position:fixed;inset:0;z-index:72;display:flex;align-items:center;justify-content:center;padding:1.2rem;background:rgba(6,8,14,.72);pointer-events:auto}
+#bh-shipped{position:fixed;inset:0;z-index:74;display:flex;align-items:center;justify-content:center;padding:1.2rem;background:transparent;pointer-events:none}
 #bh-shipped[hidden]{display:none!important}
-#bh-shipped .bh-shipped-card{position:relative;width:min(380px,calc(100vw - 2.4rem));padding:1.35rem 1.25rem 1.1rem;border:2px solid var(--green);border-radius:16px;background:rgba(10,14,22,.97);box-shadow:0 0 0 1px #39ff8844,0 22px 50px -16px #39ff8899,0 0 48px #39ff8833,inset 0 0 28px #39ff8814;text-align:center;color:var(--text)}
+#bh-shipped .bh-shipped-card{position:relative;width:min(380px,calc(100vw - 2.4rem));padding:1.35rem 1.25rem 1.1rem;border:2px solid var(--green);border-radius:16px;background:rgba(10,14,22,.97);box-shadow:0 0 0 1px #39ff8844,0 22px 50px -16px #39ff8899,0 0 48px #39ff8833,inset 0 0 28px #39ff8814;text-align:center;color:var(--text);pointer-events:auto}
+body.bh-celebrate .bh-hud,body.bh-celebrate #bh-ready,
+body.bh-play.bh-celebrate .bh-hud,body.bh-play.bh-celebrate #bh-ready{z-index:75}
 #bh-shipped .bh-shipped-x{position:absolute;top:.4rem;right:.4rem;width:2rem;height:2rem;padding:0;border-radius:8px;border-color:transparent;background:transparent;color:var(--muted);font:900 1.15rem/1 var(--mono)}
 #bh-shipped .bh-shipped-x:hover{color:var(--text);border-color:var(--line)}
 .bh-hud .bh-shippending{background:var(--pink);color:#fff;border-color:var(--pink);font-weight:800;letter-spacing:.04em;white-space:nowrap}
@@ -391,7 +395,7 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
 #bh-shipped.rm .bh-shipped-card{animation:none}
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=8603a124d9"></script>
+<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=8bdbed9f8d"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
