@@ -157,7 +157,7 @@ One engineer, drawn as a green “DJ” orb, about **2.4×** the original size o
 - Roam lerp speed 120 (140 in command mode).
 - Agentic Workflow is the only thing that makes him send pulses to agents (any range) and gather them into an escort. His **aura** (see Agents) buffs nearby units automatically. He **always roams** toward the biggest threat — he never parks in a corner. When nothing is on the board he eases back to the center of the play area and hovers there (a small sine bob).
 - After the first prestige he is drawn as a pink beating heart (canvas Bézier, no emoji sprite) instead of the green circle — larger and rounder than the first version (`HEART_DJ_SCALE` 1.8) so it reads clearly next to the escorts.
-- Clicking DJ always sprays a handful of pooled, cached heart sprites. Five clicks inside **3 seconds** start a **Heartbeat** buff for **60 seconds**: DJ’s idle LOC rate is **5×**, and escorts inside his range get his **full** combat DPS aura instead of the usual 25% escort share. A pulsing pink glow and a HUD timer (`♥ 0:47`) show while it is active. After it expires there is a **60 second** cooldown so you cannot chain it. Starting Heartbeat also arms the hidden `git blame` boss (same as the Konami code).
+- Clicking DJ always sprays a handful of pooled, cached heart sprites. Five clicks inside **5 seconds** start a **Heartbeat** buff for **60 seconds**: DJ’s idle LOC rate is **5×**, and escorts inside his range get his **full** combat DPS aura instead of the usual 25% escort share. A pulsing pink glow and a HUD timer (`♥ 0:47`) show while it is active. After it expires there is a **60 second** cooldown so you cannot chain it. Starting Heartbeat also arms the hidden `git blame` boss (same as the Konami code).
 
 ### Agents
 
@@ -232,7 +232,7 @@ Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switche
 1. Pink beating-heart DJ at `prestige >= 1` (larger, rounder Bézier heart).
 2. HUD title becomes `BUG HUNT vN.0`.
 3. Konami (`↑↑↓↓←→←→BA`) launches an extra missile volley (no `preventDefault`) and arms `git blame`.
-4. Clicking DJ sprays pooled hearts; five clicks in 3s starts a 60s **Heartbeat** buff (5× DJ LOC, full aura on nearby escorts, pink glow + HUD timer, 60s cooldown) and arms `git blame`.
+4. Clicking DJ sprays pooled hearts; five clicks in 5s starts a 60s **Heartbeat** buff (5× DJ LOC, full aura on nearby escorts, pink glow + HUD timer, 60s cooldown) and arms `git blame`.
 5. Progressive live-ops boss names listed above, plus the hidden **git blame** boss.
 
 ### Idle behavior and away-from-tab
@@ -301,7 +301,7 @@ These are the explicit asks the implementation is meant to honor:
 18. After 25 player clicks the game can promote into Play Space: a full-screen playfield with Derick’s name visible but not clickable, plus a way back to the site.
 19. ✕ while in Play Space exits Play Space (chrome + scroll restored) and saves; pause does not. Resume only re-enters Play Space if it was still marked active.
 20. Ship is a juiced finale boss, not a one-click counter. Winning prestiges the run; DJ becomes a pink beating heart.
-21. Clicking DJ sprays hearts; five clicks in a short window starts a cooldown-gated Heartbeat buff.
+21. Clicking DJ sprays hearts; five clicks in 5 seconds starts a cooldown-gated Heartbeat buff.
 22. Sub-Agent Workflow (after Agentic + Multiplayer Sync) replaces escort missiles with orbiting, code-writing suicide bombers that refuse overkill targets.
 
 
