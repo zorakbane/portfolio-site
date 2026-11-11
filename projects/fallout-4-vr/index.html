@@ -6,7 +6,7 @@
 <title>Fallout 4 VR | Derick Janssen</title>
 <meta name="description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:1c1d18e7ad;js:fbf1d00811;game:f895a86a24">
+<meta name="asset-rev" content="css:c531f09414;js:fbf1d00811;game:725aa5b629">
 <meta property="og:title" content="Fallout 4 VR | Derick Janssen">
 <meta property="og:description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta property="og:type" content="website">
@@ -347,9 +347,25 @@ body.bh-play #bh-canvas{z-index:4}
 @keyframes promoteIn{from{opacity:0;transform:translate(-50%,-18px) scale(.86)}}
 @keyframes promoteOut{0%,70%{opacity:1}100%{opacity:0}}
 .bh-playbtn{white-space:nowrap}
+
+body.bh-play #bh-ready,body.bh-play .bh-hud{z-index:70}
+#bh-shipbar{position:fixed;left:50%;bottom:max(1.1rem,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:48;width:min(460px,calc(100vw - 2rem));padding:.55rem .75rem .6rem;border:1px solid var(--line);border-radius:12px;background:rgba(12,12,22,.92);color:var(--text);font:700 .78rem/1.2 var(--mono);text-align:center;pointer-events:none;box-shadow:0 12px 32px -14px #000}
+#bh-shipbar[hidden]{display:none!important}
+#bh-shipbar .bh-shipname{letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:.35rem}
+#bh-shipbar .bh-shiptrack{height:8px;border-radius:99px;background:#1a1a2a;overflow:hidden;border:1px solid #2a2a3c}
+#bh-shipbar .bh-shiptrack i{display:block;height:100%;width:100%;transform-origin:0 50%;background:linear-gradient(90deg,var(--green),#3de0ff);transform:scaleX(1)}
+#bh-shipbar .bh-shiphp{margin-top:.3rem;color:var(--muted);font-size:.68rem;letter-spacing:.06em}
+body.bh-play #bh-shipbar{z-index:55}
+#bh-shipwarn{position:fixed;left:50%;top:10%;transform:translateX(-50%);z-index:58;pointer-events:none;padding:.7rem 1.15rem;border:2px solid #ff5a5a;border-radius:12px;background:rgba(22,8,10,.94);color:#ff8a8a;font:900 .9rem/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 0 1px #ff5a5a33,0 16px 40px -10px #ff5a5aaa}
+#bh-shipwarn[hidden]{display:none!important}
+#bh-shipwarn.in{animation:shipWarnIn .4s var(--spring) both}
+@keyframes shipWarnIn{from{opacity:0;transform:translate(-50%,-16px) scale(.9)}}
+@media (max-width:700px){
+  #bh-shipbar{bottom:max(7.8rem,calc(env(safe-area-inset-bottom) + 7.4rem));width:min(380px,calc(100vw - 1.4rem))}
+}
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=f895a86a24"></script>
+<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=725aa5b629"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
