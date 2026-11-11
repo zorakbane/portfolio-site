@@ -352,3 +352,15 @@ body.bh-play #bh-shipbar{z-index:55}
 @media (max-width:700px){
   #bh-shipbar{bottom:max(7.8rem,calc(env(safe-area-inset-bottom) + 7.4rem));width:min(380px,calc(100vw - 1.4rem))}
 }
+#bh-shipped{position:fixed;inset:0;z-index:72;display:flex;align-items:center;justify-content:center;padding:1.2rem;background:rgba(6,8,14,.62);pointer-events:auto}
+#bh-shipped[hidden]{display:none!important}
+#bh-shipped .bh-shipped-card{width:min(380px,calc(100vw - 2.4rem));padding:1.15rem 1.2rem 1.05rem;border:2px solid var(--green);border-radius:16px;background:rgba(10,14,22,.96);box-shadow:0 0 0 1px #39ff8833,0 22px 50px -16px #39ff8866,inset 0 0 28px #39ff8810;text-align:center;color:var(--text)}
+#bh-shipped.in .bh-shipped-card{animation:shippedIn .45s var(--spring) both}
+#bh-shipped .bh-shipped-banner{font:900 clamp(1.15rem,4vw,1.55rem)/1.15 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin:0 0 .85rem;text-shadow:0 0 18px #39ff8866}
+#bh-shipped .bh-shipped-stats{list-style:none;margin:0 0 1rem;padding:0;display:grid;gap:.35rem;font:600 .78rem/1.35 var(--mono);color:var(--muted)}
+#bh-shipped .bh-shipped-stats b{color:var(--text);font-weight:800}
+#bh-shipped .bh-shipped-go{width:100%;background:var(--pink);color:#fff;border-color:var(--pink);font:900 .92rem/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:.75rem .9rem}
+@keyframes shippedIn{from{opacity:0;transform:translateY(-14px) scale(.92)}}
+@media (prefers-reduced-motion:reduce){
+  #bh-shipped.in .bh-shipped-card{animation:none}
+}

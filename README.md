@@ -122,7 +122,7 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 
 **Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow (requires 5 agents) → Movement Tuning → Multiplayer Sync → Sub-Agent Workflow → Rollback Netcode → Auto Rollback → Ship.**
 
-`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“missiles launch and fly faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
+`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“pulses arrive faster, and bombs launch and fly faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
 
 ### Upgrades
 
@@ -136,10 +136,10 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 | **CI Pipeline** | 180 | once | After Collision Editor | Derick kill time `× 0.82` and damage `× 1.1`; agent damage `× 1.08`; bugs per LOC `× 0.85`; QA reveal rate `× 1.6` |
 | **QA** | 150 | once | After CI | Reveals more bugs; paints targets on the largest (see QA below) |
 | **Rapid Prototype** | 200 | once | After QA | All shop prices `× 0.78` |
-| **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts and pulses them as homing missiles; also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
-| **Movement Tuning** | 100 | once | After Agentic Workflow | Chasing agents move faster: `95 + 70 + ships×12` instead of `95 + ships×12` |
+| **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts and pulses them with his full combat power (no missiles from the escorts themselves); also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
+| **Movement Tuning** | 100 | once | After Agentic Workflow | Pulses fly from Derick to an escort faster (`dt × 11` instead of `dt × 8`). Once bombs exist, they also launch and fly faster: `95 + 70 + ships×12` chase speed is unused for escorts (they stay in the ring); missile start/top speeds gain **+50 / +90**. |
 | **Multiplayer Sync** | 250 | once | After Movement Tuning | Each pulse batch can enlist up to **3** agents; pulse rate `× 1.5` |
-| **Sub-Agent Workflow** | 380 | once | After Multiplayer Sync (which itself is after Agentic Workflow) | Replaces the escort missile. Each agent grows a sub-agent that orbits it and drafts at the agent idle rate (**0.35** LOC/s). Pulses launch the sub as a homing suicide bomb (same blast math); the escort stays in the ring. A new sub respawns after **4s**. Bombs reserve predicted damage so they will not stack on a target already covered (including bosses and the Ship). |
+| **Sub-Agent Workflow** | 380 | once | After Multiplayer Sync (which itself is after Agentic Workflow) | The **only** source of bombs. Each agent grows a sub-agent that orbits it and drafts at the agent idle rate (**0.35** LOC/s). Pulses launch the sub as a homing suicide bomb (same blast math); the escort stays in the ring and never flies out. A new sub respawns after **4s**. Bombs reserve predicted damage so they will not stack on a target already covered (including bosses and the Ship). |
 | **Rollback Netcode** | 400 | once | After Sub-Agent Workflow | ⟲ button clears the board; **30s** cooldown |
 | **Auto Rollback** | 800 | once | After Rollback | Rollback fires by itself when live bugs + backlog ≥ **8** |
 | **Ship vN.0** | — (finale) | repeatable each prestige | Shown once Rollback is owned and LOC ≥ 45% of the goal; clickable at the goal with ≤ 3 live+backlog bugs | See **Ship finale and prestige** below. Goal is `round(1600 × (prestige+1)^1.55 × 1.08^prestige)` |
@@ -163,13 +163,14 @@ One engineer, drawn as a green “DJ” orb, about **2.4×** the original size o
 
 Hired as **static turrets** placed around the page. They fire thin lasers (width 0.9) at bugs inside their radius (**92** desktop / **78** coarse, **+22** with Profiler) and take 2 seconds to kill a small bug (base DPS **1**, times **1.08** if CI is owned).
 
-They **do not walk** until Agentic Workflow is owned. Once it is, every agent leaves its turret post and joins an **escort ring** around Derick (slow orbit, radius `min(88, 38 + √n × 14)` on desktop, cap 72 on coarse/small screens). They fire thin lasers from the formation. A pulse no longer starts a long chase: without Sub-Agent Workflow it launches that agent as a **homing missile** (see below), and after the blast the agent recoils back to its slot in the ring. With Sub-Agent Workflow the escort itself never leaves — its orbiting sub-agent is the bomb.
+They **do not walk** until Agentic Workflow is owned. Once it is, every agent leaves its turret post and joins an **escort ring** around Derick (slow orbit, radius `min(88, 38 + √n × 14)` on desktop, cap 72 on coarse/small screens). They fire thin lasers from the formation. Regular agents **never** fly out as homing missiles, with or without Sub-Agent Workflow. A pulse always stays with the escort: before Sub-Agent Workflow it stacks Derick’s full combat DPS on that agent’s laser for **5 seconds** (`PULSE_BUFF`); after Sub-Agent Workflow the escort still stays in the ring and its orbiting sub-agent is the bomb.
 
-**Force multiplier.** Derick is a force multiplier, not just another laser. The pulse missile is the big hit; the aura is a helper.
+**Force multiplier.** Derick is a force multiplier, not just another laser. The aura is a helper; a pulse (and later a sub-agent bomb) is the bigger hit.
 
 - **Aura (static turrets, before Agentic):** any turret inside Derick’s combat range adds his full combat DPS to its own laser (`agent DPS + Derick DPS`).
 - **Aura (escorts, after Agentic):** escorts sit in that aura almost all the time, so each one only gets a modest `+ 0.25 × Derick DPS` (`ESCORT_AURA`). The ring does not clone a whole extra Derick per agent. During a **Heartbeat** buff, escorts that are actually inside Derick’s range get the full Derick DPS add instead.
-- **Pulse:** the launched missile (the agent, or its sub-agent once Sub-Agent Workflow is owned) does not keep a stacked laser. The explosion *is* the force-multiplier moment, and both its radius and damage scale with Derick’s combat DPS.
+- **Pulse (before Sub-Agent Workflow):** the pulse flies to a ready escort and stacks Derick’s **full** combat DPS on that agent’s laser for **5s**, even if it later drifts out of aura range. The escort does not leave the ring and does not become a missile. Ready escorts are those whose buff is not already running, so pulses spread around the squad.
+- **Pulse (with Sub-Agent Workflow):** the escort stays put and keeps lasering; the orbiting sub launches as the bomb. The explosion is the force-multiplier moment, and both its radius and damage scale with Derick’s combat DPS. Outbound bombs do not also fire a stacked laser.
 - Collision Editor pierce shots still deal `0.55 ×` base agent DPS (no extra Derick add on the splash).
 
 **Laser colors** (named constants in `LASER_COLOR`, easy to swap; red is reserved for bosses):
@@ -181,11 +182,11 @@ They **do not walk** until Agentic Workflow is owned. Once it is, every agent le
 ### Agentic Workflow, pulses, and command mode
 
 - While Agentic is owned and at least one agent exists, Derick accumulates pulses at **0.35/s** (0.55/s in command mode), times `(1 + sync × 0.5)`.
-- Each pulse flies to a ready escort and launches a homing missile at the current highest-value prey that is not already covered by incoming bomb damage (Ship first, then bosses, then high tier). Without Sub-Agent Workflow the escort itself launches; with it, only escorts that have an orbiting sub ready are eligible.
+- Each pulse flies to a ready escort. Without Sub-Agent Workflow that escort is buffed (Derick’s full DPS stacked on its laser for 5s) and never leaves the ring. With Sub-Agent Workflow, only escorts that have an orbiting sub ready are eligible, and the pulse launches that sub as a homing bomb at the current highest-value prey that is not already covered by incoming bomb damage (Ship first, then bosses, then high tier).
 - **Missile flight:** starts at **220** px/s (**+50** with Movement Tuning, **+8** per Ship), accelerates at **980** px/s² up to **520** (**+90** Movement, **+16** per Ship). A **210** px/s sideways kick plus **~8 rad/s** steering makes a curved path. The aim point sits **22px** past the target (a slight overshoot). It detonates when it comes within `targetRadius + 12` px (after at least **0.08s** of flight), or after **2.4s**, or after **0.35s** with no live target.
 - **Blast:** radius `min(150, base + DerickCombatDPS × 12)` where `base` is **54** on coarse/small screens and **68** on desktop — about **80px** at default power, up to **150px**. Center damage is **`3.6 × DerickCombatDPS`** (about **3.6** HP at the start: enough to delete a tier-1 and dent a tier-2), falling off to **55%** at the rim. That damage scales with Derick’s tools and ships, so he stays the force multiplier.
 - **Bosses:** a single blast is capped at **35%** of the boss’s max HP (`MISSILE_BOSS_FRAC`, 7.7 of 22). A full-health boss always needs at least three missile hits. Ordinary bugs in the radius can die in one shot. The **Ship finale** is not under that cap — missiles deal full scaled damage to it (clicks still cannot kill it).
-- After the explosion (without Sub-Agent Workflow) the agent recoils opposite its inbound velocity (up to **340** px/s) and lerps back to its escort slot (`dt × 6`). Sub-agents are suicide bombers: they vanish on detonation and a new sub respawns on that escort after **4 seconds**.
+- Regular agents never recoil or return from a blast, because they never launch. Sub-agents are suicide bombers: they vanish on detonation and a new sub respawns on that escort after **4 seconds**.
 - **Reserved damage:** when a bomb is assigned a target it reserves its predicted center damage (`missileDamage()`, capped at 35% of max HP for regular bosses, uncapped for the Ship). Later bombs skip any target whose reserved incoming damage is already ≥ its current HP and pick the next-best prey instead. This applies to normal bugs, bosses, and the Ship.
 - Juice on detonation (skipped or thinned when `prefers-reduced-motion` or quality is low): screen shake **2–5**, a small local blast flash (pooled, max 6), a milder fullscreen tint only at quality 3, **22ms** hit-stop at quality 3 (16ms otherwise), cached spark sprites instead of per-particle gradients, and an expanding blast ring.
 - Agents already standing inside Derick’s range are buffed by his **aura** without needing a pulse (escorts get the modest 25% bonus; see Agents).
@@ -226,14 +227,16 @@ Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switche
 - Destroying a node is juiced (flash, sparks, “DOWN”) and the node goes dark/cracked. Regular bugs (~every 0.55s when all 7 are up) and named bosses (~every 6.2s) spawn **from live nodes only**, so the drop rate relaxes as hardpoints fall (interval scales by `7 / liveNodes`).
 - **Only lasers and missiles damage nodes.** Clicks clink (hull or node) just like a normal boss and cannot finish a hardpoint.
 - Its max HP is `max(500, estimatedDPS × 106)` (the 106× multiplier is calibrated so a full-unlocks / 10-agent team takes about **90 seconds**, ±15s).
-- On a win: a juiced “SHIPPED” beat, then a **prestige** reset. Run progress (tools, agents, LOC, commits, live bugs) clears; Derick stays hired, the shop stays open, Play Space stays unlocked, and `prestige` / `ships` increment together. The next Ship goal scales up. DJ becomes a pink beating heart.
+- On a win: the ship dies, the field clears (live bugs, backlog, hatch queue), and a juiced fanfare plays — fireworks/confetti (skipped when `prefers-reduced-motion` is on), a **SHIPPED vN.0!** banner, and run stats (time-to-kill, total LOC, bugs squashed). A confirmation button labeled **Ship (N+1).0?** waits for the player. Prestige does **not** happen automatically.
+- Tapping that button runs the prestige reset: run progress (tools, agents, LOC, commits, live bugs) clears; Derick stays hired, the shop stays open, Play Space stays unlocked, and `prestige` / `ships` increment together. The next Ship goal scales up. DJ becomes a pink beating heart.
+- The pending confirmation is stored on the save as `shipPending` (`version`, `nextVersion`, `ttk`, `loc`, `squashed`, `name`). Reloading while it is set brings the banner and button back (without replaying the fireworks if you prefer a quiet restore). Reduced motion still shows the card and button, just without confetti, shake, or the entrance animation.
 - Prestige persists on the `dj-bughunt-v3` save. Older saves that already have `ships` but no `prestige` migrate `prestige = ships`.
 
 **Small prestige extras**
 
 1. Pink beating-heart DJ at `prestige >= 1` (symmetric round Bézier heart).
 2. HUD title becomes `BUG HUNT vN.0`.
-3. Konami (`↑↑↓↓←→←→BA`) launches an extra missile volley (no `preventDefault`) and arms `git blame`.
+3. Konami (`↑↑↓↓←→←→BA`) fires an extra pulse volley (buffs escorts, or launches ready sub-bombs — never the escorts themselves; no `preventDefault`) and arms `git blame`.
 4. Clicking DJ sprays pooled hearts; five clicks in 5s starts a 60s **Heartbeat** buff (5× DJ LOC, full aura on nearby escorts, pink glow + HUD timer, 60s cooldown) and arms `git blame`.
 5. Progressive live-ops boss names listed above, plus the hidden **git blame** boss.
 
@@ -258,7 +261,7 @@ If you leave and come back still opted-in and unpaused, up to **900s** of absenc
 - An unused/empty v3 slot will import `dj-bughunt-v2` (`cash` becomes `commits`, `ai` becomes `agents`, a few v2 flags become 0-or-1 ranks). The old `dj-bughunt-v1` key is removed.
 - `lastBoss` (the previous boss name) is persisted so a reload cannot immediately repeat it.
 - `clicks`, `playUnlocked`, and `playSpace` remember Play Space progress and whether you are in that mode. Quitting from Play Space writes `playSpace: false` so a later resume stays on the site.
-- `prestige` (and `ships`, kept in sync) remember how many finales you have shipped. A v3 save that has `ships` but no `prestige` is migrated on load.
+- `prestige` (and `ships`, kept in sync) remember how many finales you have shipped. A v3 save that has `ships` but no `prestige` is migrated on load. `shipPending` remembers an unconfirmed Ship win so the fanfare and **Ship N.0?** button survive a reload.
 - Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide, and on `bh-save` (used before in-site navigations).
 - **Reset progress** (and `__bugHunt.reset()`) confirms, then clears `dj-bughunt-v3` **and** any leftover `v1`/`v2` keys, wipes in-memory state, and sets a flag so the pagehide / visibilitychange / 2s-interval savers cannot write the old run back before reload. That last step is what made Reset appear to do nothing on phones.
 
@@ -290,22 +293,22 @@ These are the explicit asks the implementation is meant to honor:
 4. Clicks write dim hacker-typer background code.
 5. The first unlock is **Hire Derick**.
 6. QA reveals bugs and paints targets on the largest; targeted bugs are destroyed instead of breaking into smaller ones. QA does not auto-squash.
-7. Agentic Workflow amplifies Derick’s lasers (faster kill, longer range), gathers agents into an escort around him, and is the thing that launches them as homing missiles.
+7. Agentic Workflow amplifies Derick’s lasers (faster kill, longer range), gathers agents into an escort around him, and pulses them with his full combat power. Regular agents never become missiles.
 8. Bugs render under page elements. The canvas never steals clicks from real UI; clicking a bug in empty space never navigates.
 9. Agentic Workflow is gated behind a chain of earlier upgrades, and also requires owning 5 agents, not handed out with the first agents.
-10. An upgrade that affects pulses or missiles (Movement Tuning, Multiplayer Sync) cannot appear before Agentic Workflow (the thing that actually launches missiles).
+10. An upgrade that affects pulses or bombs (Movement Tuning, Multiplayer Sync) cannot appear before Agentic Workflow (the thing that actually starts pulses).
 11. Excess bugs merge, and animation quality steps down if frames get slow.
 12. Long sessions must not leak memory or gradually hitch.
 13. Once opted in with staff hired, idle Derick/agents write LOC when they are not firing (per-unit, including a short ramp after they stop attacking).
 14. Bosses cannot be click-killed.
 15. All game code is original to this project — not copied from another site’s clicker.
 16. Derick always roams toward threats. He never parks in a corner, even in command mode.
-17. Pulses are juiced homing missiles with an AoE blast (bosses don’t get one-shot). After the boom the agent returns to the escort ring — unless Sub-Agent Workflow is owned, in which case the sub-agent is the bomb and the escort stays put.
+17. Regular agents never fly out as bombs, at any stage. Before Sub-Agent Workflow, a pulse stacks Derick’s full DPS on that agent’s laser. After Sub-Agent Workflow, pulses launch the sub-agent as a juiced homing bomb (bosses don’t get one-shot) while the escort stays in the ring.
 18. After 25 player clicks the game can promote into Play Space: a full-screen playfield with Derick’s name visible but not clickable, plus a way back to the site.
 19. ✕ while in Play Space exits Play Space (chrome + scroll restored) and saves; pause does not. Resume only re-enters Play Space if it was still marked active.
-20. Ship is a juiced finale boss, not a one-click counter. Its seven hardpoint nodes share its HP and are what lasers and bombs actually hit; winning prestiges the run and DJ becomes a pink beating heart.
+20. Ship is a juiced finale boss, not a one-click counter. Its seven hardpoint nodes share its HP and are what lasers and bombs actually hit. Winning plays a fanfare (SHIPPED banner, stats, confetti) and asks **Ship N.0?**; prestige happens only when the player confirms.
 21. Clicking DJ sprays hearts; five clicks in 5 seconds starts a cooldown-gated Heartbeat buff.
-22. Sub-Agent Workflow (after Agentic + Multiplayer Sync) replaces escort missiles with orbiting, code-writing suicide bombers that refuse overkill targets.
+22. Sub-Agent Workflow (after Agentic + Multiplayer Sync) is the only source of bombs: orbiting, code-writing suicide bombers that refuse overkill targets. Escorts themselves never launch.
 
 
 ## Deploying
