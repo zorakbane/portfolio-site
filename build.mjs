@@ -30,6 +30,7 @@ const resumeDownload = (cls) =>
 const isTodo = s => typeof s === 'string' && /^TODO\b/.test(s);
 const todo = s => (SHOW_TODOS && s ? `<span class="todo">${esc(s)}</span>` : '');
 const todos = arr => (SHOW_TODOS && arr && arr.length ? `<div class="todos">${arr.map(todo).join('')}</div>` : '');
+// Project `niceToHave[]` is documentation-only and is never rendered.
 const txt = s => (isTodo(s) ? todo(s) : esc(s));
 
 function img(key, { sizes = '100vw', cls = '', alt = '', eager = false, fit = '' } = {}) {
@@ -124,10 +125,14 @@ function smallCard(p, i) {
       <h3 class="card-title">${esc(p.title)}</h3>
       <p class="card-sum">${esc(p.summary)}</p>
       ${p.awards ? `<ul class="chips gold">${p.awards.slice(0, 2).map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
-      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : ''}
+      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : (p.url ? `<span class="card-cta">${esc(p.linkLabel || 'Open')} <span aria-hidden="true">↗</span></span>` : '')}
       ${todos(p.todo)}
     </div>`;
-  return `<article class="card small reveal" style="--accent:${p.accent};--i:${i % 6}">${hasPage(p) ? `<a class="card-link" href="${href(p)}">${inner}</a>` : `<div class="card-link">${inner}</div>`}</article>`;
+  const cardHref = hasPage(p) ? href(p) : (p.url || '');
+  const cardInner = cardHref
+    ? `<a class="card-link" href="${esc(cardHref)}"${hasPage(p) ? '' : ' target="_blank" rel="noopener"'}">${inner}</a>`
+    : `<div class="card-link">${inner}</div>`;
+  return `<article class="card small reveal" style="--accent:${p.accent};--i:${i % 6}">${cardInner}</article>`;
 }
 
 const ICONS = {
@@ -183,7 +188,7 @@ function home() {
   <header class="sec-head reveal"><p class="sec-num">05</p><h2 id="about-h">About</h2></header>
   <div class="about">
     <div class="about-photo reveal">${img('derick', { sizes: '220px', alt: 'Derick Janssen' })}${todo(data.aboutTodo)}</div>
-    <div class="about-text reveal">${data.about.map(p => `<p>${esc(p)}</p>`).join('')}
+    <div class="about-text reveal">${S.location ? `<p class="about-location">${esc(S.location)}</p>` : ''}${data.about.map(p => `<p>${esc(p)}</p>`).join('')}
       <div class="skills">${Object.entries(data.skills).map(([k, v]) => `<div><h3>${esc(k)}</h3><ul class="chips">${v.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>`).join('')}</div>
       <details class="more"><summary>Competitive gaming record</summary><ul>${data.gaming.map(g => `<li>${esc(g)}</li>`).join('')}</ul></details>
       <details class="more"><summary>Talks</summary><ul>${data.talks.map(g => `<li>${esc(g)}</li>`).join('')}</ul></details>
