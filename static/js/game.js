@@ -2,8 +2,8 @@
    Opt-in → click empty space to write LOC → bugs hatch → squash for Commits.
    Hire Derick (one roaming laser), stackable agent turrets, tools, Agentic Workflow
    (escorts + homing-missile pulses), Movement Tuning / Multiplayer Sync, command mode
-   at 10 agents (faster pulses, no parking), rollback, Ship. Play Space after 25
-   player actions. Persist in localStorage. Never preventDefault. */
+   at 10 agents (faster pulses, no parking), rollback, Ship finale + prestige.
+   Play Space after 25 player actions. Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
   window.__bugHunt = { __booting: true };
@@ -20,6 +20,9 @@
   let spawnQuietUntil = 0;
   let escortPhase = 0;
   const PLAY_UNLOCK = 25;
+  let playScrollX = 0, playScrollY = 0;
+  let shipBoss = null;
+  let djPokes = 0, konamiArmed = false, blameReady = false;
   const frameTimes = [];
   const spawnLog = [];
 
@@ -32,7 +35,8 @@
     shop: false, open: true, hidden: false,
     bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0,
     lastBoss: null,
-    clicks: 0, playSpace: false, playUnlocked: false
+    clicks: 0, playSpace: false, playUnlocked: false,
+    prestige: 0
   };
   function migrateV2(v2) {
     const agents = Math.max(0, v2.ai | 0);
@@ -55,7 +59,8 @@
       backlog: v2.backlog || 0, t: v2.t || Date.now(), rbAt: v2.rbAt || 0,
       intro: !!v2.intro, hintSeen: !!v2.hintSeen, codeIdx: v2.codeIdx || 0,
       lastBoss: v2.lastBoss || null,
-      clicks: v2.clicks || 0, playSpace: !!v2.playSpace, playUnlocked: !!v2.playUnlocked
+      clicks: v2.clicks || 0, playSpace: !!v2.playSpace, playUnlocked: !!v2.playUnlocked,
+      prestige: v2.prestige || v2.ships || 0
     };
   }
   let S, fresh = false;
@@ -75,13 +80,14 @@
   } catch { S = Object.assign({}, DEF); fresh = true; }
   try { localStorage.removeItem('dj-bughunt-v1'); } catch {}
   if (fresh && (COARSE || innerWidth < 700)) S.open = false;
+  if (!S.prestige && S.ships) S.prestige = S.ships;
 
   // ---------- economy ----------
   const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.floor(n).toLocaleString();
-  const mult = () => 1 + S.ships * 0.5;
+  const mult = () => 1 + (S.prestige || S.ships || 0) * 0.5;
   const costScale = () => (S.rapid ? 0.78 : 1);
   const bugsPerLoc = () => 0.38 * Math.pow(0.82, Math.min(5, S.tests)) * (S.ci ? 0.85 : 1);
-  const shipGoal = () => Math.round(1600 * Math.pow(S.ships + 1, 1.55));
+  const shipGoal = () => Math.round(1600 * Math.pow((S.prestige || 0) + 1, 1.55) * Math.pow(1.08, S.prestige || 0));
   const RB_CD = 30000;
 
   // Derick: starts at 2s kill on small (HP=2), improves with tools/ships
@@ -104,9 +110,10 @@
   const agentRange = () => (COARSE ? 78 : 92) + (S.profiler ? 22 : 0);
   const chaseSpeed = () => 95 + (S.movement ? 70 : 0) + S.ships * 12;
   const qaRevealPerSec = () => (S.qa ? 0.55 * (S.ci ? 1.6 : 1) : 0);
-  const IDLE_DERRICK = 0.28;
-  const IDLE_AGENT = 0.07;
-  const IDLE_AGENTIC = 0.12; // added to Derick's draft rate when Agentic is owned
+  const IDLE_DERRICK = 1.4;
+  const IDLE_AGENT = 0.35;
+  const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
+  const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
   // Named so they are easy to swap. Red is reserved for bosses.
   const LASER_COLOR = {
     derick: 'rgba(57,255,136,0.85)',   // site accent green
@@ -174,7 +181,7 @@
 
   // Progression gate: only the next unlock appears (Hire agent stays buyable after the first).
   // Order: Derick → agent → tests (1+) → profiler → collision → ci → qa →
-  // rapid → agentic → movement → sync → rollback → autoRb → Ship.
+  // rapid → agentic (requires 5 agents) → movement → sync → rollback → autoRb → Ship.
   // Movement Tuning and Multiplayer Sync both require chasing/pulses, so they come
   // after Agentic Workflow (the upgrade that actually makes agents move).
   const SEQ = ['tests', 'profiler', 'collision', 'ci', 'qa', 'rapid', 'agentic', 'movement', 'sync', 'rollback', 'autoRb'];
@@ -199,7 +206,7 @@
     { id: 'qa', name: 'QA', desc: () => 'Reveals more bugs & marks the largest (incl. bosses) to die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
     { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
     { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse launches several missiles.', once: true, show: () => nextUnlock() === 'sync' },
-    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts and pulses them as homing missiles.', once: true, show: () => nextUnlock() === 'agentic' },
+    { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts and pulses them as homing missiles.', once: true, show: () => nextUnlock() === 'agentic' && S.agents >= 5 },
     { id: 'rollback', name: 'ROLLBACK NETCODE', desc: () => '⟲ Clears the screen. 30s cooldown.', once: true, show: () => nextUnlock() === 'rollback' },
     { id: 'autoRb', name: 'AUTO ROLLBACK', desc: () => 'Rollback fires when 8+ bugs are live.', once: true, show: () => nextUnlock() === 'autoRb' },
   ];
@@ -256,7 +263,14 @@
   promote.id = 'bh-promote';
   promote.hidden = true;
   promote.textContent = 'Promoted: Play Space unlocked';
-  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote);
+  const shipBar = d.createElement('div');
+  shipBar.id = 'bh-shipbar';
+  shipBar.hidden = true;
+  shipBar.innerHTML = '<div class="bh-shipname"></div><div class="bh-shiptrack"><i></i></div><div class="bh-shiphp"></div>';
+  const shipWarn = d.createElement('div');
+  shipWarn.id = 'bh-shipwarn';
+  shipWarn.hidden = true;
+  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, shipBar, shipWarn);
   const $ = s => hud.querySelector(s);
   const el = {
     loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), commits: $('[data-k=commits]'),
@@ -334,9 +348,16 @@
   const HUE = [0, 145, 110, 300, 0];
   const HP = [0, 2, 4.5, 8, 22];
   const BOSS_NAMES = ['Desync', 'Memory Leak', 'Race Condition', 'Null Pointer', 'Frame Spike', 'Packet Loss', 'Rollback Ghost', 'Stale Snapshot'];
+  const PRESTIGE_BOSSES = ['Merge Conflict', 'Hotfix Friday', 'Semantic Versioning', 'Changelog Ghost', 'Rebase Hell'];
   function pickBossName() {
-    const pool = BOSS_NAMES.filter(n => n !== S.lastBoss);
-    const src = pool.length ? pool : BOSS_NAMES;
+    if ((S.prestige >= 1 || blameReady) && Math.random() < (blameReady ? 0.35 : 0.08)) {
+      blameReady = false;
+      return 'git blame';
+    }
+    const extra = S.prestige >= 1 ? PRESTIGE_BOSSES : [];
+    const all = BOSS_NAMES.concat(extra);
+    const pool = all.filter(n => n !== S.lastBoss);
+    const src = pool.length ? pool : all;
     return src[Math.floor(Math.random() * src.length)];
   }
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
@@ -373,8 +394,30 @@
   let bugs = [];
   let derickEnt = null;
   let agents = [];
-  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [], shields = [], explosions = [];
+  const parts = [], splats = [], lasers = [], ghosts = [], codeBursts = [], pulses = [], hatches = [], shields = [], explosions = [], flashes = [];
+  let partN = 0;
   let shake = 0, freezeUntil = 0, flash = 0;
+  const SPARK = {};
+  function sparkSprite(color) {
+    if (SPARK[color]) return SPARK[color];
+    const c = d.createElement('canvas'); c.width = 16; c.height = 16;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(8, 8, 0, 8, 8, 7);
+    g.addColorStop(0, color);
+    g.addColorStop(0.55, color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(8, 8, 7, 0, 7); x.fill();
+    SPARK[color] = c; return c;
+  }
+  function sparkColor(hue) {
+    const h = ((hue % 360) + 360) % 360;
+    if (h < 25 || h > 330) return 'rgba(255,90,90,0.95)';
+    if (h < 70) return 'rgba(255,177,66,0.95)';
+    if (h < 160) return 'rgba(57,255,136,0.95)';
+    if (h < 230) return 'rgba(61,224,255,0.95)';
+    return 'rgba(255,80,160,0.95)';
+  }
+  function partCap() { return quality >= 3 ? 140 : quality >= 2 ? 70 : quality >= 1 ? 28 : 0; }
 
   function mkBug(tier, x, y, a, opts = {}) {
     a = a ?? Math.random() * Math.PI * 2;
@@ -460,17 +503,37 @@
   // ---------- juice ----------
   function burst(x, y, hue, n, spd = 260, life = 0.6) {
     if (quality < 1 || RM) n = Math.min(n, quality < 1 ? 0 : 3);
-    else n = Math.ceil(n * (quality >= 3 ? 1 : quality >= 2 ? 0.5 : 0.25));
+    else n = Math.ceil(n * (quality >= 3 ? 0.7 : quality >= 2 ? 0.4 : 0.22));
+    const capP = partCap();
     for (let i = 0; i < n; i++) {
+      if (partN >= capP) break;
       const a = Math.random() * Math.PI * 2, v = spd * (0.35 + Math.random());
-      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, life, max: life, r: 1.5 + Math.random() * 2.5, hue: hue + (Math.random() - .5) * 30 });
+      let p = parts[partN];
+      if (!p) { p = {}; parts[partN] = p; }
+      p.x = x; p.y = y;
+      p.vx = Math.cos(a) * v; p.vy = Math.sin(a) * v - 80;
+      p.life = life; p.max = life;
+      p.r = 1.5 + Math.random() * 2.5;
+      p.hue = hue + (Math.random() - .5) * 30;
+      p.color = sparkColor(p.hue);
+      partN++;
     }
-    const capP = quality >= 3 ? 220 : quality >= 2 ? 90 : 36;
-    if (parts.length > capP) parts.splice(0, parts.length - capP);
+  }
+  function boomFlash(x, y, str) {
+    if (RM || quality < 1) return;
+    flashes.push({ x, y, r: 70 + str * 50, life: 0.16, max: 0.16 });
+    if (flashes.length > 6) flashes.shift();
+    if (quality >= 3) flash = Math.max(flash, Math.min(0.22, str * 0.35));
+  }
+  function hitStop(ms) {
+    if (RM || quality < 2) return;
+    const cap = quality >= 3 ? 26 : 16;
+    freezeUntil = Math.max(freezeUntil, now() + Math.min(ms, cap));
   }
   let gains = 0;
   function gain(x, y, text, color) {
-    if (gains > 10) return;
+    if (gains > (quality >= 3 ? 8 : 4)) return;
+    if (quality < 1) return;
     gains++;
     const g = d.createElement('span'); g.className = 'bh-gain'; g.textContent = text;
     g.style.left = x + 'px'; g.style.top = y + 'px'; if (color) g.style.color = color;
@@ -520,8 +583,8 @@
     burst(b.x, b.y, b.boss ? 8 : (b.targeted ? 50 : HUE[b.tier]), 5 + b.tier * 3, 160 + b.tier * 40);
     splats.push({ x: b.x, y: b.y, r: R[b.tier] * 1.3, hue: b.boss ? 8 : (b.targeted ? 50 : HUE[b.tier]), life: 1.4, max: 1.4 });
     if (splats.length > 36) splats.shift();
-    if (!auto) { freezeUntil = now() + (b.boss ? 90 : b.tier === 3 ? 55 : 35); punch(b.tier * 2.2); }
-    gain(b.x, b.y - R[b.tier], `+${val}`, auto ? '#3de0ff' : (b.targeted ? '#ffd166' : null));
+    if (!auto) { hitStop(b.boss ? 50 : b.tier === 3 ? 32 : 20); punch(b.tier * 2.2); }
+    if (!auto || quality >= 2) gain(b.x, b.y - R[b.tier], `+${val}`, auto ? '#3de0ff' : (b.targeted ? '#ffd166' : null));
     // Clear chase roots pointing at this bug
     for (const a of agents) {
       if (a.chaseRoot === b || a.target === b) {
@@ -575,6 +638,13 @@
 
   function damageBug(b, dps, dt, attacker) {
     if (!b || b.hatching) return;
+    if (b.ship) {
+      b.hp -= dps * dt;
+      b.flash = Math.max(b.flash || 0, 0.45);
+      if (attacker) { attacker.beam = 1; attacker.aimX = b.x; attacker.aimY = b.y; }
+      if (b.hp <= 0) winFinale();
+      return;
+    }
     b.hp -= dps * dt;
     b.flash = Math.max(b.flash, 0.35);
     if (attacker) {
@@ -621,12 +691,169 @@
     log(`⟲ Rolled back${auto ? ' (auto)' : ''}. ${n} bugs never happened. +${fmt(gainC)} commits`);
     kick(); dirty = true;
   }
-  function ship() {
-    if (S.loc < shipGoal() || bugs.length + S.backlog > 3) return;
-    S.ships++;
-    log(`Shipped v${S.ships}.0 — permanent +50% commit bounty.`);
-    for (let i = 0; i < 4; i++) burst(Math.random() * Wd, Hd * 0.3 + Math.random() * Hd * 0.3, Math.random() * 360, 12, 360, 1);
-    punch(10); kick(); dirty = true;
+  function finaleDpsEstimate() {
+    const dDps = derickCombatDps();
+    const n = Math.max(0, S.agents);
+    const baseA = agentDps() * (S.ci ? 1.08 : 1);
+    const one = baseA + (S.agentic ? dDps * ESCORT_AURA : (S.derick ? dDps : 0));
+    const pulseRate = S.agentic
+      ? ((commandMode() ? 0.55 : 0.35) * (1 + S.sync * 0.5) * (S.sync ? Math.min(3, Math.max(1, n)) : 1))
+      : 0;
+    return dDps + one * n * 0.55 + pulseRate * missileDamage() * 0.85;
+  }
+  function finaleMaxHp() { return Math.max(500, finaleDpsEstimate() * 106); }
+  function shipName() { return `Ship v${(S.prestige || 0) + 1}.0`; }
+  function syncShipBar() {
+    const on = !!(shipBoss && shipBoss.hp > 0);
+    shipBar.hidden = !on;
+    if (!on) return;
+    const name = shipBar.querySelector('.bh-shipname');
+    const fill = shipBar.querySelector('i');
+    const hp = shipBar.querySelector('.bh-shiphp');
+    const pct = Math.max(0, shipBoss.hp / shipBoss.maxHp);
+    if (name) name.textContent = shipBoss.name || shipName();
+    if (fill) fill.style.transform = `scaleX(${pct})`;
+    if (hp) hp.textContent = `${Math.max(0, Math.ceil(shipBoss.hp))} / ${Math.ceil(shipBoss.maxHp)}`;
+    if (!hud.hidden) {
+      const box = hud.getBoundingClientRect();
+      const raise = Math.max(0, (W.innerHeight || Hd) - box.top) + 10;
+      shipBar.style.bottom = raise + 'px';
+    } else {
+      shipBar.style.bottom = '';
+    }
+  }
+  function showShipWarn(text) {
+    shipWarn.textContent = text;
+    shipWarn.hidden = false;
+    shipWarn.classList.remove('in');
+    void shipWarn.offsetWidth;
+    shipWarn.classList.add('in');
+    setTimeout(() => { shipWarn.hidden = true; shipWarn.classList.remove('in'); }, 2800);
+  }
+  function startFinale(opts = {}) {
+    if (shipBoss && shipBoss.hp > 0) return shipBoss;
+    if (!opts.force && (S.loc < shipGoal() || bugs.length + S.backlog > 3)) return null;
+    S.playUnlocked = true;
+    S.playSpace = true;
+    applyPlaySpace();
+    const hp = finaleMaxHp();
+    shipBoss = {
+      ship: true, boss: true, hatching: false, tier: 5,
+      name: shipName(),
+      x: Wd * 0.5, y: -110, w: Math.max(280, Wd - 24), h: 100,
+      hp, maxHp: hp, flash: 0, pop: 1, sq: 0, a: 0, ph: 0,
+      enter: 0, spawnAcc: 0, bossSpawn: 0
+    };
+    showShipWarn('⚠ ' + shipBoss.name + ' incoming');
+    punch(10); boomFlash(Wd * 0.5, 80, 1.2); hitStop(26);
+    log(`${shipBoss.name} incoming. Lasers and missiles only.`);
+    kick(); dirty = true;
+    syncShipBar();
+    return shipBoss;
+  }
+  function ship() { return startFinale(); }
+  function prestigeReset() {
+    const next = (S.prestige || 0) + 1;
+    const keepClicks = S.clicks || 0;
+    Object.keys(S).forEach(k => { delete S[k]; });
+    Object.assign(S, DEF, {
+      t: Date.now(),
+      optedIn: true, paused: false, shop: true, open: true, squashed: 5,
+      derick: 1, prestige: next, ships: next,
+      playUnlocked: true, playSpace: true,
+      clicks: keepClicks, intro: true, hintSeen: true
+    });
+    bugs = []; S.backlog = 0;
+    agents.length = 0;
+    derickEnt = null;
+    ensureDerick();
+    shipBoss = null;
+    syncShipBar();
+    applyPlaySpace();
+    log(`Shipped. Prestige ${next + 1}.0 — DJ's all heart now.`);
+  }
+  function winFinale() {
+    if (!shipBoss) return;
+    const defeated = shipBoss;
+    defeated.hp = 0;
+    punch(12); flash = Math.max(flash, 0.45);
+    burst(defeated.x, Math.max(80, defeated.y), 330, 24, 380, 0.8);
+    burst(defeated.x, Math.max(80, defeated.y), 42, 16, 300, 0.6);
+    showShipWarn('SHIPPED  ' + defeated.name);
+    shipBoss = null;
+    syncShipBar();
+    prestigeReset();
+    kick(); dirty = true;
+  }
+  function updateFinale(dt) {
+    if (!shipBoss || shipBoss.hp <= 0) return;
+    shipBoss.enter = Math.min(1, shipBoss.enter + dt / 1.15);
+    const e = 1 - Math.pow(1 - shipBoss.enter, 3);
+    shipBoss.w = Math.max(280, Wd - 24);
+    shipBoss.x = Wd * 0.5;
+    shipBoss.y = -110 + (72 + 110) * e;
+    shipBoss.flash = Math.max(0, (shipBoss.flash || 0) - dt * 4);
+    shipBoss.ph += dt * 3;
+    if (shipBoss.enter < 1) return;
+    shipBoss.spawnAcc += dt;
+    shipBoss.bossSpawn += dt;
+    if (shipBoss.spawnAcc >= 0.55 && bugs.length < cap()) {
+      shipBoss.spawnAcc = 0;
+      const sx = 40 + Math.random() * Math.max(20, Wd - 80);
+      const b = spawnBug(sx, shipBoss.y + shipBoss.h * 0.45, { force: true, tier: Math.random() < 0.35 ? 2 : 1, src: 'ship' });
+      if (b) { b.hatching = false; b.y = shipBoss.y + shipBoss.h * 0.5; }
+    }
+    if (shipBoss.bossSpawn >= 6.2 && bugs.length < cap()) {
+      shipBoss.bossSpawn = 0;
+      const sx = 60 + Math.random() * Math.max(20, Wd - 120);
+      const b = spawnBug(sx, shipBoss.y + shipBoss.h * 0.5, { force: true, boss: true, tier: 4, src: 'ship-boss' });
+      if (b) { b.hatching = false; log(`${b.name} dropped from ${shipBoss.name}.`); }
+    }
+  }
+  function drawShip() {
+    if (!shipBoss || shipBoss.hp <= 0) return;
+    const s = shipBoss;
+    const x = s.x, y = s.y, w = s.w, h = s.h;
+    ctx.save();
+    ctx.translate(x, y);
+    if (s.flash) ctx.globalAlpha = 0.75 + s.flash * 0.25;
+    // hull
+    ctx.fillStyle = '#141428';
+    ctx.strokeStyle = S.prestige ? 'rgba(255,61,129,0.85)' : 'rgba(57,255,136,0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.5, -h * 0.15);
+    ctx.lineTo(-w * 0.42, -h * 0.45);
+    ctx.lineTo(w * 0.42, -h * 0.45);
+    ctx.lineTo(w * 0.5, -h * 0.15);
+    ctx.lineTo(w * 0.46, h * 0.42);
+    ctx.lineTo(-w * 0.46, h * 0.42);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // canopy stripe
+    ctx.fillStyle = S.prestige ? 'rgba(255,61,129,0.25)' : 'rgba(57,255,136,0.18)';
+    ctx.fillRect(-w * 0.38, -h * 0.22, w * 0.76, h * 0.18);
+    // windows
+    ctx.fillStyle = 'rgba(61,224,255,0.55)';
+    for (let i = 0; i < 7; i++) {
+      ctx.beginPath();
+      ctx.arc(-w * 0.28 + i * w * 0.093, -h * 0.12, 4.5, 0, 7);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ececf6';
+    ctx.font = `800 ${Math.max(14, Math.min(28, w * 0.035))}px ui-monospace, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s.name, 0, h * 0.16);
+    ctx.restore();
+  }
+  function pathHeart(ctx, x, y, s) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + s * 0.32);
+    ctx.bezierCurveTo(x, y - s * 0.05, x - s * 0.95, y - s * 0.15, x - s * 0.95, y + s * 0.28);
+    ctx.bezierCurveTo(x - s * 0.95, y + s * 0.72, x - s * 0.15, y + s * 0.92, x, y + s * 1.12);
+    ctx.bezierCurveTo(x + s * 0.15, y + s * 0.92, x + s * 0.95, y + s * 0.72, x + s * 0.95, y + s * 0.28);
+    ctx.bezierCurveTo(x + s * 0.95, y - s * 0.15, x, y - s * 0.05, x, y + s * 0.32);
+    ctx.closePath();
   }
 
   // ---------- opt-in / pause / quit ----------
@@ -654,6 +881,7 @@
     if (!S.hintSeen) { S.hintSeen = true; hint.hidden = false; hintUntil = now() + 5500; }
     log(S.squashed || S.loc ? 'Welcome back.' : 'Write some code. Squash the bugs.');
     ensureDerick(); ensureAgents();
+    applyPlaySpace();
     syncShell(); render(true); startLoops(); dirty = true; save();
   }
   function pauseGame() {
@@ -662,6 +890,12 @@
   }
   function quitGame() {
     if (!S.optedIn) return;
+    // ✕ from Play Space always returns to the site so chrome is never hidden
+    // without a way back. Pause leaves Play Space as-is.
+    if (S.playSpace) {
+      S.playSpace = false;
+      applyPlaySpace();
+    }
     S.paused = true; save(); stopLoops(); syncShell(); log('Quit. Progress kept.');
   }
   function clearSaveKeys() {
@@ -696,10 +930,26 @@
   }
   function applyPlaySpace() {
     const on = !!(S.playSpace && S.optedIn);
+    const was = d.body.classList.contains('bh-play');
+    if (on && !was) {
+      playScrollX = W.scrollX || 0;
+      playScrollY = W.scrollY || 0;
+    }
     d.body.classList.toggle('bh-play', on);
     playScene.hidden = !on;
     playMark.hidden = !on;
     if (on) fillPlayWordmark();
+    if (!on && was) {
+      // Lifting overflow:hidden can leave the page unscrollable until layout
+      // flushes, and html { scroll-behavior: smooth } would animate from 0.
+      // Force a reflow and an instant jump back to the saved site position.
+      void d.body.offsetHeight;
+      const root = d.documentElement;
+      const prev = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      W.scrollTo(playScrollX, playScrollY);
+      root.style.scrollBehavior = prev;
+    }
     if (el.play) {
       el.play.hidden = !S.playUnlocked;
       el.play.textContent = S.playSpace ? 'Site' : 'Play Space';
@@ -733,6 +983,21 @@
     hint.hidden = false; hintUntil = now() + 5500; S.hintSeen = true;
   }
 
+  function noteDjPoke(x, y) {
+    if (!derickEnt) return;
+    djPokes++;
+    burst(derickEnt.x, derickEnt.y, S.prestige ? 330 : 145, 6, 140, 0.35);
+    if (djPokes >= 10) {
+      djPokes = 0;
+      blameReady = true;
+      S.commits += 10;
+      punch(4);
+      log(S.prestige ? "DJ blushed. +10 commits. Someone queued git blame…" : 'DJ approved this commit. +10 commits.');
+      gain(derickEnt.x, derickEnt.y - 18, '♥ +10', '#ff3d81');
+    }
+    kick(); dirty = true;
+  }
+
   // ---------- input (never swallow) ----------
   const IGNORE = 'a,button,input,textarea,select,summary,label,iframe,video,audio,[role=button],[contenteditable],.bh-hud,#bh-ready,.yt';
   let downX = 0, downY = 0, downT = 0;
@@ -743,6 +1008,14 @@
     if (e.target.closest && e.target.closest(IGNORE)) return;
     const sel = W.getSelection && W.getSelection(); if (sel && String(sel).length) return;
     const x = e.clientX, y = e.clientY, pad = e.pointerType === 'touch' ? 20 : 12;
+    if (derickEnt && S.derick && Math.hypot(derickEnt.x - x, derickEnt.y - y) <= derickRadius() + 10) {
+      noteDjPoke(x, y);
+      return;
+    }
+    if (shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) < 12) {
+      clink(shipBoss, x, y);
+      return;
+    }
     let best = null, bd = 1e9;
     for (const b of bugs) {
       if (b.hatching) continue;
@@ -761,6 +1034,23 @@
     gain(x, y, '+1 LOC', '#ececf6');
     if (!S.intro) { S.intro = true; log('Code written. Bugs crawl out. Squash them!'); hint.hidden = true; }
     dirty = true; kick();
+  }, { passive: true });
+
+  const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  let konamiBuf = [];
+  d.addEventListener('keydown', e => {
+    konamiBuf.push(e.key);
+    if (konamiBuf.length > KONAMI.length) konamiBuf.shift();
+    const ok = KONAMI.every((k, i) => konamiBuf[i] && String(konamiBuf[i]).toLowerCase() === k.toLowerCase());
+    if (!ok) return;
+    konamiBuf = [];
+    konamiArmed = true; blameReady = true;
+    const prey = pickThreat();
+    if (S.optedIn && !S.paused && prey && agents.length) {
+      for (const a of agents.slice(0, Math.min(5, agents.length))) launchMissile(a, prey);
+      log('↑↑↓↓←→←→BA — extra pulse volley.');
+    } else log('↑↑↓↓ Konami armed.');
+    punch(6); kick();
   }, { passive: true });
 
   ready.addEventListener('click', e => {
@@ -812,6 +1102,8 @@
       el.play.textContent = S.playSpace ? 'Site' : 'Play Space';
       el.play.title = S.playSpace ? 'Back to the site' : 'Open Play Space';
     }
+    const titleB = hud.querySelector('.bh-title b');
+    if (titleB) titleB.textContent = S.prestige ? `BUG HUNT v${S.prestige + 1}.0` : 'BUG HUNT';
     el.loc.textContent = fmt(S.loc);
     el.bugs.textContent = fmt(bugs.length + S.backlog);
     el.commits.textContent = fmt(S.commits);
@@ -849,21 +1141,53 @@
       }
       const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
       if (S.rollback && S.loc >= shipGoal() * 0.45) {
-        html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${S.ships + 1}.0</span><small>${ok ? 'No blockers.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.ships}</em></button>`;
+        html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & missiles only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
       }
     }
     if (html !== lastShop) { el.shop.innerHTML = html; lastShop = html; }
   }
 
   // ---------- combat AI ----------
+  function preyAlive(t) {
+    if (!t) return false;
+    if (t.ship) return !!(shipBoss && shipBoss === t && shipBoss.hp > 0);
+    return bugs.includes(t);
+  }
+  function preyDist(x, y, t) {
+    if (!t) return 1e9;
+    if (t.ship) {
+      const dx = Math.max(0, Math.abs(x - t.x) - (t.w || 0) * 0.5);
+      const dy = Math.max(0, Math.abs(y - t.y) - (t.h || 0) * 0.5);
+      return Math.hypot(dx, dy);
+    }
+    return Math.hypot(t.x - x, t.y - y);
+  }
   function nearestBug(x, y, range, pred) {
     let best = null, bd = range;
-    for (const b of bugs) {
-      if (b.hatching) continue;
-      if (pred && !pred(b)) continue;
-      const dd = Math.hypot(b.x - x, b.y - y);
+    const consider = b => {
+      if (!b || b.hatching) return;
+      if (b.ship && b.hp <= 0) return;
+      if (pred && !pred(b)) return;
+      const dd = preyDist(x, y, b);
       if (dd < bd) { bd = dd; best = b; }
-    }
+    };
+    for (const b of bugs) consider(b);
+    if (shipBoss && shipBoss.hp > 0) consider(shipBoss);
+    return best;
+  }
+  function pickThreat() {
+    let best = null;
+    const score = b => (b.ship ? 100 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
+    const consider = b => {
+      if (!b || b.hatching || (b.ship && b.hp <= 0)) return;
+      if (!best) { best = b; return; }
+      const ds = score(b) - score(best);
+      if (ds > 0) { best = b; return; }
+      if (ds < 0 || !derickEnt) return;
+      if (preyDist(derickEnt.x, derickEnt.y, b) < preyDist(derickEnt.x, derickEnt.y, best)) best = b;
+    };
+    for (const b of bugs) consider(b);
+    if (shipBoss && shipBoss.hp > 0) consider(shipBoss);
     return best;
   }
 
@@ -872,15 +1196,20 @@
     if (!derickEnt || !S.derick) return;
     const cmd = commandMode();
     // Always roam toward the biggest threat. Never park — it made DJ look lazy.
-    const threat = bugs.filter(b => !b.hatching).sort((a, b) => (b.boss - a.boss) || (b.tier - a.tier) || (Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) - Math.hypot(b.x - derickEnt.x, b.y - derickEnt.y)))[0];
+    const threat = pickThreat();
     if (threat) {
       const ang = Math.atan2(threat.y - derickEnt.y, threat.x - derickEnt.x);
       const prefer = derickRange() * 0.55;
       derickEnt.tx = threat.x - Math.cos(ang) * prefer;
       derickEnt.ty = threat.y - Math.sin(ang) * prefer;
     } else {
-      derickEnt.tx += (Math.random() - .5) * 40 * dt;
-      derickEnt.ty += (Math.random() - .5) * 40 * dt;
+      // No targets: ease back to the play-area center and hover there.
+      const cx = Wd * 0.5, cy = Hd * 0.5;
+      derickEnt.tx += (cx - derickEnt.tx) * Math.min(1, dt * 1.8);
+      derickEnt.ty += (cy - derickEnt.ty) * Math.min(1, dt * 1.8);
+      const t = now() / 1000;
+      derickEnt.tx += Math.sin(t * 1.4) * 10 * dt;
+      derickEnt.ty += Math.cos(t * 1.1) * 8 * dt;
     }
     derickEnt.tx = clamp(derickEnt.tx, 30, Wd - 30);
     derickEnt.ty = clamp(derickEnt.ty, 70, Hd - 30);
@@ -906,7 +1235,7 @@
         const pool = idle.length ? idle : agents;
         const n = Math.min(pool.length, S.sync ? 3 : 1);
         // Prefer boss / large
-        const prey = bugs.filter(b => !b.hatching).sort((a, b) => (b.boss - a.boss) || (b.tier - a.tier))[0];
+        const prey = pickThreat();
         if (!prey) break;
         for (let i = 0; i < n; i++) {
           const ag = pool[Math.floor(Math.random() * pool.length)];
@@ -950,33 +1279,36 @@
     const x = agent.x, y = agent.y;
     const rad = missileRadius();
     const base = missileDamage();
-    for (const b of bugs.slice()) {
+    const blast = bugs.slice();
+    if (shipBoss && shipBoss.hp > 0) blast.push(shipBoss);
+    for (const b of blast) {
       if (!b || b.hatching) continue;
-      const dist = Math.hypot(b.x - x, b.y - y);
+      const dist = preyDist(x, y, b);
       if (dist > rad) continue;
       const fall = 1 - (dist / rad) * 0.45;
       let dmg = base * fall;
-      if (isBoss(b)) dmg = Math.min(dmg, b.maxHp * MISSILE_BOSS_FRAC);
+      if (isBoss(b) && !b.ship) dmg = Math.min(dmg, b.maxHp * MISSILE_BOSS_FRAC);
       b.hp -= dmg;
       b.flash = 1;
       b.sq = Math.max(b.sq || 0, 0.85);
-      const bang = Math.atan2(b.y - y, b.x - x) || 0;
-      b.a = bang;
-      b.boost = isBoss(b) ? 1.8 : 3.4;
+      if (!b.ship) {
+        const bang = Math.atan2(b.y - y, b.x - x) || 0;
+        b.a = bang;
+        b.boost = isBoss(b) ? 1.8 : 3.4;
+      }
       if (b.hp <= 0) {
-        const qaBoss = isBoss(b) && b.targeted;
-        squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
+        if (b.ship) winFinale();
+        else {
+          const qaBoss = isBoss(b) && b.targeted;
+          squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
+        }
       }
     }
     if (!RM) {
-      if (quality >= 1) punch(quality >= 3 ? 7 : quality >= 2 ? 5 : 2.5);
-      if (quality >= 2) {
-        flash = Math.max(flash, 0.55);
-        freezeUntil = Math.max(freezeUntil, now() + 42);
-      } else if (quality >= 1) {
-        flash = Math.max(flash, 0.25);
-      }
-      const n = quality >= 3 ? 20 : quality >= 2 ? 12 : quality >= 1 ? 6 : 0;
+      if (quality >= 1) punch(quality >= 3 ? 5 : quality >= 2 ? 3.5 : 2);
+      boomFlash(x, y, quality >= 3 ? 0.9 : 0.55);
+      if (quality >= 3) hitStop(22);
+      const n = quality >= 3 ? 14 : quality >= 2 ? 8 : quality >= 1 ? 4 : 0;
       if (n) burst(x, y, 42, n, 280, 0.55);
       if (n && quality >= 2) burst(x, y, 195, Math.ceil(n * 0.5), 200, 0.4);
     }
@@ -995,7 +1327,7 @@
     if (!a || !a.missile) return;
     if (a.missilePhase === 'out') {
       a.flight = (a.flight || 0) + dt;
-      let t = a.chaseRoot && bugs.includes(a.chaseRoot) ? a.chaseRoot : null;
+      let t = a.chaseRoot && preyAlive(a.chaseRoot) ? a.chaseRoot : null;
       if (!t || t.hatching) {
         t = nearestBug(a.x, a.y, 320, b => true);
         a.chaseRoot = t;
@@ -1037,8 +1369,8 @@
         if (a.trail.length > capT) a.trail.shift();
       }
       if (a.trail) for (const p of a.trail) p.life -= dt;
-      const hitR = t ? (R[Math.min(4, t.tier)] || 8) + 12 : 0;
-      const close = t && Math.hypot(t.x - a.x, t.y - a.y) <= hitR;
+      const hitR = t ? (t.ship ? 18 : (R[Math.min(4, t.tier)] || 8) + 12) : 0;
+      const close = t && preyDist(a.x, a.y, t) <= hitR;
       if ((close && a.flight >= 0.08) || a.flight >= 2.4 || (!t && a.flight >= 0.35)) {
         detonateMissile(a);
       }
@@ -1069,7 +1401,7 @@
       p.y = p.y + (p.ty - p.y) * Math.min(1, dt * 8);
       if (!p.arrived && Math.hypot(p.x - p.tx, p.y - p.ty) < 10) {
         p.arrived = true;
-        if (p.agent && p.target && bugs.includes(p.target)) activateChase(p.agent, p.target);
+        if (p.agent && p.target && preyAlive(p.target)) activateChase(p.agent, p.target);
       }
       if (p.life <= 0) pulses.splice(i, 1);
     }
@@ -1082,11 +1414,11 @@
   }
   function unitLasering(unit, isDerick) {
     if (!unit) return false;
-    if (isDerick) return !!(unit.target && bugs.includes(unit.target));
-    if (unit.missile) return true;
-    const t = unit.target && bugs.includes(unit.target) ? unit.target : null;
+    if (unit.missile && unit.missilePhase === 'out') return true;
+    if (isDerick) return !!(unit.target && preyAlive(unit.target));
+    const t = unit.target && preyAlive(unit.target) ? unit.target : null;
     if (!t) return false;
-    return Math.hypot(t.x - unit.x, t.y - unit.y) <= (unit.chasing ? 9999 : agentRange());
+    return preyDist(unit.x, unit.y, t) <= (unit.chasing ? 9999 : agentRange());
   }
   function draftAt(unit, dt, rate) {
     if (!unit || !rate) return 0;
@@ -1096,7 +1428,7 @@
       unit.idleAcc -= 1;
       S.loc += 1;
       typeCode(8);
-      S.debt += bugsPerLoc() * 0.2; // slow, not 1:1 — keep quiet windows from instantly refilling
+      S.debt += bugsPerLoc() * IDLE_DEBT; // tuned so 5× idle LOC does not instantly refill
       if (quality >= 2) {
         codeBursts.push({ x: unit.x, y: unit.y, life: 0.4, max: 0.4, tick: true });
         if (codeBursts.length > 24) codeBursts.shift();
@@ -1108,11 +1440,28 @@
     if (S.paused || !S.optedIn) return;
     ensureDerick();
     ensureAgents();
-    if (S.derick && derickEnt && !unitLasering(derickEnt, true)) {
-      draftAt(derickEnt, dt, IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0));
+    if (S.derick && derickEnt) {
+      const rate = IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0);
+      const firing = unitLasering(derickEnt, true);
+      if (firing) derickEnt._firing = true;
+      else {
+        if (derickEnt._firing) {
+          derickEnt._firing = false;
+          derickEnt.idleAcc = Math.max(derickEnt.idleAcc || 0, 1 - rate * 0.5);
+        }
+        draftAt(derickEnt, dt, rate);
+      }
     }
     for (const a of agents) {
-      if (!unitLasering(a, false)) draftAt(a, dt, IDLE_AGENT);
+      const firing = unitLasering(a, false);
+      if (firing) a._firing = true;
+      else {
+        if (a._firing) {
+          a._firing = false;
+          a.idleAcc = Math.max(a.idleAcc || 0, 1 - IDLE_AGENT * 0.5);
+        }
+        draftAt(a, dt, IDLE_AGENT);
+      }
     }
     if (canAutoSpawn() && S.debt >= 1) {
       S.debt -= 1;
@@ -1129,7 +1478,7 @@
     }
     // Occasional boss (never before Hire Derick; never during post-kill quiet)
     bossAcc += dt * (0.015 + Math.min(0.04, S.loc / 50000));
-    if (bossAcc >= 1 && canAutoSpawn() && bugs.length < cap() && S.derick) {
+    if (bossAcc >= 1 && canAutoSpawn() && bugs.length < cap() && S.derick && !shipBoss) {
       bossAcc = 0;
       const b = spawnBug(null, null, { boss: true, tier: 4, src: 'boss' });
       if (b) { log(`${b.name} appeared.`); retargetQA(); }
@@ -1172,6 +1521,7 @@
     }
 
     updateDerick(dt);
+    updateFinale(dt);
     // agents with correct pierce
     ensureAgents();
     if (S.agentic && derickEnt) escortPhase += dt * 0.45;
@@ -1193,9 +1543,9 @@
         a.target = nearestBug(a.x, a.y, range, b => true);
       }
       if (a.missile) continue;
-      const t = a.target && bugs.includes(a.target) ? a.target : null;
+      const t = a.target && preyAlive(a.target) ? a.target : null;
       const boosted = agentBuffed(a);
-      if (t && Math.hypot(t.x - a.x, t.y - a.y) <= range) {
+      if (t && preyDist(a.x, a.y, t) <= range) {
         addLaser(a.x, a.y, t.x, t.y, { wide: 0.9, life: 0.09, color: boosted ? LASER_COLOR.buffed : LASER_COLOR.agent, boosted });
         damageBug(t, agentCombatDps(a), dt, a);
         if (S.collision) {
@@ -1209,8 +1559,14 @@
     }
     updatePulses(dt);
 
-    for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += 700 * dt; p.vx *= 0.985; p.x += p.vx * dt; p.y += p.vy * dt; }
+    for (let i = partN - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.life -= dt;
+      if (p.life <= 0) { parts[i] = parts[partN - 1]; parts[partN - 1] = p; partN--; continue; }
+      p.vy += 700 * dt; p.vx *= 0.985; p.x += p.vx * dt; p.y += p.vy * dt;
+    }
     for (let i = splats.length - 1; i >= 0; i--) { splats[i].life -= dt; if (splats[i].life <= 0) splats.splice(i, 1); }
+    for (let i = flashes.length - 1; i >= 0; i--) { flashes[i].life -= dt; if (flashes[i].life <= 0) flashes.splice(i, 1); }
     for (let i = lasers.length - 1; i >= 0; i--) { lasers[i].life -= dt; if (lasers[i].life <= 0) lasers.splice(i, 1); }
     for (let i = ghosts.length - 1; i >= 0; i--) { const g = ghosts[i]; g.t += dt * 2.6; if (g.t >= 1) ghosts.splice(i, 1); }
     for (let i = codeBursts.length - 1; i >= 0; i--) { codeBursts[i].life -= dt; if (codeBursts[i].life <= 0) codeBursts.splice(i, 1); }
@@ -1220,6 +1576,7 @@
     shake *= Math.pow(0.0005, dt); if (shake < .3) shake = 0;
     flash = Math.max(0, flash - dt * 2.5);
     if (hintUntil && now() > hintUntil) { hint.hidden = true; hintUntil = 0; }
+    if (shipBoss) syncShipBar();
   }
 
   function drawBug(b) {
@@ -1279,19 +1636,54 @@
     const sc = derickScale();
     const body = 6 * sc;
     ctx.save();
-    ctx.fillStyle = 'rgba(57,255,136,0.14)';
-    ctx.beginPath(); ctx.arc(x, y, 14 * sc, 0, 7); ctx.fill();
-    ctx.fillStyle = '#39ff88';
-    ctx.beginPath(); ctx.arc(x, y, body, 0, 7); ctx.fill();
-    ctx.fillStyle = '#04120a';
-    ctx.font = `800 ${Math.round(7 * sc)}px ui-monospace, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('DJ', x, y + 0.5);
+    if (S.prestige >= 1) {
+      const beat = 1 + 0.14 * Math.sin(now() / 260);
+      const s = body * 1.05 * beat;
+      ctx.fillStyle = 'rgba(255,61,129,0.18)';
+      pathHeart(ctx, x, y - s * 0.55, s * 1.35);
+      ctx.fill();
+      ctx.fillStyle = '#ff3d81';
+      pathHeart(ctx, x, y - s * 0.42, s);
+      ctx.fill();
+      ctx.fillStyle = '#fff5f8';
+      ctx.font = `800 ${Math.round(6.2 * sc * beat)}px ui-monospace, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('DJ', x, y + s * 0.08);
+    } else {
+      ctx.fillStyle = 'rgba(57,255,136,0.14)';
+      ctx.beginPath(); ctx.arc(x, y, 14 * sc, 0, 7); ctx.fill();
+      ctx.fillStyle = '#39ff88';
+      ctx.beginPath(); ctx.arc(x, y, body, 0, 7); ctx.fill();
+      ctx.fillStyle = '#04120a';
+      ctx.font = `800 ${Math.round(7 * sc)}px ui-monospace, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('DJ', x, y + 0.5);
+    }
     if (commandMode()) {
-      ctx.strokeStyle = 'rgba(61,224,255,0.5)';
+      ctx.strokeStyle = S.prestige ? 'rgba(255,61,129,0.5)' : 'rgba(61,224,255,0.5)';
       ctx.lineWidth = 1.25;
       ctx.beginPath(); ctx.arc(x, y, body + 4 * sc, 0, 7); ctx.stroke();
     }
+    ctx.restore();
+  }
+  function drawRangeRings() {
+    if (quality < 2 || !S.profiler) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(62,198,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (derickEnt && S.derick) {
+      const rr = derickCombatRange();
+      ctx.moveTo(derickEnt.x + rr, derickEnt.y);
+      ctx.arc(derickEnt.x, derickEnt.y, rr, 0, 7);
+    }
+    const ar = agentRange();
+    for (const a of agents) {
+      if (a.chasing || a.missile) continue;
+      ctx.moveTo(a.x + ar, a.y);
+      ctx.arc(a.x, a.y, ar, 0, 7);
+    }
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -1332,10 +1724,7 @@
     ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, 7); ctx.stroke();
     ctx.fillStyle = boosted ? 'rgba(255,177,66,0.7)' : (a.chasing ? 'rgba(62,198,255,0.6)' : 'rgba(62,198,255,0.3)');
     ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, 7); ctx.fill();
-    if (S.profiler && !a.chasing && !a.missile) {
-      ctx.strokeStyle = 'rgba(62,198,255,0.08)';
-      ctx.beginPath(); ctx.arc(a.x, a.y, agentRange(), 0, 7); ctx.stroke();
-    }
+    // Range rings are batched in drawRangeRings (skipped at low quality).
     ctx.restore();
   }
 
@@ -1361,6 +1750,8 @@
     }
     ctx.globalAlpha = 1;
     for (const b of bugs) drawBug(b);
+    drawShip();
+    drawRangeRings();
     // thin lasers
     for (const z of lasers) {
       const a = z.life / z.max;
@@ -1412,9 +1803,26 @@
       ctx.beginPath(); ctx.arc(e.x, e.y, r * 0.88, 0, 7); ctx.fill();
     }
     ctx.globalAlpha = 1;
-    for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = `hsl(${p.hue},95%,60%)`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
+    for (let i = 0; i < partN; i++) {
+      const p = parts[i];
+      const a = Math.max(0, p.life / p.max);
+      const spr = sparkSprite(p.color || sparkColor(p.hue));
+      const sz = p.r * 2.4;
+      ctx.globalAlpha = a;
+      ctx.drawImage(spr, p.x - sz, p.y - sz, sz * 2, sz * 2);
+    }
     ctx.globalAlpha = 1;
-    if (flash) { ctx.fillStyle = `rgba(61,224,255,${flash * .22})`; ctx.fillRect(-20, -20, Wd + 40, Hd + 40); }
+    for (const f of flashes) {
+      const u = Math.max(0, f.life / f.max);
+      ctx.globalAlpha = u * 0.22;
+      ctx.fillStyle = 'rgba(255,177,66,0.9)';
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.45 + (1 - u) * 0.7), 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (flash && quality >= 2) {
+      ctx.fillStyle = `rgba(61,224,255,${flash * .10})`;
+      ctx.fillRect(-20, -20, Wd + 40, Hd + 40);
+    }
     ctx.restore();
   }
 
@@ -1437,7 +1845,7 @@
     noteFrame(raw);
     if (!RM && quality >= 2) paintCode();
     const live = S.optedIn && !S.paused && !S.hidden &&
-      (bugs.length || parts.length || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || shake || flash || S.derick || S.agents);
+      (bugs.length || partN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || S.derick || S.agents);
     if (live) raf = requestAnimationFrame(frame);
     else if (S.optedIn && !S.paused) { raf = 0; }
   }
@@ -1527,13 +1935,22 @@
     escortCount, escorting, notePlayerClick, applyPlaySpace, PLAY_UNLOCK,
     launchMissile, detonateMissile, updateMissile, missileRadius, missileDamage,
     ESCORT_AURA, MISSILE_BOSS_FRAC, ensureDerick, ensureAgents,
+    startFinale, winFinale, prestigeReset, finaleMaxHp, finaleDpsEstimate,
+    shipGoal, step, IDLE_DERRICK, IDLE_AGENT, IDLE_AGENTIC, IDLE_DEBT,
+    get shipBoss() { return shipBoss; },
+    pickThreat, noteDjPoke, pathHeart, PRESTIGE_BOSSES,
+    get blameReady() { return blameReady; },
+    setBlameReady(v) { blameReady = !!v; },
+    get konamiArmed() { return konamiArmed; },
+    get djPokes() { return djPokes; },
+
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },
     quietFor, noteFrame,
     stats() {
       return {
-        bugs: bugs.length, backlog: S.backlog, parts: parts.length, lasers: lasers.length,
+        bugs: bugs.length, backlog: S.backlog, parts: partN, lasers: lasers.length,
         splats: splats.length, ghosts: ghosts.length, bursts: codeBursts.length, shields: shields.length,
         pulses: pulses.length, hatches: hatches.length, typed, raf: !!raf, econId: !!econId, saveId: !!saveId,
         quality, dpr: DPR, fps: frameTimes.length ? 1000 / (frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length) : 0,
@@ -1543,6 +1960,7 @@
         derickScale: derickScale(),
         commandMode: commandMode(),
         clicks: S.clicks, playSpace: !!S.playSpace, playUnlocked: !!S.playUnlocked,
+        prestige: S.prestige || 0, ships: S.ships || 0,
         clearAcc, spawnQuiet: Math.max(0, spawnQuietUntil - now()),
       };
     },

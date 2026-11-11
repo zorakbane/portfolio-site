@@ -80,11 +80,13 @@ Bug Hunt is a juiced 2D game inside the site, not a utility overlay. Kills, puls
 
 ### Opt-in
 
-The game does not run until you press **Play Bug Hunt** (bottom-right). Before that there are no bugs, no LOC, and clicks on the page behave normally. Pause or quit shows **Resume Bug Hunt**; progress is kept. A first-run hint says to click/tap empty space to write code.
+The game does not run until you press **Play Bug Hunt** (bottom-right). Before that there are no bugs, no LOC, and clicks on the page behave normally. Pause or quit shows **Resume Bug Hunt**; progress is kept. A first-run hint says to click/tap empty space to write code. **Pause** freezes the sim and leaves you where you were (including Play Space). **✕** (quit) also saves progress, but if you were in Play Space it exits that overlay first so the normal site chrome and scroll position come back. There is never a state where the site is hidden and you have no way back: the HUD **Site** button, and the Resume button when paused, stay above the playfield.
 
 ### Play Space
 
 After **25** player actions since opt-in — empty-space clicks that write LOC, plus click-squashes (laser, QA, and idle kills do not count) — you are promoted to **Play Space**: a full-screen blank playfield (dark background, game canvases, HUD) so site links cannot steal taps. Derick’s name (the DERICK JANSSEN wordmark) stays on screen but is not a link and uses `pointer-events: none`. A short juiced banner reads **Promoted: Play Space unlocked**. The HUD gains a **Play Space** / **Site** button so you can return to the portfolio and come back; the mode is stored on the save as `playSpace`, `playUnlocked`, and `clicks`. This is an overlay on the current page (not a navigation), so game state is preserved and it works under the `/portfolio-site/` preview path.
+
+**Quit vs pause vs resume.** ✕ while Play Space is on sets `playSpace` false, restores site chrome and the scroll position saved when you entered, then pauses and saves as usual. Pause does not touch `playSpace`. **Resume Bug Hunt** (`optIn`) calls `applyPlaySpace()` against whatever `playSpace` currently is: after a quit you land back on the site; after a pause inside Play Space you return to Play Space (if it is still unlocked). Clicking **Ship** also force-enters Play Space (and unlocks it if needed) so the finale has room.
 
 ### Core loop
 
@@ -98,9 +100,9 @@ After **25** player actions since opt-in — empty-space clicks that write LOC, 
 | Currency | What it is | How you earn it |
 | --- | --- | --- |
 | **LOC** | Lines of code written this run (the build counter) | Empty-space clicks (+1), idle drafting by Derick/agents, and a little offline catch-up |
-| **Commits** | Shop currency | Squashing bugs. A normal bug pays `tier × 3`; a boss pays **18**. QA-targeted bugs pay **1.25×**. Each **Ship** adds a permanent **+50%** bounty: `mult = 1 + ships × 0.5` |
+| **Commits** | Shop currency | Squashing bugs. A normal bug pays `tier × 3`; a boss pays **18**. QA-targeted bugs pay **1.25×**. Each prestige/Ship rank adds a permanent **+50%** bounty: `mult = 1 + (prestige || ships) × 0.5` |
 
-Bugs per LOC starts at **0.38**, then `× 0.82` per Unit Tests rank (max 5) and `× 0.85` if CI is owned. Click-hatches apply that rate in full; automatic/idle LOC applies it more slowly (32% for leftover debt, 20% for idle drafts) so lasers do not instantly refill the board.
+Bugs per LOC starts at **0.38**, then `× 0.82` per Unit Tests rank (max 5) and `× 0.85` if CI is owned. Click-hatches apply that rate in full; automatic/idle LOC applies it more slowly (32% for leftover debt, **`IDLE_DEBT` 0.045** for idle drafts) so the higher idle rates do not instantly refill the board.
 
 ### Bugs: spawn, split, merge
 
@@ -118,9 +120,9 @@ Radii / wander speeds / HP by tier (`1…3`, boss = 4): radius `[8, 13, 19, 28]`
 
 Only the **next** gated unlock is shown (Hire Agent stays listed after the first one so you can stack turrets). Extra **Unit Tests** ranks stay buyable (up to 5) while the next unlock is Profiler, Collision Editor, CI, or QA.
 
-**Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow → Movement Tuning → Multiplayer Sync → Rollback Netcode → Auto Rollback → Ship.**
+**Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow (requires 5 agents) → Movement Tuning → Multiplayer Sync → Rollback Netcode → Auto Rollback → Ship.**
 
-Movement Tuning (“chasing agents move faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
+`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“missiles launch and fly faster”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
 
 ### Upgrades
 
@@ -134,12 +136,12 @@ Movement Tuning (“chasing agents move faster”) and Multiplayer Sync (“one 
 | **CI Pipeline** | 180 | once | After Collision Editor | Derick kill time `× 0.82` and damage `× 1.1`; agent damage `× 1.08`; bugs per LOC `× 0.85`; QA reveal rate `× 1.6` |
 | **QA** | 150 | once | After CI | Reveals more bugs; paints targets on the largest (see QA below) |
 | **Rapid Prototype** | 200 | once | After QA | All shop prices `× 0.78` |
-| **Agentic Workflow** | 300 | once | After Rapid Prototype | Derick pulses an agent to chase and clear a lineage (any range) and stacks his DPS on that agent; also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.12** LOC/s) |
+| **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts and pulses them as homing missiles; also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
 | **Movement Tuning** | 100 | once | After Agentic Workflow | Chasing agents move faster: `95 + 70 + ships×12` instead of `95 + ships×12` |
 | **Multiplayer Sync** | 250 | once | After Movement Tuning | Each pulse batch can enlist up to **3** agents; pulse rate `× 1.5` |
 | **Rollback Netcode** | 400 | once | After Sync | ⟲ button clears the board; **30s** cooldown |
 | **Auto Rollback** | 800 | once | After Rollback | Rollback fires by itself when live bugs + backlog ≥ **8** |
-| **Ship vN.0** | — (milestone) | repeatable | Shown once Rollback is owned and LOC ≥ 45% of the goal; clickable at the goal with ≤ 3 live+backlog bugs | Goal is `round(1600 × (ships+1)^1.55)`. Shipping increments `ships` and permanently adds **+50%** commit bounty. Also shortens Derick’s kill time (`× 0.88` each) and adds range/chase speed |
+| **Ship vN.0** | — (finale) | repeatable each prestige | Shown once Rollback is owned and LOC ≥ 45% of the goal; clickable at the goal with ≤ 3 live+backlog bugs | See **Ship finale and prestige** below. Goal is `round(1600 × (prestige+1)^1.55 × 1.08^prestige)` |
 
 The shop will not charge you for a hidden upgrade (the buy handler ignores anything `show()` would hide).
 
@@ -152,7 +154,8 @@ One engineer, drawn as a green “DJ” orb, about **2.4×** the original size o
 - Range: **140** desktop / **110** on coarse pointers, plus Profiler / Agentic / Ship bonuses above. In command mode the combat range is `min(range, 150)`.
 - Laser color: site-accent **green** (`LASER_COLOR.derick` = `rgba(57,255,136,0.85)`).
 - Roam lerp speed 120 (140 in command mode).
-- Agentic Workflow is the only thing that makes him send pulses to agents (any range) and gather them into an escort. His **aura** (see Agents) buffs nearby units automatically. He **always roams** toward the biggest threat — he never parks in a corner.
+- Agentic Workflow is the only thing that makes him send pulses to agents (any range) and gather them into an escort. His **aura** (see Agents) buffs nearby units automatically. He **always roams** toward the biggest threat — he never parks in a corner. When nothing is on the board he eases back to the center of the play area and hovers there (a small sine bob).
+- After the first prestige he is drawn as a pink beating heart (canvas Bézier, no emoji sprite) instead of the green circle.
 
 ### Agents
 
@@ -176,12 +179,12 @@ They **do not walk** until Agentic Workflow is owned. Once it is, every agent le
 ### Agentic Workflow, pulses, and command mode
 
 - While Agentic is owned and at least one agent exists, Derick accumulates pulses at **0.35/s** (0.55/s in command mode), times `(1 + sync × 0.5)`.
-- Each pulse flies to an idle escort (or any agent if all are busy) and **launches it as a homing missile** at the current highest-value prey (bosses first, then high tier).
+- Each pulse flies to an idle escort (or any agent if all are busy) and **launches it as a homing missile** at the current highest-value prey (the Ship finale first, then bosses, then high tier).
 - **Missile flight:** starts at **220** px/s (**+50** with Movement Tuning, **+8** per Ship), accelerates at **980** px/s² up to **520** (**+90** Movement, **+16** per Ship). A **210** px/s sideways kick plus **~8 rad/s** steering makes a curved path. The aim point sits **22px** past the target (a slight overshoot). It detonates when it comes within `targetRadius + 12` px (after at least **0.08s** of flight), or after **2.4s**, or after **0.35s** with no live target.
 - **Blast:** radius `min(150, base + DerickCombatDPS × 12)` where `base` is **54** on coarse/small screens and **68** on desktop — about **80px** at default power, up to **150px**. Center damage is **`3.6 × DerickCombatDPS`** (about **3.6** HP at the start: enough to delete a tier-1 and dent a tier-2), falling off to **55%** at the rim. That damage scales with Derick’s tools and ships, so he stays the force multiplier.
-- **Bosses:** a single blast is capped at **35%** of the boss’s max HP (`MISSILE_BOSS_FRAC`, 7.7 of 22). A full-health boss always needs at least three missile hits. Ordinary bugs in the radius can die in one shot.
+- **Bosses:** a single blast is capped at **35%** of the boss’s max HP (`MISSILE_BOSS_FRAC`, 7.7 of 22). A full-health boss always needs at least three missile hits. Ordinary bugs in the radius can die in one shot. The **Ship finale** is not under that cap — missiles deal full scaled damage to it (clicks still cannot kill it).
 - After the explosion the agent recoils opposite its inbound velocity (up to **340** px/s) and lerps back to its escort slot (`dt × 6`).
-- Juice on detonation (skipped or thinned when `prefers-reduced-motion` or quality is low): screen shake **2.5–7**, impact flash **0.25–0.55**, **42ms** hit-stop at quality ≥ 2, amber and cyan particles, and an expanding blast ring.
+- Juice on detonation (skipped or thinned when `prefers-reduced-motion` or quality is low): screen shake **2–5**, a small local blast flash (pooled, max 6), a milder fullscreen tint only at quality 3, **22ms** hit-stop at quality 3 (16ms otherwise), cached spark sprites instead of per-particle gradients, and an expanding blast ring.
 - Agents already standing inside Derick’s range are buffed by his **aura** without needing a pulse (escorts get the modest 25% bonus; see Agents).
 - Without Sync, one agent is pulsed; with Sync, up to three.
 - **Command mode** turns on automatically at **10 agents**: Derick pulses faster (0.55/s) and roams a bit more snappily, and his combat range is min’d with 150 (overall range capped at 160). He does **not** park.
@@ -201,15 +204,37 @@ Named: **Desync**, **Memory Leak**, **Race Condition**, **Null Pointer**, **Fram
 - They only start appearing after Hire Derick. Chance accumulates at `0.015 + min(0.04, loc/50000)` per second, and never during a quiet window or when the board is already at cap.
 - Tier 4, 22 HP, 28px radius, red ring plus an HP bar and name.
 - **Clicks cannot kill them.** A click “clinks,” knocks them back, and chips at most **0.05** HP without ever dropping them below **1**. Derick or an agent has to finish the job. QA can mark them so the kill does not split (bosses do not split anyway).
+- After prestige, the name pool also includes **Merge Conflict**, **Hotfix Friday**, **Semantic Versioning**, **Changelog Ghost**, and **Rebase Hell**. A hidden **git blame** boss can appear (about 8% after prestige 1, or 35% once you have armed it via the Konami code or 10 DJ pokes).
+
+### Ship finale and prestige
+
+Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs) force-switches into Play Space and starts a finale rather than instantly incrementing a counter.
+
+- A giant ship enters from the top at full play-area width, with a warning banner, screen shake, and a named HP bar at the bottom center (`Ship v1.0`, then `v2.0`, …).
+- It constantly drops regular bugs (~every 0.55s) and an occasional named boss (~every 6.2s).
+- **Only lasers and missiles damage it.** Clicks clink just like a normal boss.
+- Its max HP is `max(500, estimatedDPS × 106)` (the 106× multiplier is calibrated so a full-unlocks / 10-agent team takes about **90 seconds**, ±15s).
+- On a win: a juiced “SHIPPED” beat, then a **prestige** reset. Run progress (tools, agents, LOC, commits, live bugs) clears; Derick stays hired, the shop stays open, Play Space stays unlocked, and `prestige` / `ships` increment together. The next Ship goal scales up. DJ becomes a pink beating heart.
+- Prestige persists on the `dj-bughunt-v3` save. Older saves that already have `ships` but no `prestige` migrate `prestige = ships`.
+
+**Small prestige extras**
+
+1. Pink beating-heart DJ at `prestige >= 1`.
+2. HUD title becomes `BUG HUNT vN.0`.
+3. Konami (`↑↑↓↓←→←→BA`) launches an extra missile volley (no `preventDefault`) and arms `git blame`.
+4. Clicking DJ 10 times plays a heartbeat burst, grants **+10 commits**, and may arm `git blame`.
+5. Prestige-only boss names listed above, plus the hidden **git blame** boss.
 
 ### Idle behavior and away-from-tab
 
 Idle drafting is **per-unit**, not global. Derick and each agent write code independently whenever *that* unit has no target in range / is not lasering — even if bugs exist elsewhere on the page. There is no “wait until the board has been clear for 3 seconds.”
 
-- Derick drafts at **0.28** LOC/s, plus **0.12** if Agentic Workflow is owned.
-- Each agent drafts at **0.07** LOC/s.
+- Derick drafts at **1.4** LOC/s (`IDLE_DERRICK`), plus **0.60** if Agentic Workflow is owned (`IDLE_AGENTIC`).
+- Each agent drafts at **0.35** LOC/s (`IDLE_AGENT`) — about 5× the original rates.
+- A unit counts as idle when it is **not firing**. Outbound missiles count as firing; a missile on its way back to the ring can draft again. Escorts that happen to be lasering a bug in range still count as busy (correct), even if they are standing near Derick.
+- After a unit stops attacking, idle drafting ramps in within **0.5s** (the accumulator is seeded to `1 - rate × 0.5` so the first line lands quickly instead of waiting a full `1/rate` seconds).
 - A tiny `{}` tick appears near the unit when it drafts (cheap visual cue).
-- Each drafted line still adds only `bugsPerLoc() × 0.2` debt, and hatches still respect the post-kill quiet window, so idle typing does not instantly refill the board.
+- Each drafted line adds only `bugsPerLoc() × 0.045` debt (`IDLE_DEBT`), and hatches still respect the post-kill quiet window, so the faster idle typing does not instantly refill the board.
 
 If you leave and come back still opted-in and unpaused, up to **900s** of absence is estimated: a capped number of auto-kills and commit payout, logged when you were away more than 20 seconds. Pause and quit both save and stop the loops.
 
@@ -218,7 +243,8 @@ If you leave and come back still opted-in and unpaused, up to **900s** of absenc
 - Current key: **`dj-bughunt-v3`**.
 - An unused/empty v3 slot will import `dj-bughunt-v2` (`cash` becomes `commits`, `ai` becomes `agents`, a few v2 flags become 0-or-1 ranks). The old `dj-bughunt-v1` key is removed.
 - `lastBoss` (the previous boss name) is persisted so a reload cannot immediately repeat it.
-- `clicks`, `playUnlocked`, and `playSpace` remember Play Space progress and whether you are in that mode.
+- `clicks`, `playUnlocked`, and `playSpace` remember Play Space progress and whether you are in that mode. Quitting from Play Space writes `playSpace: false` so a later resume stays on the site.
+- `prestige` (and `ships`, kept in sync) remember how many finales you have shipped. A v3 save that has `ships` but no `prestige` is migrated on load.
 - Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide, and on `bh-save` (used before in-site navigations).
 - **Reset progress** (and `__bugHunt.reset()`) confirms, then clears `dj-bughunt-v3` **and** any leftover `v1`/`v2` keys, wipes in-memory state, and sets a flag so the pagehide / visibilitychange / 2s-interval savers cannot write the old run back before reload. That last step is what made Reset appear to do nothing on phones.
 
@@ -229,7 +255,7 @@ Quality starts at **3**, or **1** if `prefers-reduced-motion` is on. The last ~4
 - Average frame **> 21ms** for several samples → step quality down.
 - Average **< 13.5ms** for longer → step back up (not above 1 when reduced-motion is on).
 
-Lower quality cuts particle counts, screen shake, and device-pixel ratio (caps: 2 / 1.5 / 1 / 0.7). Effect arrays are hard-capped (particles 220/90/36, lasers 40, splats 36, pulses 16, and so on) so a long session does not leak. Reduced motion also disables the hero glitch and most juice.
+Lower quality cuts particle counts, screen shake, and device-pixel ratio (caps: 2 / 1.5 / 1 / 0.7). Particles are pooled (`partN`, caps 140 / 70 / 28) and drawn from cached radial sprites (no per-particle `hsl()` or `createRadialGradient`, and no `shadowBlur` on sparks). Local explosion flashes are capped at 6; the old full-screen fill is a light tint and only at quality ≥ 2. Hit-stop is capped at 26ms (quality 3) / 16ms otherwise so the sim does not freeze-walk for long. Profiler range rings are batched into one faint stroke (`rgba(62,198,255,0.08)`) and skipped entirely below quality 2. Reduced motion also disables the hero glitch and most juice.
 
 ### Layering and input
 
@@ -238,7 +264,7 @@ Lower quality cuts particle counts, screen shake, and device-pixel ratio (caps: 
 - Clicks on links, buttons, inputs, media, the HUD, or the Play button are ignored by the game (the page handles them). Drags, long-presses, and text selections are ignored too.
 - On empty space: click a bug to squash it (or clink a boss); otherwise write +1 LOC. Touch slop is 20px, mouse slop is 12px.
 
-HUD: **❚❚** pause, **⟲** rollback (once unlocked), **–** minimize, **✕** quit/keep progress.
+HUD: **❚❚** pause (keeps Play Space if you are in it), **⟲** rollback (once unlocked), **Play Space** / **Site** (once unlocked), **–** minimize, **✕** quit (keeps progress, and leaves Play Space so the site comes back).
 
 ### Design rules from Derick
 
@@ -252,16 +278,18 @@ These are the explicit asks the implementation is meant to honor:
 6. QA reveals bugs and paints targets on the largest; targeted bugs are destroyed instead of breaking into smaller ones. QA does not auto-squash.
 7. Agentic Workflow amplifies Derick’s lasers (faster kill, longer range), gathers agents into an escort around him, and is the thing that launches them as homing missiles.
 8. Bugs render under page elements. The canvas never steals clicks from real UI; clicking a bug in empty space never navigates.
-9. Agentic Workflow is gated behind a chain of earlier upgrades, not handed out with the first agents.
+9. Agentic Workflow is gated behind a chain of earlier upgrades, and also requires owning 5 agents, not handed out with the first agents.
 10. An upgrade that affects pulses or missiles (Movement Tuning, Multiplayer Sync) cannot appear before Agentic Workflow (the thing that actually launches missiles).
 11. Excess bugs merge, and animation quality steps down if frames get slow.
 12. Long sessions must not leak memory or gradually hitch.
-13. Once opted in with staff hired, idle Derick/agents write LOC when they are not lasering (board-clear drafts).
+13. Once opted in with staff hired, idle Derick/agents write LOC when they are not firing (per-unit, including a short ramp after they stop attacking).
 14. Bosses cannot be click-killed.
 15. All game code is original to this project — not copied from another site’s clicker.
 16. Derick always roams toward threats. He never parks in a corner, even in command mode.
 17. Pulses are juiced homing missiles with an AoE blast (bosses don’t get one-shot). After the boom the agent returns to the escort ring.
 18. After 25 player clicks the game can promote into Play Space: a full-screen playfield with Derick’s name visible but not clickable, plus a way back to the site.
+19. ✕ while in Play Space exits Play Space (chrome + scroll restored) and saves; pause does not. Resume only re-enters Play Space if it was still marked active.
+20. Ship is a juiced finale boss, not a one-click counter. Winning prestiges the run; DJ becomes a pink beating heart.
 
 
 ## Deploying
