@@ -56,7 +56,7 @@ The game does not run until you press **Play Bug Hunt** (bottom-right). Before t
 1. Click or tap **empty page space** to write **+1 LOC** and hatch a bug near the cursor. Dim hacker-typer code paints across the background as you write.
 2. Click a normal bug to squash it. Tier 2–3 bugs **split** into two of the next-smaller tier (if there is room under the entity cap). Tier 1 bugs splat.
 3. Squashes pay **Commits**, which buy upgrades. After **5 squashes** the shop opens with **Hire Derick** as the first unlock.
-4. Derick and agents automatically laser bugs. When the board has been clear for **3 seconds**, they draft extra LOC instead.
+4. Derick and agents automatically laser bugs. Each of them drafts extra LOC independently whenever that unit has no target in range (they are not lasering) — not after a global “board is clear” wait.
 
 ### Currencies
 
@@ -91,7 +91,7 @@ Movement Tuning (“chasing agents move faster”) and Multiplayer Sync (“one 
 
 | Upgrade | Base cost | Limit | Unlock | Effect |
 | --- | --- | --- | --- | --- |
-| **Hire Derick** | 25 | once | Shop opens (5 squashes) | One roaming DJ with a thin laser |
+| **Hire Derick** | 25 | once | Shop opens (5 squashes) | One roaming DJ (larger green orb) with a thin green laser |
 | **Hire Agent** | `40 × 1.32^agents` | stackable | After Derick; stays buyable | Static turret; 2s to kill a small bug (HP 2 → 1 DPS) |
 | **Unit Tests** | `55 × 1.95^tests` | 5 | After first agent | Fewer bugs per LOC (`× 0.82` each rank) |
 | **Profiler** | 80 | once | After first Unit Tests rank | Some bugs hatch visibly; agent range **+22**; Derick kill time `× 0.92`; Derick range **+36** |
@@ -99,7 +99,7 @@ Movement Tuning (“chasing agents move faster”) and Multiplayer Sync (“one 
 | **CI Pipeline** | 180 | once | After Collision Editor | Derick kill time `× 0.82` and damage `× 1.1`; agent damage `× 1.08`; bugs per LOC `× 0.85`; QA reveal rate `× 1.6` |
 | **QA** | 150 | once | After CI | Reveals more bugs; paints targets on the largest (see QA below) |
 | **Rapid Prototype** | 200 | once | After QA | All shop prices `× 0.78` |
-| **Agentic Workflow** | 300 | once | After Rapid Prototype | Derick pulses an agent to chase and clear a lineage; also amplifies Derick (kill time `× 0.9`, range **+28**) and idle drafting (**+0.12** LOC/s) |
+| **Agentic Workflow** | 300 | once | After Rapid Prototype | Derick pulses an agent to chase and clear a lineage (any range) and stacks his DPS on that agent; also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.12** LOC/s) |
 | **Movement Tuning** | 100 | once | After Agentic Workflow | Chasing agents move faster: `95 + 70 + ships×12` instead of `95 + ships×12` |
 | **Multiplayer Sync** | 250 | once | After Movement Tuning | Each pulse batch can enlist up to **3** agents; pulse rate `× 1.5` |
 | **Rollback Netcode** | 400 | once | After Sync | ⟲ button clears the board; **30s** cooldown |
@@ -110,23 +110,38 @@ The shop will not charge you for a hidden upgrade (the buy handler ignores anyth
 
 ### Derick
 
-One engineer, drawn as a small green “DJ” orb. He roams toward the biggest threat and fires a **thin, short-lived** laser (width 1, ~0.1s, green).
+One engineer, drawn as a green “DJ” orb, about **2.4×** the original size on desktop (`derickScale = 2.4`, body radius `6 × scale` ≈ 14.4px) and **2.0×** on coarse pointers or viewports under 700px (body ≈ 12px) so he stays readable on a tablet without eating the screen. The laser stays thin (width 1, ~0.1s). He still paints on the game canvas under page content.
 
 - Base time to kill a small bug: **2.0s**, floored at **0.35s** after tools/ships.
-- Range: **140** desktop / **110** on coarse pointers, plus Profiler / Agentic / Ship bonuses above.
+- Combat DPS is `2 / killTime`, times **1.1** if CI is owned. Kill time already shortens with Ships (`× 0.88` each), CI (`× 0.82`), Profiler (`× 0.92`), and Agentic (`× 0.9`), so his stacked power on agents scales with those upgrades.
+- Range: **140** desktop / **110** on coarse pointers, plus Profiler / Agentic / Ship bonuses above. In command mode the combat range is `min(range, 150)`.
+- Laser color: site-accent **green** (`LASER_COLOR.derick` = `rgba(57,255,136,0.85)`).
 - Roam lerp speed 120 (140 in command mode).
-- Agentic Workflow is the only thing that makes him send pulses to agents.
+- Agentic Workflow is the only thing that makes him send pulses to agents (any range). His **aura** (see Agents) buffs nearby turrets automatically.
 
 ### Agents
 
-Hired as **static turrets** placed around the page. They fire thin cyan lasers (width 0.9) at bugs inside their radius (**92** desktop / **78** coarse, **+22** with Profiler) and take 2 seconds to kill a small bug.
+Hired as **static turrets** placed around the page. They fire thin lasers (width 0.9) at bugs inside their radius (**92** desktop / **78** coarse, **+22** with Profiler) and take 2 seconds to kill a small bug (base DPS **1**, times **1.08** if CI is owned).
 
 They **do not walk** until Agentic Workflow sends a pulse. A pulsed agent chases its assigned lineage (including splits of that bug) at `chaseSpeed`. When the lineage is gone they walk home and turret again.
+
+**Force multiplier.** Derick is a force multiplier, not just another laser:
+
+- While an agent is **pulsed/chasing**, its DPS is `agent DPS + Derick’s combat DPS` (additive — Derick’s upgrades ride along).
+- **Aura:** any agent currently inside Derick’s combat range gets that same stacked buff even if it has not been pulsed. Pulses remain the any-range way to buff an agent across the page. The buff ends when the agent leaves his range *and* the pulse/chase ends.
+- Collision Editor pierce shots still deal `0.55 ×` base agent DPS (no extra Derick add on the splash).
+
+**Laser colors** (named constants in `LASER_COLOR`, easy to swap; red is reserved for bosses):
+
+- Derick: green `rgba(57,255,136,0.85)`
+- Agent (unbuffed): bright electric blue `rgba(62,198,255,0.92)`
+- Buffed agent (aura or pulse): orange/amber `rgba(255,177,66,0.95)`, with a soft amber glow on the beam and a small amber halo on the agent
 
 ### Agentic Workflow, pulses, and command mode
 
 - While Agentic is owned and at least one agent exists, Derick accumulates pulses at **0.35/s** (0.55/s in command mode), times `(1 + sync × 0.5)`.
-- Each pulse flies to an idle agent (or any agent if all are busy) and tells it to chase the current highest-value prey (bosses first, then high tier).
+- Each pulse flies to an idle agent (or any agent if all are busy) and tells it to chase the current highest-value prey (bosses first, then high tier). That chase is also a **force-multiplier** link: the agent’s DPS becomes its own plus Derick’s until the chase ends.
+- Agents already standing inside Derick’s range are buffed by his **aura** without needing a pulse.
 - Without Sync, one agent is pulsed; with Sync, up to three.
 - **Command mode** turns on automatically at **10 agents**: Derick parks in the top-left (`48, 88`), keeps a tighter range (capped at 160, combat range min’d with 150), and pulses faster.
 
@@ -141,13 +156,19 @@ QA does **not** squash bugs for you.
 
 Named: **Desync**, **Memory Leak**, **Race Condition**, **Null Pointer**, **Frame Spike**, **Packet Loss**, **Rollback Ghost**, **Stale Snapshot**.
 
+- A new boss never reuses the **immediately previous** boss name. The last name is stored on the save as `lastBoss` and is skipped when picking the next one (the other seven names remain in the pool).
 - They only start appearing after Hire Derick. Chance accumulates at `0.015 + min(0.04, loc/50000)` per second, and never during a quiet window or when the board is already at cap.
 - Tier 4, 22 HP, 28px radius, red ring plus an HP bar and name.
 - **Clicks cannot kill them.** A click “clinks,” knocks them back, and chips at most **0.05** HP without ever dropping them below **1**. Derick or an agent has to finish the job. QA can mark them so the kill does not split (bosses do not split anyway).
 
 ### Idle behavior and away-from-tab
 
-Once Derick or any agent is hired and the board has been empty for **3 seconds**, they draft LOC at `(derick ? 0.28 : 0) + agents × 0.07 + (agentic ? 0.12 : 0)` per second. That writes background code and adds debt slowly (not 1:1 with kills).
+Idle drafting is **per-unit**, not global. Derick and each agent write code independently whenever *that* unit has no target in range / is not lasering — even if bugs exist elsewhere on the page. There is no “wait until the board has been clear for 3 seconds.”
+
+- Derick drafts at **0.28** LOC/s, plus **0.12** if Agentic Workflow is owned.
+- Each agent drafts at **0.07** LOC/s.
+- A tiny `{}` tick appears near the unit when it drafts (cheap visual cue).
+- Each drafted line still adds only `bugsPerLoc() × 0.2` debt, and hatches still respect the post-kill quiet window, so idle typing does not instantly refill the board.
 
 If you leave and come back still opted-in and unpaused, up to **900s** of absence is estimated: a capped number of auto-kills and commit payout, logged when you were away more than 20 seconds. Pause and quit both save and stop the loops.
 
@@ -155,6 +176,7 @@ If you leave and come back still opted-in and unpaused, up to **900s** of absenc
 
 - Current key: **`dj-bughunt-v3`**.
 - An unused/empty v3 slot will import `dj-bughunt-v2` (`cash` becomes `commits`, `ai` becomes `agents`, a few v2 flags become 0-or-1 ranks). The old `dj-bughunt-v1` key is removed.
+- `lastBoss` (the previous boss name) is persisted so a reload cannot immediately repeat it.
 - Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide, and on `bh-save` (used before in-site navigations).
 - `__bugHunt.reset()` (or the Reset progress button) wipes the save and reloads.
 

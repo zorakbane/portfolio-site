@@ -25,7 +25,8 @@
     profiler: 0, collision: 0, movement: 0, sync: 0, rapid: 0,
     rollback: 0, autoRb: 0, ships: 0,
     shop: false, open: true, hidden: false,
-    bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0
+    bugs: [], backlog: 0, t: Date.now(), rbAt: 0, intro: false, hintSeen: false, codeIdx: 0,
+    lastBoss: null
   };
   function migrateV2(v2) {
     const agents = Math.max(0, v2.ai | 0);
@@ -46,7 +47,8 @@
         hp: b.hp, maxHp: b.maxHp
       })) : [],
       backlog: v2.backlog || 0, t: v2.t || Date.now(), rbAt: v2.rbAt || 0,
-      intro: !!v2.intro, hintSeen: !!v2.hintSeen, codeIdx: v2.codeIdx || 0
+      intro: !!v2.intro, hintSeen: !!v2.hintSeen, codeIdx: v2.codeIdx || 0,
+      lastBoss: v2.lastBoss || null
     };
   }
   let S, fresh = false;
@@ -95,6 +97,28 @@
   const agentRange = () => (COARSE ? 78 : 92) + (S.profiler ? 22 : 0);
   const chaseSpeed = () => 95 + (S.movement ? 70 : 0) + S.ships * 12;
   const qaRevealPerSec = () => (S.qa ? 0.55 * (S.ci ? 1.6 : 1) : 0);
+  const IDLE_DERRICK = 0.28;
+  const IDLE_AGENT = 0.07;
+  const IDLE_AGENTIC = 0.12; // added to Derick's draft rate when Agentic is owned
+  // Named so they are easy to swap. Red is reserved for bosses.
+  const LASER_COLOR = {
+    derick: 'rgba(57,255,136,0.85)',   // site accent green
+    agent: 'rgba(62,198,255,0.92)',    // bright electric blue
+    buffed: 'rgba(255,177,66,0.95)',   // orange/amber
+  };
+  function derickScale() { return (COARSE || Wd < 700) ? 2.0 : 2.4; }
+  function derickRadius() { return 6 * derickScale(); }
+  function derickCombatRange() { return commandMode() ? Math.min(derickRange(), 150) : derickRange(); }
+  function derickCombatDps() { return derickDps() * (S.ci ? 1.1 : 1); }
+  function agentBuffed(a) {
+    if (!a || !S.derick || !derickEnt) return false;
+    if (a.chasing) return true; // pulse: any range
+    return Math.hypot(a.x - derickEnt.x, a.y - derickEnt.y) <= derickCombatRange();
+  }
+  function agentCombatDps(a) {
+    const base = agentDps() * (S.ci ? 1.08 : 1);
+    return base + (agentBuffed(a) ? derickCombatDps() : 0);
+  }
 
   const cost = {
     derick: () => Math.ceil(25 * costScale()),
@@ -257,6 +281,11 @@
   const HUE = [0, 145, 110, 300, 0];
   const HP = [0, 2, 4.5, 8, 22];
   const BOSS_NAMES = ['Desync', 'Memory Leak', 'Race Condition', 'Null Pointer', 'Frame Spike', 'Packet Loss', 'Rollback Ghost', 'Stale Snapshot'];
+  function pickBossName() {
+    const pool = BOSS_NAMES.filter(n => n !== S.lastBoss);
+    const src = pool.length ? pool : BOSS_NAMES;
+    return src[Math.floor(Math.random() * src.length)];
+  }
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
   function isBoss(b) { return !!(b && (b.boss || b.tier >= 4)); }
   function noteSpawn(src) {
@@ -300,7 +329,7 @@
     return {
       tier, x, y, ox: x, oy: y, a, ph: Math.random() * 6, pop: 0.2, sq: 0, flash: 0, turn: 0,
       targeted: false, hp: HP[tier] || 2, maxHp: HP[tier] || 2,
-      boss, name: opts.name || (boss ? BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)] : null),
+      boss, name: opts.name || (boss ? pickBossName() : null),
       hatching: !!opts.hatching, hatchT: opts.hatching ? 1.2 : 0
     };
   }
@@ -324,6 +353,7 @@
     const b = mkBug(tier, x, y, Math.atan2(Hd / 2 - y, Wd / 2 - x) + (Math.random() - .5), opts);
     if (opts.reveal || opts.hatching) { b.pop = 0.05; b.flash = 1; }
     bugs.push(b);
+    if (b.boss && b.name) S.lastBoss = b.name;
     noteSpawn(opts.src || (opts.fromClick ? 'click' : opts.reveal ? 'qa' : opts.boss ? 'boss' : opts.force ? 'force' : 'spawn'));
     kick();
     return b;
@@ -356,7 +386,7 @@
   function ensureDerick() {
     if (!S.derick) { derickEnt = null; return; }
     if (!derickEnt) {
-      derickEnt = { x: Wd * 0.2, y: Hd * 0.35, tx: Wd * 0.2, ty: Hd * 0.35, target: null, aimX: 0, aimY: 0, beam: 0 };
+      derickEnt = { x: Wd * 0.2, y: Hd * 0.35, tx: Wd * 0.2, ty: Hd * 0.35, target: null, aimX: 0, aimY: 0, beam: 0, idleAcc: 0 };
     }
   }
   function ensureAgents() {
@@ -367,7 +397,7 @@
       const hy = clamp(Hd / 2 + Math.sin(ang) * rad, 80, Hd - 40);
       agents.push({
         x: hx, y: hy, homeX: hx, homeY: hy,
-        target: null, chaseRoot: null, chasing: false, beam: 0, aimX: hx, aimY: hy, pierce: null
+        target: null, chaseRoot: null, chasing: false, beam: 0, aimX: hx, aimY: hy, pierce: null, idleAcc: 0
       });
     }
     while (agents.length > S.agents) agents.pop();
@@ -739,13 +769,13 @@
     derickEnt.x += (derickEnt.tx - derickEnt.x) * Math.min(1, dt * (sp / 40));
     derickEnt.y += (derickEnt.ty - derickEnt.y) * Math.min(1, dt * (sp / 40));
 
-    const range = cmd ? Math.min(derickRange(), 150) : derickRange();
+    const range = derickCombatRange();
     const t = nearestBug(derickEnt.x, derickEnt.y, range, b => true);
     derickEnt.target = t;
     derickEnt.beam = Math.max(0, derickEnt.beam - dt * 4);
     if (t) {
-      addLaser(derickEnt.x, derickEnt.y, t.x, t.y, { wide: 1, life: 0.1, color: 'rgba(57,255,136,0.75)' });
-      damageBug(t, derickDps() * (S.ci ? 1.1 : 1), dt, derickEnt);
+      addLaser(derickEnt.x, derickEnt.y, t.x, t.y, { wide: 1, life: 0.1, color: LASER_COLOR.derick });
+      damageBug(t, derickCombatDps(), dt, derickEnt);
     }
 
     // Agentic pulses
@@ -792,27 +822,40 @@
   // ---------- sim ----------
   function idleCodeRate() {
     if (!S.derick && !S.agents) return 0;
-    return (S.derick ? 0.28 : 0) + S.agents * 0.07 + (S.agentic ? 0.12 : 0);
+    return (S.derick ? IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0) : 0) + S.agents * IDLE_AGENT;
+  }
+  function unitLasering(unit, isDerick) {
+    if (!unit) return false;
+    if (isDerick) return !!(unit.target && bugs.includes(unit.target));
+    const t = unit.target && bugs.includes(unit.target) ? unit.target : null;
+    if (!t) return false;
+    return Math.hypot(t.x - unit.x, t.y - unit.y) <= (unit.chasing ? 9999 : agentRange());
+  }
+  function draftAt(unit, dt, rate) {
+    if (!unit || !rate) return 0;
+    unit.idleAcc = (unit.idleAcc || 0) + rate * dt;
+    let n = 0;
+    while (unit.idleAcc >= 1 && n++ < 2) {
+      unit.idleAcc -= 1;
+      S.loc += 1;
+      typeCode(8);
+      S.debt += bugsPerLoc() * 0.2; // slow, not 1:1 — keep quiet windows from instantly refilling
+      if (quality >= 2) {
+        codeBursts.push({ x: unit.x, y: unit.y, life: 0.4, max: 0.4, tick: true });
+        if (codeBursts.length > 24) codeBursts.shift();
+      }
+    }
+    return n;
   }
   function idleWrite(dt) {
     if (S.paused || !S.optedIn) return;
-    if (bugs.length) { clearAcc = 0; idleAcc = 0; return; }
-    clearAcc += dt;
-    if (clearAcc < 3) return;
-    const rate = idleCodeRate();
-    if (!rate) return;
-    idleAcc += rate * dt;
-    let n = 0;
-    while (idleAcc >= 1 && n++ < 2) {
-      idleAcc -= 1;
-      S.loc += 1;
-      typeCode(8);
-      S.debt += bugsPerLoc() * 0.2; // slow, not 1:1
-      if (quality >= 2 && derickEnt && n === 1) {
-        gain(derickEnt.x, derickEnt.y - 14, '+1 LOC', '#39ff88');
-        codeBursts.push({ x: derickEnt.x, y: derickEnt.y, life: 0.35, max: 0.35 });
-        if (codeBursts.length > 16) codeBursts.shift();
-      }
+    ensureDerick();
+    ensureAgents();
+    if (S.derick && derickEnt && !unitLasering(derickEnt, true)) {
+      draftAt(derickEnt, dt, IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0));
+    }
+    for (const a of agents) {
+      if (!unitLasering(a, false)) draftAt(a, dt, IDLE_AGENT);
     }
     if (canAutoSpawn() && S.debt >= 1) {
       S.debt -= 1;
@@ -895,13 +938,14 @@
         a.target = nearestBug(a.x, a.y, range, b => true);
       }
       const t = a.target && bugs.includes(a.target) ? a.target : null;
+      const boosted = agentBuffed(a);
       if (t && Math.hypot(t.x - a.x, t.y - a.y) <= (a.chasing ? 9999 : range)) {
-        addLaser(a.x, a.y, t.x, t.y, { wide: 0.9, life: 0.09, color: 'rgba(61,224,255,0.65)' });
-        damageBug(t, agentDps() * (S.ci ? 1.08 : 1), dt, a);
+        addLaser(a.x, a.y, t.x, t.y, { wide: 0.9, life: 0.09, color: boosted ? LASER_COLOR.buffed : LASER_COLOR.agent, boosted });
+        damageBug(t, agentCombatDps(a), dt, a);
         if (S.collision) {
           const second = nearestBug(t.x, t.y, range * 0.9, b => b !== t);
           if (second) {
-            addLaser(t.x, t.y, second.x, second.y, { wide: 0.7, life: 0.08, color: 'rgba(61,224,255,0.4)' });
+            addLaser(t.x, t.y, second.x, second.y, { wide: 0.7, life: 0.08, color: boosted ? LASER_COLOR.buffed : LASER_COLOR.agent });
             damageBug(second, agentDps() * 0.55, dt, null);
           }
         }
@@ -975,35 +1019,39 @@
   function drawDerick() {
     if (!derickEnt || !S.derick) return;
     const x = derickEnt.x, y = derickEnt.y;
+    const sc = derickScale();
+    const body = 6 * sc;
     ctx.save();
-    // subtle soft glow
-    ctx.fillStyle = 'rgba(57,255,136,0.12)';
-    ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.fill();
-    // body
+    ctx.fillStyle = 'rgba(57,255,136,0.14)';
+    ctx.beginPath(); ctx.arc(x, y, 14 * sc, 0, 7); ctx.fill();
     ctx.fillStyle = '#39ff88';
-    ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, body, 0, 7); ctx.fill();
     ctx.fillStyle = '#04120a';
-    ctx.font = '800 7px ui-monospace, sans-serif';
+    ctx.font = `800 ${Math.round(7 * sc)}px ui-monospace, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('DJ', x, y + 0.5);
     if (commandMode()) {
       ctx.strokeStyle = 'rgba(61,224,255,0.5)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(x, y, 18, 0, 7); ctx.stroke();
+      ctx.lineWidth = 1.25;
+      ctx.beginPath(); ctx.arc(x, y, body + 4 * sc, 0, 7); ctx.stroke();
     }
     ctx.restore();
   }
 
   function drawAgent(a) {
+    const boosted = agentBuffed(a);
     ctx.save();
-    ctx.strokeStyle = a.chasing ? 'rgba(61,224,255,0.7)' : 'rgba(61,224,255,0.45)';
-    ctx.lineWidth = 1;
+    if (boosted) {
+      ctx.fillStyle = 'rgba(255,177,66,0.22)';
+      ctx.beginPath(); ctx.arc(a.x, a.y, 10, 0, 7); ctx.fill();
+    }
+    ctx.strokeStyle = boosted ? LASER_COLOR.buffed : (a.chasing ? 'rgba(62,198,255,0.85)' : 'rgba(62,198,255,0.55)');
+    ctx.lineWidth = 1.15;
     ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, 7); ctx.stroke();
-    ctx.fillStyle = a.chasing ? 'rgba(61,224,255,0.55)' : 'rgba(61,224,255,0.28)';
+    ctx.fillStyle = boosted ? 'rgba(255,177,66,0.7)' : (a.chasing ? 'rgba(62,198,255,0.6)' : 'rgba(62,198,255,0.3)');
     ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, 7); ctx.fill();
-    // tiny radius hint when profiler
     if (S.profiler && !a.chasing) {
-      ctx.strokeStyle = 'rgba(61,224,255,0.08)';
+      ctx.strokeStyle = 'rgba(62,198,255,0.08)';
       ctx.beginPath(); ctx.arc(a.x, a.y, agentRange(), 0, 7); ctx.stroke();
     }
     ctx.restore();
@@ -1019,18 +1067,29 @@
     ctx.globalAlpha = 1;
     for (const c of codeBursts) {
       const a = c.life / c.max;
-      ctx.globalAlpha = a * 0.8;
+      ctx.globalAlpha = a * 0.85;
       ctx.fillStyle = '#39ff88';
-      ctx.font = 'bold 10px ui-monospace, monospace';
-      ctx.fillText('{ ++loc }', c.x - 24, c.y - 16 * (1 - a));
+      if (c.tick) {
+        ctx.font = 'bold 9px ui-monospace, monospace';
+        ctx.fillText('{}', c.x - 5, c.y - 10 * (1 - a));
+      } else {
+        ctx.font = 'bold 10px ui-monospace, monospace';
+        ctx.fillText('{ ++loc }', c.x - 24, c.y - 16 * (1 - a));
+      }
     }
     ctx.globalAlpha = 1;
     for (const b of bugs) drawBug(b);
     // thin lasers
     for (const z of lasers) {
       const a = z.life / z.max;
-      ctx.globalAlpha = a * 0.75;
-      ctx.strokeStyle = z.color || '#39ff88';
+      if (z.boosted) {
+        ctx.globalAlpha = a * 0.3;
+        ctx.strokeStyle = LASER_COLOR.buffed;
+        ctx.lineWidth = (z.wide || 1) * 3.1;
+        ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
+      }
+      ctx.globalAlpha = a * 0.85;
+      ctx.strokeStyle = z.color || LASER_COLOR.derick;
       ctx.lineWidth = (z.wide || 1) * (0.7 + a * 0.4);
       ctx.shadowBlur = 0;
       ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
@@ -1168,6 +1227,8 @@
     S, get bugs() { return bugs; }, get derick() { return derickEnt; }, get agents() { return agents; },
     spawnBug, squash, addCode, rollback, ship, econ, optIn, pauseGame, quitGame,
     isBoss, clink, cap, idleWrite, idleCodeRate, qaRevealPerSec, mergeIfOver,
+    pickBossName, agentBuffed, agentCombatDps, derickCombatDps, derickCombatRange,
+    derickScale, derickRadius, LASER_COLOR,
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },
@@ -1180,6 +1241,8 @@
         quality, dpr: DPR, fps: frameTimes.length ? 1000 / (frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length) : 0,
         shopItems: ITEMS.filter(i => i.show()).map(i => i.id),
         nextUnlock: nextUnlock(),
+        lastBoss: S.lastBoss,
+        derickScale: derickScale(),
         clearAcc, spawnQuiet: Math.max(0, spawnQuietUntil - now()),
       };
     },
