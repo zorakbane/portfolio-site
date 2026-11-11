@@ -121,7 +121,7 @@
   const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
   const HB_CLICKS = 5;
-  const HB_WINDOW = 3000;
+  const HB_WINDOW = 5000;
   const HB_DURATION = 60000;
   const HB_COOLDOWN = 60000;
   const HB_MULT = 5;
