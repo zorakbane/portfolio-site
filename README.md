@@ -52,14 +52,32 @@ cd dist && python3 -m http.server 8080   # open http://localhost:8080
 
 Everything lives in **`data/projects.json`**:
 
-- `site`: name, title, tagline, email, links, hero stats.
+- `site`: name, title, tagline, email, location, links, hero stats. `location` is shown at the top of the About section.
 - `projects[]`: one entry per project. `group` sets the section: `featured` (big cards), `earlier`, or `lab` (tech/AI/side).
   - `slug` is the URL (`/projects/<slug>/`). Set `"noPage": true` for a card with no detail page.
+  - `url` / `linkLabel`: optional external card link when `"noPage": true` (opens in a new tab).
   - `image` / `cardImage` / `gallery[]` take image **keys** (see below). `youtube` takes a video id, and it loads only when clicked.
-  - `summary`, `bullets[]`, `tags[]`, `awards[]`, `links[]`, `todo[]`.
-- `jams[]`, `awards[]`, `experience[]`, `education[]`, `skills`, `talks[]`, `about[]`, `gaming[]`.
+  - `summary`, `bullets[]`, `tags[]`, `awards[]`, `links[]`, `todo[]`, `niceToHave[]`.
+- `jams[]`, `awards[]`, `experience[]`, `education[]`, `skills`, `talks[]`, `about[]`, `aboutTodo`, `gaming[]`.
 
 Order in the JSON = order on the page. Rebuild after editing.
+
+### TODOs vs nice-to-haves
+
+- `todo[]` and top-level `aboutTodo` are **blockers**. A default `node build.mjs` shows them as orange notes on project pages, small cards, and the About photo. `node build.mjs --hide-todos` (preview and production) strips those notes.
+- `niceToHave[]` is a documented backlog the builder **never renders**, even on a default build. Use it for media and write-ups that can wait until after go-live.
+
+There are currently no blocker TODOs.
+
+Current nice-to-haves (kept on each project in `data/projects.json`):
+
+- **Voidwood** — personal screenshots / GIFs (rollback debug view, agent test loop); short write-up of the agentic verification loop.
+- **Starfield** — StarMap screenshots or a short clip (possibly the `origin` pptx in Drive).
+- **Fallout 76** — a public trailer or clip to embed (the old site's video is private).
+- **Skyrim VR** — VR systems highlights from the "Skyrim VR - Systems" slides in Drive.
+- **Force of Elements** — link / image.
+- **Agentic AI workflows** — diagram or short clip.
+- **More side projects** — links (Amiibo repo, any playable builds).
 
 ### Adding an image
 

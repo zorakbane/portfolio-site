@@ -64,7 +64,7 @@ IMAGES = {
   'sinistar':        (X+'game-projects/sinistar.png', [480, 960]),
   'projectm':        (X+'small-projects/468px-Project_M[1].jpg', [468]),
   'evolve':          (X+'gaming/evolve.png', [480, 960]),
-  'derick':          (X+'home/derick.jpg', [318]),
+  'derick':          ('media-incoming/headshot-crop.jpg', [220, 440, 660, 1140]),
 }
 
 def main():

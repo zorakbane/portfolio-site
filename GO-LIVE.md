@@ -1,8 +1,42 @@
 # Go-live checklist for derickjanssen.com
 
-**Do not change DNS, the GitHub Pages custom domain, or publish the `CNAME` file until this checklist is approved.** The public site is still the old host. The GitHub preview at `https://zorakbane.github.io/portfolio-site/` is safe to update independently.
+**Do not change DNS, enable GitHub Pages on the public repo, or set a Pages custom domain until this checklist is approved.** The live site is still the old host. Nothing in this file has been applied to DNS or Pages.
 
-Prepared: 2026-11-11 12:07 AM EST (America/New_York). DNS was looked up via Cloudflare and Google DNS-over-HTTPS (`dig` was not available on the build box; queries used `https://cloudflare-dns.com/dns-query` and `https://dns.google/resolve`).
+Prepared: 2026-11-11 12:07 AM EST (America/New_York). Updated: 2026-11-11 8:30 AM EST (America/New_York) for the two-repo split. DNS was looked up via Cloudflare and Google DNS-over-HTTPS (`dig` was not available on the build box; queries used `https://cloudflare-dns.com/dns-query` and `https://dns.google/resolve`).
+
+## Two-repo layout (approved; not live yet)
+
+Derick approved serving the production site from a build-only public repo, with the source repo able to go private later.
+
+| Repo | Role | Visibility now |
+| --- | --- | --- |
+| [`zorakbane/portfolio-site`](https://github.com/zorakbane/portfolio-site) | Source: builder, project data, design notes, tools, tests | **Stays public** until Derick separately OK's making it private |
+| [`zorakbane/portfolio-site-public`](https://github.com/zorakbane/portfolio-site-public) | Production build output only (HTML/CSS/JS/media, `resume.pdf`, `robots.txt`, `sitemap.xml`, `CNAME`) | Public. **GitHub Pages is not enabled.** No custom domain is set. |
+
+Making `portfolio-site` private is a **separate step** and must not happen until Derick says so.
+
+Publish a new production artifact with:
+
+```bash
+bash tools/deploy-public.sh
+# or: npm run deploy:public
+```
+
+That script builds `BASE=/ PUBLISH_CNAME=1 node build.mjs --hide-todos`, adds a short public README (not the source design doc), copies `dist/` onto `portfolio-site-public` `main`, commits (history kept), tags `release-YYYYMMDD-HHMM` in America/New_York, and fast-forward pushes. It never force-pushes, never enables Pages, and never changes DNS.
+
+The current preview at `https://zorakbane.github.io/portfolio-site/` is still published from `portfolio-site` `gh-pages` via `tools/deploy-preview.sh` (`BASE=/portfolio-site/`, `CNAME` stripped, `robots.txt` Disallow). That preview is independent of the public production repo.
+
+## Previews after the source repo goes private
+
+On GitHub’s free plan, Pages from a **private** repo is not publicly served. If `portfolio-site` is made private without another preview host, `https://zorakbane.github.io/portfolio-site/` will stop working (unless the account is on a paid plan that includes Pages for private repos).
+
+Do not privatize until a preview replacement is in place. Options, in preferred order:
+
+1. **Recommended: Cloudflare Pages or Netlify previews from the private source repo.** Connect `portfolio-site` (once private) to Cloudflare Pages or Netlify. Pull requests get unique `*.pages.dev` or `*.netlify.app` URLs. Build with a non-root `BASE` (or their default preview URL) so asset paths resolve, and keep preview `robots.txt` on `Disallow: /` plus `noindex`. Production GitHub Pages stays on `portfolio-site-public`. This does not require GitHub Pro and does not put a staging copy on derickjanssen.com.
+2. **Paid GitHub (Pro / Team):** keep `tools/deploy-preview.sh` as it is; private-repo Pages can remain publicly reachable.
+3. **Avoid once the custom domain is live:** a `/preview/` folder (or similar) on `portfolio-site-public` `main`. GitHub Pages serves one site per repo, so after cutover that path would also be visible at `https://derickjanssen.com/preview/`. A `noindex` meta would discourage crawlers but would not hide a work-in-progress build from anyone with the URL.
+
+Until privatization is approved, keep using `tools/deploy-preview.sh`.
 
 ## Current hosting (do not change yet)
 
@@ -29,11 +63,11 @@ The apex is GoDaddy forwarding (those two A records are the usual forwarding pai
 - Nameservers can stay at GoDaddy (`ns59` / `ns60.domaincontrol.com`) — only the records change, not the registrar.
 - Turn **off** GoDaddy “Domain Forwarding” for the apex before you replace the forwarding A records, or GoDaddy may rewrite them.
 
-## Production build (already supported)
+## Production build
 
 ```bash
-BASE=/ node build.mjs --hide-todos
-# default BASE is already /
+BASE=/ PUBLISH_CNAME=1 node build.mjs --hide-todos
+# or just: bash tools/deploy-public.sh
 ```
 
 Verification that should hold:
@@ -43,27 +77,22 @@ Verification that should hold:
 - `404.html` exists (GitHub Pages will serve it) and “Respawn at home” points at `/`.
 - Canonical and `og:url` are `https://derickjanssen.com/` (home) and `https://derickjanssen.com/projects/<slug>/`.
 - `sitemap.xml` lists those canonical URLs; `robots.txt` allows crawlers and points at the sitemap.
-- `CNAME` is **not** written to `dist/` unless `PUBLISH_CNAME=1`.
-
-When go-live is approved, produce the production artifact with:
-
-```bash
-BASE=/ PUBLISH_CNAME=1 node build.mjs --hide-todos
-```
+- `resume.pdf` is present and linked as `Derick-Janssen-Resume.pdf`.
+- `CNAME` contains `derickjanssen.com`.
 
 `tools/deploy-preview.sh` always builds with `BASE=/portfolio-site/` and deletes `CNAME`. It cannot make derickjanssen.com live.
 
-## CNAME file plan (not deployed until approved)
+## CNAME file
 
-`static/CNAME` is planned to contain:
+`static/CNAME` (and the copy published by `deploy-public.sh`) contains:
 
 ```
 derickjanssen.com
 ```
 
-That makes the apex the GitHub Pages primary domain (canonical URLs match). GitHub will treat `www` as an alias and redirect it to `https://derickjanssen.com` once both DNS records below are in place.
+That makes the apex the GitHub Pages primary domain once Pages is enabled (canonical URLs match). GitHub will treat `www` as an alias and redirect it to `https://derickjanssen.com` once the DNS records below are in place **and** Pages + the custom domain are configured on `portfolio-site-public`.
 
-Do **not** commit this file onto `gh-pages` until you are ready to attach the custom domain. Preview deploys strip it. Default builds omit it. Production builds include it only with `PUBLISH_CNAME=1`.
+The file is included in `portfolio-site-public` so a later Pages enable can pick it up. **Because Pages is not enabled there yet, this file does not attach the domain and does not affect DNS.** Preview deploys on `portfolio-site` `gh-pages` still strip `CNAME`. Do not enable Pages or set a custom domain until the DNS cutover is approved.
 
 ## GoDaddy DNS records to set (when approved)
 
@@ -96,17 +125,21 @@ In GoDaddy → **My Products → derickjanssen.com → DNS → Manage DNS**.
 
 Leave MX (and mail TXT) records alone.
 
-## GitHub Pages custom domain + HTTPS
+## GitHub Pages custom domain + HTTPS (when approved)
 
-1. Ship a production build (`BASE=/` and, when you are ready, `PUBLISH_CNAME=1`) to the GitHub Pages source (today that is the `gh-pages` branch; `.github/workflows/pages.yml` is manual `workflow_dispatch` only).
-2. Repo **Settings → Pages → Custom domain:** enter `derickjanssen.com`.
-3. Save, wait for DNS checks to go green (can take minutes to a few hours after the GoDaddy records propagate).
-4. Tick **Enforce HTTPS** once the certificate is issued. Do not tick it before the check passes.
-5. Optional: **Settings → Pages → Verified domains** so nobody else can claim the name.
-6. Confirm:
+Do these on **`zorakbane/portfolio-site-public`**, not on the source repo. Do not do them until the cutover is approved.
+
+1. Confirm `main` on `portfolio-site-public` has a current `BASE=/` build (run `tools/deploy-public.sh` from the source repo if needed).
+2. Repo **Settings → Pages → Build and deployment:** Deploy from a branch, branch `main`, folder `/ (root)`.
+3. **Settings → Pages → Custom domain:** enter `derickjanssen.com`.
+4. Save, wait for DNS checks to go green (can take minutes to a few hours after the GoDaddy records propagate).
+5. Tick **Enforce HTTPS** once the certificate is issued. Do not tick it before the check passes.
+6. Optional: **Settings → Pages → Verified domains** so nobody else can claim the name.
+7. Confirm:
    - `https://derickjanssen.com/` loads the new site (not a `/portfolio-site/` prefix).
    - `https://www.derickjanssen.com/` redirects to the apex.
    - `https://derickjanssen.com/projects/rise-of-elements/` (and other project URLs) work.
+   - `https://derickjanssen.com/resume.pdf` downloads the resume.
    - A bogus path serves `404.html`.
    - Favicon and images load from `/favicon.svg` and `/img/…`.
    - Email still sends and receives.
@@ -117,14 +150,14 @@ If the cutover needs to be undone, put the previous records back **without touch
 
 1. Restore apex **A** records `3.33.251.168` and `15.197.225.128` (and remove the GitHub A/AAAA records). Re-enable GoDaddy forwarding if that is how those two addresses were managed.
 2. Restore `www` **CNAME** `ghs.googlehosted.com`.
-3. In GitHub **Settings → Pages**, remove the custom domain `derickjanssen.com` (and uncheck Enforce HTTPS if GitHub leaves it stuck).
-4. Remove `CNAME` from the published Pages root if it was uploaded (`PUBLISH_CNAME=1`).
-5. The old Google Sites site at `www` and the GoDaddy apex forward come back as DNS propagates. The GitHub preview at `https://zorakbane.github.io/portfolio-site/` can stay up the whole time.
+3. In `portfolio-site-public` **Settings → Pages**, remove the custom domain `derickjanssen.com` (and uncheck Enforce HTTPS if GitHub leaves it stuck). You can also turn Pages off there.
+4. The old Google Sites site at `www` and the GoDaddy apex forward come back as DNS propagates. The GitHub preview at `https://zorakbane.github.io/portfolio-site/` can stay up the whole time (while the source repo remains public).
 
 ## After approval, suggested order
 
-1. Merge or otherwise ship the production `BASE=/` build, still **without** publishing `CNAME` if you want a last preview at the `github.io` URL with root paths tested locally.
-2. Add the GitHub Pages A/AAAA records and change the `www` CNAME (MX untouched).
-3. Set the Pages custom domain, wait for DNS, then Enforce HTTPS.
-4. Publish `CNAME` (`PUBLISH_CNAME=1`) if GitHub did not already write it.
+1. Merge the outstanding source PR (resume + public deploy script) into `portfolio-site` `main` if it is not already there.
+2. Run `tools/deploy-public.sh` so `portfolio-site-public` `main` is current. Still **do not** enable Pages.
+3. When the cutover is approved: enable Pages on `portfolio-site-public` (`main` / root), add the GitHub Pages A/AAAA records, and change the `www` CNAME (MX untouched).
+4. Set the Pages custom domain, wait for DNS, then Enforce HTTPS.
 5. Watch email for a few hours. Keep this file’s current-record table so rollback stays copy-pasteable.
+6. Only after the new site is stable — and only with Derick’s OK — consider making `portfolio-site` private. Switch previews to Cloudflare Pages or Netlify first (see above) so the `github.io/portfolio-site` preview is not the only staging URL.

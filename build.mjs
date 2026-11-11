@@ -25,9 +25,12 @@ const S = data.site;
 const JANSSEN_OUTLINE = `<svg class="ht-outline" viewBox="0 0 593 98" preserveAspectRatio="xMinYMid meet" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round" d="M37.33 90.18Q23.25 90.18 15.63 83.41Q8 76.64 8 64.07V59.08H29.7V64.5Q29.7 68.91 31.69 71.11Q33.67 73.31 37.33 73.31Q40.98 73.31 42.91 71.11Q44.85 68.91 44.85 64.4V9.07H66.22V63.97Q66.22 76.59 58.73 83.38Q51.24 90.18 37.33 90.18ZM81.85 89.1 107.79 9.07H137.44L164.35 89.1H139.75L135.13 73.74H110.53L106.13 89.1ZM130.3 57.52Q127.4 47.69 124.82 37.06Q123.58 31.9 122.4 26.8Q121.27 31.9 120.2 37.06Q117.94 47.69 115.15 57.52ZM179.98 89.1V9.07H203.61L222.68 40.5Q225.15 44.58 227.3 48.66Q229.44 52.74 231.49 57.63Q232.34 59.83 233.26 62.3Q233.15 60.74 233.04 59.03Q232.61 53.33 232.29 47.77Q231.97 42.21 231.97 38.4V9.07H254.31V89.1H230.68L212.9 59.88Q209.89 54.89 207.61 50.57Q205.33 46.24 203.23 41.41Q202.21 39.15 201.08 36.52Q201.25 38.99 201.46 41.46Q201.84 47.05 202.08 51.83Q202.32 56.61 202.32 59.88V89.1ZM305.17 90.07Q294.75 90.07 286.99 86.98Q279.23 83.89 274.93 77.45Q270.64 71 270.58 60.96H291.21Q291.42 64.61 293.06 67.14Q294.7 69.66 297.68 70.95Q300.66 72.24 304.85 72.24Q308.34 72.24 310.71 71.38Q313.07 70.52 314.28 68.99Q315.49 67.46 315.49 65.47Q315.49 63.64 314.33 62.27Q313.18 60.91 310.54 59.78Q307.91 58.65 303.46 57.74L295.4 56.02Q284.82 53.76 278.72 48.31Q272.62 42.86 272.62 33.46Q272.62 25.83 276.76 20.11Q280.9 14.39 288.17 11.2Q295.45 8 304.96 8Q314.68 8 321.74 11.25Q328.81 14.5 332.65 20.38Q336.49 26.26 336.54 34.1H315.7Q315.43 30.18 312.83 28.01Q310.22 25.83 304.96 25.83Q301.63 25.83 299.48 26.61Q297.33 27.39 296.31 28.79Q295.29 30.18 295.29 31.96Q295.29 33.83 296.39 35.26Q297.49 36.68 299.88 37.73Q302.27 38.78 306.03 39.58L312.59 40.98Q319.19 42.38 323.95 44.68Q328.7 46.99 331.73 50.08Q334.77 53.17 336.19 57.04Q337.62 60.91 337.62 65.47Q337.62 73.37 333.72 78.87Q329.83 84.38 322.58 87.22Q315.33 90.07 305.17 90.07ZM386.44 90.07Q376.02 90.07 368.25 86.98Q360.49 83.89 356.2 77.45Q351.9 71 351.85 60.96H372.47Q372.69 64.61 374.32 67.14Q375.96 69.66 378.94 70.95Q381.92 72.24 386.11 72.24Q389.6 72.24 391.97 71.38Q394.33 70.52 395.54 68.99Q396.75 67.46 396.75 65.47Q396.75 63.64 395.59 62.27Q394.44 60.91 391.81 59.78Q389.17 58.65 384.72 57.74L376.66 56.02Q366.08 53.76 359.98 48.31Q353.89 42.86 353.89 33.46Q353.89 25.83 358.02 20.11Q362.16 14.39 369.44 11.2Q376.71 8 386.22 8Q395.94 8 403.01 11.25Q410.07 14.5 413.91 20.38Q417.75 26.26 417.8 34.1H396.96Q396.69 30.18 394.09 28.01Q391.48 25.83 386.22 25.83Q382.89 25.83 380.74 26.61Q378.59 27.39 377.57 28.79Q376.55 30.18 376.55 31.96Q376.55 33.83 377.65 35.26Q378.75 36.68 381.15 37.73Q383.54 38.78 387.29 39.58L393.85 40.98Q400.45 42.38 405.21 44.68Q409.96 46.99 413 50.08Q416.03 53.17 417.45 57.04Q418.88 60.91 418.88 65.47Q418.88 73.37 414.98 78.87Q411.09 84.38 403.84 87.22Q396.59 90.07 386.44 90.07ZM435.15 89.1V9.07H492.83V26.58H456.85V40.12H489.83V57.2H456.85V71.59H492.62V89.1ZM510.56 89.1V9.07H534.19L553.26 40.5Q555.73 44.58 557.88 48.66Q560.02 52.74 562.06 57.63Q562.92 59.83 563.84 62.3Q563.73 60.74 563.62 59.03Q563.19 53.33 562.87 47.77Q562.55 42.21 562.55 38.4V9.07H584.89V89.1H561.26L543.48 59.88Q540.47 54.89 538.19 50.57Q535.91 46.24 533.81 41.41Q532.79 39.15 531.66 36.52Q531.83 38.99 532.04 41.46Q532.42 47.05 532.66 51.83Q532.9 56.61 532.9 59.88V89.1Z"/></svg>`;
 const esc = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const u = p => BASE + p.replace(/^\//, '');
+const resumeDownload = (cls) =>
+  `<a class="${cls}" href="${u('resume.pdf')}" download="Derick-Janssen-Resume.pdf">Download resume</a>`;
 const isTodo = s => typeof s === 'string' && /^TODO\b/.test(s);
 const todo = s => (SHOW_TODOS && s ? `<span class="todo">${esc(s)}</span>` : '');
 const todos = arr => (SHOW_TODOS && arr && arr.length ? `<div class="todos">${arr.map(todo).join('')}</div>` : '');
+// Project `niceToHave[]` is documentation-only and is never rendered.
 const txt = s => (isTodo(s) ? todo(s) : esc(s));
 
 function img(key, { sizes = '100vw', cls = '', alt = '', eager = false, fit = '' } = {}) {
@@ -85,6 +88,7 @@ ${canonical ? `<meta property="og:url" content="${esc(canonical)}">
 <header class="top">
   <a class="brand" href="${u('')}"><span class="brand-mark" aria-hidden="true">DJ</span><span class="brand-name">Derick Janssen</span></a>
   <nav class="nav" aria-label="Sections">${nav}</nav>
+  ${resumeDownload('btn top-resume')}
 </header>
 <main id="main">
 ${body}
@@ -121,10 +125,14 @@ function smallCard(p, i) {
       <h3 class="card-title">${esc(p.title)}</h3>
       <p class="card-sum">${esc(p.summary)}</p>
       ${p.awards ? `<ul class="chips gold">${p.awards.slice(0, 2).map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
-      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : ''}
+      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : (p.url ? `<span class="card-cta">${esc(p.linkLabel || 'Open')} <span aria-hidden="true">↗</span></span>` : '')}
       ${todos(p.todo)}
     </div>`;
-  return `<article class="card small reveal" style="--accent:${p.accent};--i:${i % 6}">${hasPage(p) ? `<a class="card-link" href="${href(p)}">${inner}</a>` : `<div class="card-link">${inner}</div>`}</article>`;
+  const cardHref = hasPage(p) ? href(p) : (p.url || '');
+  const cardInner = cardHref
+    ? `<a class="card-link" href="${esc(cardHref)}"${hasPage(p) ? '' : ' target="_blank" rel="noopener"'}">${inner}</a>`
+    : `<div class="card-link">${inner}</div>`;
+  return `<article class="card small reveal" style="--accent:${p.accent};--i:${i % 6}">${cardInner}</article>`;
 }
 
 const ICONS = {
@@ -180,7 +188,7 @@ function home() {
   <header class="sec-head reveal"><p class="sec-num">05</p><h2 id="about-h">About</h2></header>
   <div class="about">
     <div class="about-photo reveal">${img('derick', { sizes: '220px', alt: 'Derick Janssen' })}${todo(data.aboutTodo)}</div>
-    <div class="about-text reveal">${data.about.map(p => `<p>${esc(p)}</p>`).join('')}
+    <div class="about-text reveal">${S.location ? `<p class="about-location">${esc(S.location)}</p>` : ''}${data.about.map(p => `<p>${esc(p)}</p>`).join('')}
       <div class="skills">${Object.entries(data.skills).map(([k, v]) => `<div><h3>${esc(k)}</h3><ul class="chips">${v.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>`).join('')}</div>
       <details class="more"><summary>Competitive gaming record</summary><ul>${data.gaming.map(g => `<li>${esc(g)}</li>`).join('')}</ul></details>
       <details class="more"><summary>Talks</summary><ul>${data.talks.map(g => `<li>${esc(g)}</li>`).join('')}</ul></details>
@@ -201,8 +209,8 @@ function home() {
       <h3>Let's make something that feels great.</h3>
       <p>Open to conversations about gameplay, multiplayer, performance, tools, and agentic AI work.</p>
       <a class="btn primary big" href="mailto:${esc(S.email)}">${esc(S.email)}</a>
-      <ul class="links">${S.links.filter(l => l.label !== 'Email').map(l => l.url ? `<li><a href="${esc(l.url)}" rel="noopener">${esc(l.label)} ↗</a></li>` : (SHOW_TODOS ? `<li>${esc(l.label)} ${todo(l.todo)}</li>` : '')).join('')}</ul>
-      <p class="resume-dl">${todo('TODO: export the resume to static/resume.pdf and link it here')}</p>
+      <ul class="links">${S.links.filter(l => l.label !== 'Email').map(l => l.url ? `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a></li>` : (SHOW_TODOS ? `<li>${esc(l.label)} ${todo(l.todo)}</li>` : '')).join('')}</ul>
+      <p class="resume-dl">${resumeDownload('btn primary')}</p>
     </div>
   </div>
 </section>`;

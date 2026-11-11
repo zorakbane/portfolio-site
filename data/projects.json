@@ -5,7 +5,7 @@
     "tagline": "An award-winning gameplay programmer who is passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
     "url": "https://derickjanssen.com",
     "email": "zorakbane@yahoo.com",
-    "location": "TODO: city / remote preference",
+    "location": "Based in the Greater Tampa Bay area · open to remote (hybrid/relocation for the right fit)",
     "links": [
       {
         "label": "Email",
@@ -17,8 +17,7 @@
       },
       {
         "label": "LinkedIn",
-        "url": "",
-        "todo": "TODO: LinkedIn profile URL"
+        "url": "https://www.linkedin.com/in/derick-janssen-070137b"
       },
       {
         "label": "Global Game Jam",
@@ -86,9 +85,9 @@
           "url": "https://voidwood.com"
         }
       ],
-      "todo": [
-        "TODO: personal screenshots / GIFs (rollback debug view, agent test loop)",
-        "TODO: short write-up of the agentic verification loop"
+      "niceToHave": [
+        "Personal screenshots / GIFs (rollback debug view, agent test loop)",
+        "Short write-up of the agentic verification loop"
       ]
     },
     {
@@ -103,11 +102,13 @@
       "accent": "#f59e0b",
       "image": "rise",
       "cardImage": "rise-header",
-      "summary": "A PvP match-3 puzzle-battler with a PvE story mode. I worked on nearly every part of the game except backend AWS server scaling.",
+      "summary": "A PvP match-3 puzzle-battler with a PvE story mode — a faithful recreation of Force of Elements. I worked on nearly every part of the game except backend AWS server scaling.",
       "bullets": [
         "Client/server game logic.",
         "UI.",
-        "Tools.",
+        "Added a cvar system that pulls from an online config.",
+        "Added a debug board editor, and copy/paste of board states to help repro issues faster.",
+        "Implemented a whole tutorialization and story-manager scripting system for the in-game tutorial and story mode.",
         "Touched nearly every aspect of the game except backend AWS server scaling."
       ],
       "tags": [
@@ -124,9 +125,6 @@
           "label": "Steam",
           "url": "https://store.steampowered.com/app/3170850"
         }
-      ],
-      "todo": [
-        "TODO: one or two specific systems you're proudest of here"
       ]
     },
     {
@@ -161,8 +159,7 @@
           "label": "Steam",
           "url": "https://store.steampowered.com/app/2399830"
         }
-      ],
-      "todo": []
+      ]
     },
     {
       "slug": "starfield",
@@ -200,8 +197,8 @@
           "url": "https://store.steampowered.com/app/1716740"
         }
       ],
-      "todo": [
-        "TODO: StarMap screenshots or a short clip (from the 'origin' pptx in Drive?)"
+      "niceToHave": [
+        "StarMap screenshots or a short clip (from the 'origin' pptx in Drive?)"
       ]
     },
     {
@@ -234,8 +231,8 @@
           "url": "https://store.steampowered.com/app/1151340"
         }
       ],
-      "todo": [
-        "TODO: a public trailer or clip to embed (the old site's video is private)"
+      "niceToHave": [
+        "A public trailer or clip to embed (the old site's video is private)"
       ]
     },
     {
@@ -275,8 +272,8 @@
           "url": "https://store.steampowered.com/app/611670"
         }
       ],
-      "todo": [
-        "TODO: VR systems highlights (the 'Skyrim VR - Systems' slides in Drive)"
+      "niceToHave": [
+        "VR systems highlights (the 'Skyrim VR - Systems' slides in Drive)"
       ]
     },
     {
@@ -312,8 +309,7 @@
           "label": "Steam",
           "url": "https://store.steampowered.com/app/611660"
         }
-      ],
-      "todo": []
+      ]
     },
     {
       "slug": "unannounced",
@@ -406,7 +402,7 @@
       "engine": "Proprietary AS3 engine",
       "accent": "#a3e635",
       "image": "",
-      "summary": "Helped a friend ship a multiplayer versus puzzle-fighter game.",
+      "summary": "Helped a friend ship a multiplayer versus puzzle-fighter game. Rise of Elements is a faithful recreation of it.",
       "bullets": [],
       "tags": [
         "Multiplayer",
@@ -414,10 +410,10 @@
         "AS3"
       ],
       "noPage": true,
-      "todo": [
-        "TODO: link / image"
-      ],
-      "glyph": "FoE"
+      "glyph": "FoE",
+      "niceToHave": [
+        "Link / image"
+      ]
     },
     {
       "slug": "chroma",
@@ -552,8 +548,7 @@
       ],
       "youtube": "MOKNoZSAGGQ",
       "youtubeTitle": "Galactic Arms Race (GAR) Informational Video",
-      "links": [],
-      "todo": []
+      "links": []
     },
     {
       "slug": "agentic-workflows",
@@ -571,10 +566,10 @@
         "Automation"
       ],
       "noPage": true,
-      "todo": [
-        "TODO: diagram or short clip"
-      ],
-      "glyph": "AI⇄"
+      "glyph": "AI⇄",
+      "niceToHave": [
+        "Diagram or short clip"
+      ]
     },
     {
       "slug": "janssengine",
@@ -660,10 +655,9 @@
         "Real-time learning"
       ],
       "noPage": true,
-      "todo": [
-        "TODO: screenshot / playable build link"
-      ],
-      "glyph": "B!"
+      "glyph": "B!",
+      "url": "https://docs.google.com/open?id=0B2xrnhWcUPGQNWIwNGY5OWItZDgyMC00ZWQxLTlkNjctNDI2OThhOWRjMjUx",
+      "linkLabel": "Download"
     },
     {
       "slug": "robot-vision",
@@ -733,10 +727,10 @@
         "Reverse engineering"
       ],
       "noPage": true,
-      "todo": [
-        "TODO: links (Amiibo repo, any playable builds)"
-      ],
-      "glyph": "+++"
+      "glyph": "+++",
+      "niceToHave": [
+        "Links (Amiibo repo, any playable builds)"
+      ]
     }
   ],
   "jams": [
@@ -977,7 +971,6 @@
     "Lately I've been building agentic AI workflows where coding agents drive in-game sub-agents to test and verify their own work. To me, reading code and understanding exactly what it does at a low level now matters more than typing it.",
     "Off the clock I'm a competitive gamer (8th of ~80,000 in GameStop's Super Smash Bros. Brawl national grand finals; Evolve Top 100 Goliath), a game jam regular, and happiest on a river in a canoe."
   ],
-  "aboutTodo": "TODO: newer headshot + where you're based now",
   "gaming": [
     "Super Smash Bros. Brawl — GameStop National Grand Finals, 8th of ~80,000 (2008)",
     "Evolve — Top 100 Goliath (2015)",
