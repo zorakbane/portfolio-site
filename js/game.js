@@ -17,6 +17,7 @@
   const COARSE = matchMedia('(pointer: coarse)').matches;
   const now = () => performance.now();
   let last = now(), raf = 0, dirty = true, lastShop = '', hintUntil = 0;
+  let shipWarnTimer = 0, promoteTimer = 0;
   let pulseAcc = 0, bossAcc = 0, hatchAcc = 0, idleAcc = 0, clearAcc = 0, qaRevealAcc = 0;
   let quality = RM ? 1 : 3, qHold = 0, econId = 0, saveId = 0, lastEcon = now();
   let spawnQuietUntil = 0;
@@ -290,6 +291,7 @@
       <button class="bh-btn" type="button" data-act="pause" title="Pause">❚❚</button>
       <button class="bh-btn" type="button" data-act="rb" hidden title="Rollback">⟲</button>
       <button class="bh-btn bh-playbtn" type="button" data-act="playspace" hidden title="Play Space">Play Space</button>
+      <button class="bh-btn bh-shippending" type="button" data-act="reopen-ship" hidden title="Open ship confirmation">Ship 2.0?</button>
       <button class="bh-btn" type="button" data-act="min" aria-label="Minimize Bug Hunt">–</button>
       <button class="bh-btn" type="button" data-act="quit" aria-label="Quit Bug Hunt">✕</button>
     </div>
@@ -320,20 +322,26 @@
   shipped.id = 'bh-shipped';
   shipped.hidden = true;
   shipped.innerHTML = '<div class="bh-shipped-card">'
+    + '<button type="button" class="bh-btn bh-shipped-x" data-act="dismiss-ship" aria-label="Dismiss">×</button>'
     + '<div class="bh-shipped-banner" data-k="shipped-banner">SHIPPED v1.0!</div>'
     + '<ul class="bh-shipped-stats">'
-    + '<li>Time to kill <b data-k="shipped-ttk">0s</b></li>'
+    + '<li>Time to kill <b data-k="shipped-ttk">—</b></li>'
     + '<li>LOC <b data-k="shipped-loc">0</b></li>'
     + '<li>Bugs squashed <b data-k="shipped-squash">0</b></li>'
     + '</ul>'
     + '<button type="button" class="bh-btn bh-shipped-go" data-act="confirm-ship">Ship 2.0?</button>'
     + '</div>';
-  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, shipBar, shipWarn, shipped);
+  const celebrateCv = d.createElement('canvas');
+  celebrateCv.id = 'bh-celebrate';
+  celebrateCv.setAttribute('aria-hidden', 'true');
+  const celebrateCtx = celebrateCv.getContext('2d');
+  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, shipBar, shipWarn, shipped, celebrateCv);
   const $ = s => hud.querySelector(s);
   const el = {
     loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), commits: $('[data-k=commits]'),
     pause: $('[data-act=pause]'), rb: $('[data-act=rb]'), min: $('[data-act=min]'), quit: $('[data-act=quit]'),
     play: $('[data-act=playspace]'),
+    reopen: $('[data-act=reopen-ship]'),
     log: $('.bh-log'), tip: $('.bh-tip'), shop: $('.bh-shop')
   };
 
@@ -407,9 +415,10 @@
     if (!force && next === DPR && cv.width === Math.floor(Wd * next)) return;
     DPR = next;
     textSprites.clear();
-    for (const c of [cv, codeCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
+    for (const c of [cv, codeCv, celebrateCv]) { c.width = Wd * DPR; c.height = Hd * DPR; }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    celebrateCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     // Keep entities on-screen
     if (derickEnt) { derickEnt.x = clamp(derickEnt.x, 20, Wd - 20); derickEnt.y = clamp(derickEnt.y, 60, Hd - 20); }
     for (const a of agents) {
@@ -916,12 +925,14 @@
     }
   }
   function showShipWarn(text) {
+    if (S.shipPending) return;
     shipWarn.textContent = text;
     shipWarn.hidden = false;
     shipWarn.classList.remove('in');
     void shipWarn.offsetWidth;
     shipWarn.classList.add('in');
-    setTimeout(() => { shipWarn.hidden = true; shipWarn.classList.remove('in'); }, 2800);
+    if (shipWarnTimer) clearTimeout(shipWarnTimer);
+    shipWarnTimer = setTimeout(() => { shipWarn.hidden = true; shipWarn.classList.remove('in'); shipWarnTimer = 0; }, 2800);
   }
   function liveShipNodes() {
     _liveNodes.length = 0;
@@ -1068,67 +1079,198 @@
     log(`Shipped. Prestige ${next + 1}.0 — DJ's all heart now.`);
   }
   function fmtTtk(sec) {
-    sec = Math.max(0, Math.round(sec || 0));
+    // A completed ship never reads as 0s, even if it ended on the same tick it began.
+    sec = Math.max(1, Math.round(Number(sec) || 0));
     if (sec >= 60) return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
     return sec + 's';
   }
   const CONFETTI = [];
   let confettiN = 0;
+  let celebrateOn = false;
+  let emitFallAcc = 0;
+  let emitBurstAcc = 0;
+  const CONFETTI_COLORS = ['#39ff88', '#3de0ff', '#ff3d81', '#ffb142', '#fff36a', '#ececf6', '#7cffc0'];
+  function confettiCap() {
+    if (COARSE) return quality >= 2 ? 48 : quality >= 1 ? 32 : 24;
+    return quality >= 3 ? 80 : quality >= 2 ? 56 : quality >= 1 ? 36 : 24;
+  }
+  function fallEmitRate() {
+    if (COARSE) return quality >= 2 ? 10 : 6;
+    return quality >= 3 ? 16 : quality >= 2 ? 12 : 8;
+  }
+  function burstEvery() {
+    return COARSE ? (quality >= 2 ? 1.05 : 1.35) : (quality >= 3 ? 0.75 : 1.0);
+  }
+  function burstSparks() {
+    if (COARSE) return quality >= 2 ? 8 : 6;
+    return quality >= 3 ? 12 : quality >= 2 ? 9 : 6;
+  }
+  function addConfetti(init) {
+    if (confettiN >= confettiCap()) return null;
+    const c = CONFETTI[confettiN] || (CONFETTI[confettiN] = {});
+    c.kind = 'fall';
+    c.x = 0; c.y = 0; c.vx = 0; c.vy = 0;
+    c.life = 1; c.max = 1; c.spin = 0; c.rot = 0;
+    c.w = 12; c.h = 8; c.r = 6; c.color = '#39ff88';
+    if (init) Object.assign(c, init);
+    if (!c.max) c.max = c.life;
+    confettiN++;
+    return c;
+  }
+  function spawnFirework(ox, oy, sparks) {
+    const n = Math.min(sparks, Math.max(0, confettiCap() - confettiN));
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / Math.max(1, sparks) + Math.random() * 0.35;
+      const spd = 140 + Math.random() * 200;
+      addConfetti({
+        kind: 'spark',
+        x: ox, y: oy,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 40,
+        life: 1.15 + Math.random() * 0.5,
+        r: 5.5 + Math.random() * 5,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        spin: 0, rot: 0
+      });
+    }
+  }
+  function spawnFallPiece() {
+    const inView = Math.random() < 0.28;
+    addConfetti({
+      kind: 'fall',
+      x: Math.random() * Wd,
+      y: inView ? Math.random() * Hd * 0.22 : (-24 - Math.random() * 70),
+      vx: (Math.random() - 0.5) * 160,
+      vy: 80 + Math.random() * 160,
+      life: 2.1 + Math.random() * 1.1,
+      w: 10 + Math.random() * 12,
+      h: 6 + Math.random() * 8,
+      color: CONFETTI_COLORS[(confettiN + (Math.random() * 7 | 0)) % CONFETTI_COLORS.length],
+      spin: (Math.random() - 0.5) * 12,
+      rot: Math.random() * 6
+    });
+  }
   function startShipConfetti() {
     // Juice scales down with quality, but a phone that stepped to quality 0
-    // still gets a light shower. Only prefers-reduced-motion skips it.
-    if (RM) return;
-    const n = quality >= 3 ? 72 : quality >= 2 ? 40 : quality >= 1 ? 18 : 10;
-    for (let i = 0; i < n; i++) {
-      const c = CONFETTI[confettiN] || (CONFETTI[confettiN] = {});
-      c.x = Math.random() * Wd;
-      c.y = -16 - Math.random() * 90;
-      c.vx = (Math.random() - 0.5) * 200;
-      c.vy = 70 + Math.random() * 240;
-      c.life = 1.5 + Math.random() * 1.3;
-      c.max = c.life;
-      c.spin = (Math.random() - 0.5) * 10;
-      c.rot = Math.random() * 6;
-      c.w = 3.5 + Math.random() * 5;
-      c.h = 2.5 + Math.random() * 4;
-      c.color = ['#39ff88', '#3de0ff', '#ff3d81', '#ffb142', '#ececf6'][i % 5];
-      confettiN++;
+    // still gets a light looping burst + shower. Only prefers-reduced-motion skips it.
+    if (RM) { celebrateOn = false; return; }
+    celebrateOn = true;
+    emitFallAcc = 0;
+    emitBurstAcc = 0;
+    if (confettiN > 0) return;
+    const cap = confettiCap();
+    const seed = Math.min(cap, COARSE
+      ? (quality >= 2 ? 22 : quality >= 1 ? 14 : 10)
+      : (quality >= 3 ? 36 : quality >= 2 ? 24 : quality >= 1 ? 16 : 10));
+    for (let i = 0; i < seed; i++) spawnFallPiece();
+    const sparks = burstSparks();
+    const bursts = COARSE ? (quality >= 2 ? 3 : 2) : (quality >= 3 ? 4 : 3);
+    for (let k = 0; k < bursts; k++) {
+      spawnFirework(Wd * (0.22 + Math.random() * 0.56), Hd * (0.28 + Math.random() * 0.34), sparks);
     }
-    if (quality >= 2) {
-      const hues = [145, 190, 330, 42, 50];
-      const bursts = quality >= 3 ? 5 : 3;
-      for (let k = 0; k < bursts; k++) {
-        burst(Wd * (0.18 + Math.random() * 0.64), Hd * (0.18 + Math.random() * 0.32), hues[k % hues.length], quality >= 3 ? 14 : 8, 260, 0.65);
-      }
-    }
+    spawnFirework(Wd * 0.5, Hd * 0.46, sparks);
+  }
+  function stopShipConfetti() {
+    celebrateOn = false;
+    emitFallAcc = 0;
+    emitBurstAcc = 0;
+    confettiN = 0;
+    if (celebrateCtx) celebrateCtx.clearRect(0, 0, Wd, Hd);
   }
   function updateConfetti(dt) {
     for (let i = confettiN - 1; i >= 0; i--) {
       const c = CONFETTI[i];
       c.life -= dt;
       if (c.life <= 0) { CONFETTI[i] = CONFETTI[confettiN - 1]; CONFETTI[confettiN - 1] = c; confettiN--; continue; }
-      c.vy += 420 * dt;
-      c.vx *= 0.99;
+      if (c.kind === 'spark') {
+        c.vy += 150 * dt;
+        c.vx *= 0.985;
+      } else {
+        c.vy += 280 * dt;
+        c.vx *= 0.99;
+      }
       c.x += c.vx * dt;
       c.y += c.vy * dt;
       c.rot = (c.rot || 0) + (c.spin || 0) * dt;
     }
+    if (!celebrateOn || RM) return;
+    const cap = confettiCap();
+    emitFallAcc += dt;
+    const fallDt = 1 / Math.max(1, fallEmitRate());
+    let guard = 12;
+    while (emitFallAcc >= fallDt && confettiN < cap && guard--) {
+      emitFallAcc -= fallDt;
+      spawnFallPiece();
+    }
+    if (emitFallAcc > fallDt) emitFallAcc = fallDt;
+    emitBurstAcc += dt;
+    const every = burstEvery();
+    if (emitBurstAcc >= every) {
+      const room = cap - confettiN;
+      if (room >= 4) {
+        emitBurstAcc = 0;
+        spawnFirework(Wd * (0.2 + Math.random() * 0.6), Hd * (0.26 + Math.random() * 0.36), Math.min(burstSparks(), room));
+      }
+    }
   }
   function drawConfetti() {
+    if (!celebrateCtx) return;
+    celebrateCtx.clearRect(0, 0, Wd, Hd);
     if (!confettiN) return;
-    ctx.save();
+    const cctx = celebrateCtx;
+    cctx.save();
     for (let i = 0; i < confettiN; i++) {
       const c = CONFETTI[i];
       const a = Math.max(0, c.life / c.max);
-      ctx.save();
-      ctx.globalAlpha = a;
-      ctx.translate(c.x, c.y);
-      ctx.rotate(c.rot || 0);
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
-      ctx.restore();
+      cctx.save();
+      cctx.translate(c.x, c.y);
+      cctx.rotate(c.rot || 0);
+      if (c.kind === 'spark') {
+        const r = c.r || 5;
+        cctx.fillStyle = c.color;
+        cctx.globalAlpha = a * 0.38;
+        cctx.beginPath(); cctx.arc(0, 0, r * 2.6, 0, 7); cctx.fill();
+        cctx.globalAlpha = Math.min(1, a * 1.15);
+        cctx.beginPath(); cctx.arc(0, 0, r, 0, 7); cctx.fill();
+        cctx.globalAlpha = a;
+        cctx.fillStyle = '#fff';
+        cctx.beginPath(); cctx.arc(0, 0, r * 0.42, 0, 7); cctx.fill();
+      } else {
+        cctx.fillStyle = c.color;
+        cctx.globalAlpha = a * 0.42;
+        cctx.fillRect(-c.w, -c.h * 0.85, c.w * 2, c.h * 1.7);
+        cctx.globalAlpha = Math.min(1, a * 1.15);
+        cctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+      }
+      cctx.restore();
     }
-    ctx.restore();
+    cctx.restore();
+  }
+  function nextShipLabel() {
+    const rec = S.shipPending;
+    const ver = rec ? (rec.version || ((S.prestige || 0) + 1)) : ((S.prestige || 0) + 1);
+    const next = rec ? (rec.nextVersion || (ver + 1)) : (ver + 1);
+    return 'Ship ' + next + '.0?';
+  }
+  function syncShipHud() {
+    if (!el.reopen) return;
+    const show = !!(S.shipPending && shipped && shipped.hidden);
+    el.reopen.hidden = !show;
+    if (show) {
+      el.reopen.textContent = nextShipLabel();
+      el.reopen.title = 'Open the SHIPPED card';
+    }
+  }
+  function hideCelebrateChrome() {
+    hint.hidden = true;
+    hintUntil = 0;
+    shipWarn.hidden = true;
+    shipWarn.classList.remove('in');
+    if (shipWarnTimer) { clearTimeout(shipWarnTimer); shipWarnTimer = 0; }
+    promote.hidden = true;
+    promote.classList.remove('in');
+    if (promoteTimer) { clearTimeout(promoteTimer); promoteTimer = 0; }
+    if (shipBar) shipBar.hidden = true;
   }
   function showShippedFanfare(fresh) {
     const rec = S.shipPending;
@@ -1145,20 +1287,42 @@
     if (locEl) locEl.textContent = fmt(rec.loc || 0);
     if (sqEl) sqEl.textContent = fmt(rec.squashed || 0);
     if (btn) btn.textContent = 'Ship ' + next + '.0?';
+    hideCelebrateChrome();
+    d.body.classList.add('bh-celebrate');
     shipped.hidden = false;
-    shipped.classList.toggle('in', true);
-    shipped.classList.toggle('rm', !!RM);
-    if (fresh && !RM) {
+    shipped.classList.remove('in', 'rm');
+    void shipped.offsetWidth;
+    if (RM) shipped.classList.add('rm');
+    shipped.classList.add('in');
+    syncShipHud();
+    if (RM) { celebrateOn = false; return; }
+    if (fresh) {
       punch(12);
       flash = Math.max(flash, 0.45);
-      startShipConfetti();
     }
+    startShipConfetti();
   }
   function hideShippedFanfare() {
     if (!shipped) return;
     shipped.hidden = true;
-    shipped.classList.remove('in');
-    confettiN = 0;
+    shipped.classList.remove('in', 'rm');
+    d.body.classList.remove('bh-celebrate');
+    stopShipConfetti();
+  }
+  function dismissShip() {
+    if (!S.shipPending) return false;
+    hideShippedFanfare();
+    syncShipHud();
+    save();
+    render(true);
+    kick();
+    return true;
+  }
+  function reopenShip() {
+    if (!S.shipPending) return false;
+    showShippedFanfare(false);
+    kick();
+    return true;
   }
   function confirmShip() {
     if (!S.shipPending) return false;
@@ -1174,7 +1338,8 @@
     if (!shipBoss) return;
     const defeated = shipBoss;
     defeated.hp = 0;
-    const ttk = defeated.elapsed || Math.max(0, (now() - (defeated.startedAt || now())) / 1000);
+    const wall = defeated.startedAt ? (now() - defeated.startedAt) / 1000 : 0;
+    const ttk = Math.max(1, defeated.elapsed || 0, wall);
     const rec = {
       version: (S.prestige || 0) + 1,
       nextVersion: (S.prestige || 0) + 2,
@@ -1409,6 +1574,7 @@
       el.play.textContent = S.playSpace ? 'Site' : 'Play Space';
       el.play.title = S.playSpace ? 'Back to the site' : 'Open Play Space';
     }
+    syncShipHud();
   }
   function showPromote() {
     promote.hidden = false;
@@ -1416,7 +1582,8 @@
     void promote.offsetWidth;
     promote.classList.add('in');
     log('Promoted: Play Space unlocked.');
-    setTimeout(() => { promote.hidden = true; promote.classList.remove('in'); }, 3400);
+    if (promoteTimer) clearTimeout(promoteTimer);
+    promoteTimer = setTimeout(() => { promote.hidden = true; promote.classList.remove('in'); promoteTimer = 0; }, 3400);
   }
   function notePlayerClick() {
     if (!S.optedIn) return;
@@ -1567,8 +1734,8 @@
   });
 
   shipped.addEventListener('click', e => {
-    const b = e.target.closest('[data-act=confirm-ship]');
-    if (b) confirmShip();
+    if (e.target.closest('[data-act=confirm-ship]')) { confirmShip(); return; }
+    if (e.target.closest('[data-act=dismiss-ship]')) { dismissShip(); return; }
   });
   hud.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -1580,6 +1747,7 @@
     else if (act === 'playspace' && S.playUnlocked) { S.playSpace = !S.playSpace; applyPlaySpace(); }
     else if (act === 'rb') rollback(false);
     else if (act === 'ship') ship();
+    else if (act === 'reopen-ship') reopenShip();
     else if (buy) {
       const it = ITEMS.find(i => i.id === buy);
       if (!it || !it.show()) { dirty = true; render(true); save(); return; }
@@ -1656,9 +1824,13 @@
         const c = cost[it.id]();
         html += `<button class="bh-btn bh-item" type="button" data-buy="${it.id}" ${S.commits < c ? 'disabled' : ''}><span>${it.name}</span><small>${it.desc()}</small><em>${fmt(c)}</em></button>`;
       }
-      const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
-      if (S.rollback && S.loc >= shipGoal() * 0.45) {
-        html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & missiles only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
+      if (S.shipPending) {
+        html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="reopen-ship"><span>${nextShipLabel()}</span><small>Open the SHIPPED card to confirm prestige.</small><em>🏆</em></button>`;
+      } else {
+        const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
+        if (S.rollback && S.loc >= shipGoal() * 0.45) {
+          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & missiles only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
+        }
       }
     }
     if (html !== lastShop) { el.shop.innerHTML = html; lastShop = html; }
@@ -2722,7 +2894,7 @@
     noteFrame(raw);
     if (!RM && quality >= 2) paintCode();
     const live = S.optedIn && !S.paused && !S.hidden &&
-      (bugs.length || partN || heartN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || heartbeatActive() || S.derick || S.agents || S.shipPending || confettiN);
+      (bugs.length || partN || heartN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || heartbeatActive() || S.derick || S.agents || celebrateOn || confettiN || (S.shipPending && shipped && !shipped.hidden));
     if (live) raf = requestAnimationFrame(frame);
     else if (S.optedIn && !S.paused) { raf = 0; }
   }
@@ -2814,7 +2986,7 @@
     escortCount, escorting, notePlayerClick, applyPlaySpace, PLAY_UNLOCK,
     launchMissile, detonateMissile, updateMissile, missileRadius, missileDamage,
     ESCORT_AURA, MISSILE_BOSS_FRAC, ensureDerick, ensureAgents,
-    startFinale, winFinale, prestigeReset, confirmShip, showShippedFanfare, hideShippedFanfare,
+    startFinale, winFinale, prestigeReset, confirmShip, dismissShip, reopenShip, showShippedFanfare, hideShippedFanfare, fmtTtk, confettiCap,
     finaleMaxHp, finaleDpsEstimate, PULSE_BUFF, pulseBuffActive, applyPulseBuff,
     shipGoal, step, IDLE_DERRICK, IDLE_AGENT, IDLE_AGENTIC, IDLE_DEBT,
     get shipBoss() { return shipBoss; },
@@ -2841,6 +3013,7 @@
     setAppearGate(v) { appearGate = Math.max(0, +v || 0); },
     get reducedMotion() { return RM; },
     get confettiN() { return confettiN; },
+    get celebrateOn() { return celebrateOn; },
     kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
