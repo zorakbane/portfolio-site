@@ -7,6 +7,8 @@
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
   window.__bugHunt = { __booting: true };
   const KEY = 'dj-bughunt-v3';
+  const SAVE_KEYS = [KEY, 'dj-bughunt-v2', 'dj-bughunt-v1'];
+  let suppressSave = false;
   const d = document, W = window;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const COARSE = matchMedia('(pointer: coarse)').matches;
@@ -605,9 +607,24 @@
     if (!S.optedIn) return;
     S.paused = true; save(); stopLoops(); syncShell(); log('Quit. Progress kept.');
   }
+  function clearSaveKeys() {
+    for (const k of SAVE_KEYS) {
+      try { localStorage.removeItem(k); } catch {}
+    }
+  }
+  function wipeProgress() {
+    // Stop timers first, then drop every save key and in-memory state so a
+    // pagehide / visibilitychange / interval save cannot rewrite the old run
+    // before reload (the bug that made Reset appear to do nothing on phones).
+    suppressSave = true;
+    stopLoops();
+    clearSaveKeys();
+    Object.keys(S).forEach(k => { delete S[k]; });
+    Object.assign(S, DEF, { t: Date.now(), optedIn: false, paused: true, shop: false });
+  }
   function resetAll() {
-    if (!confirm('Reset Bug Hunt progress? This cannot be undone.')) return;
-    try { localStorage.removeItem(KEY); } catch {}
+    if (!window.confirm('Reset Bug Hunt progress? This cannot be undone.')) return;
+    wipeProgress();
     location.reload();
   }
 
@@ -1188,6 +1205,7 @@
   })();
 
   function save() {
+    if (suppressSave) return;
     S.t = Date.now();
     if (S.optedIn && !S.paused) {
       S.bugs = bugs.slice(0, 20).map(b => ({
@@ -1246,6 +1264,6 @@
         clearAcc, spawnQuiet: Math.max(0, spawnQuietUntil - now()),
       };
     },
-    reset() { stopLoops(); localStorage.removeItem(KEY); location.reload(); }
+    reset() { wipeProgress(); location.reload(); }
   };
 })();

@@ -1,7 +1,8 @@
 /* main.js: reveals, YouTube facades, transitions, lazy-loads the Bug Hunt game. */
 (() => {
   const d = document, RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const SCRIPT = d.currentScript && d.currentScript.src;
+  const SCRIPT = d.currentScript;
+  const GAME_SRC = (SCRIPT && SCRIPT.getAttribute('data-game')) || new URL('game.js', (SCRIPT && SCRIPT.src) || location.href).href;
 
   // Scroll reveals
   const els = d.querySelectorAll('.reveal');
@@ -22,27 +23,11 @@
     b.appendChild(f);
   });
 
-  // Hero title: fit outline SVG to natural glyph width (no compressed A/E), then glitch.
-  function fitHeroOutline() {
-    const svg = d.querySelector('.ht-outline');
-    const text = svg && svg.querySelector('text');
-    if (!svg || !text) return;
-    text.removeAttribute('textLength');
-    text.removeAttribute('lengthAdjust');
-    let w = 0;
-    try { w = text.getComputedTextLength(); } catch { return; }
-    if (!(w > 0)) return;
-    const padX = 18, height = 140;
-    svg.setAttribute('viewBox', `0 0 ${Math.ceil(w + padX * 2)} ${height}`);
-    text.setAttribute('x', String(padX));
-    text.setAttribute('y', '108');
-  }
-  const fontsReady = (d.fonts && d.fonts.ready) ? d.fonts.ready : Promise.resolve();
-  fontsReady.then(fitHeroOutline).catch(() => fitHeroOutline());
-  addEventListener('load', fitHeroOutline);
-  addEventListener('resize', fitHeroOutline);
+  // Hero outline is baked SVG paths — do not remasure or rewrite the viewBox.
+  // Periodic offset-glitch is desktop-only; on phones a drop-shadow looks like a doubled A/E stroke.
   const ht = d.querySelector('.hero-title');
-  if (ht && !RM) setInterval(() => { ht.classList.remove('glitch'); void ht.offsetWidth; ht.classList.add('glitch'); }, 5200);
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (ht && !RM && finePointer) setInterval(() => { ht.classList.remove('glitch'); void ht.offsetWidth; ht.classList.add('glitch'); }, 5200);
 
   // Page transitions: native cross-document View Transitions where supported (CSS @view-transition),
   // otherwise a quick wipe before navigating.
@@ -63,7 +48,7 @@
   }
 
   // Lazy-load the game after the page is idle (keeps first paint fast)
-  const loadGame = () => { const s = d.createElement('script'); s.src = new URL('game.js', SCRIPT || location.href).href; s.async = true; d.body.appendChild(s); };
+  const loadGame = () => { const s = d.createElement('script'); s.src = GAME_SRC; s.async = true; d.body.appendChild(s); };
   const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1200));
   if (d.readyState === 'complete') idle(loadGame, { timeout: 2500 });
   else addEventListener('load', () => idle(loadGame, { timeout: 2500 }));

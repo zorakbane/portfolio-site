@@ -6,6 +6,7 @@
 <title>Fallout 76 | Derick Janssen</title>
 <meta name="description" content="Brought on to ship post-release features: bulldozing, vending, and CAMP decorating. I also worked on the Nuclear Winter battle-royale mode.">
 <meta name="theme-color" content="#07070d">
+<meta name="asset-rev" content="css:0ed8ab3738;js:fbf1d00811;game:6e87e8d660">
 <meta property="og:title" content="Fallout 76 | Derick Janssen">
 <meta property="og:description" content="Brought on to ship post-release features: bulldozing, vending, and CAMP decorating. I also worked on the Nuclear Winter battle-royale mode.">
 <meta property="og:type" content="website">
@@ -65,21 +66,22 @@ p{margin:0 0 1em}
 .glow{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5}
 .g1{width:46vw;height:46vw;max-width:620px;max-height:620px;background:radial-gradient(circle,#ff3d8166,transparent 65%);top:-12%;right:-10%}
 .g2{width:40vw;height:40vw;max-width:520px;max-height:520px;background:radial-gradient(circle,#3de0ff44,transparent 65%);bottom:-20%;left:-12%}
-.hero-title{font:900 clamp(3.4rem,13vw,9.5rem)/.86 var(--sans);text-transform:uppercase;letter-spacing:-.04em;margin:0 0 1.2rem;display:flex;flex-direction:column}
+.hero-title{font:900 clamp(3.4rem,13vw,9.5rem)/.86 var(--sans);text-transform:uppercase;letter-spacing:-.04em;margin:0 0 1.2rem;display:flex;flex-direction:column;width:100%;max-width:100%}
 .ht-line{position:relative;display:block;width:max-content;max-width:100%}
-/* SVG outline — avoids WebKit -webkit-text-stroke A/E counter glitches.
-   No textLength/spacingAndGlyphs: that squashed glyphs and made A/E strokes overlap.
-   Natural advances + extra tracking; viewBox is fitted in main.js after fonts load. */
-.ht-2{color:var(--green);line-height:0;width:100%;max-width:100%}
-.ht-outline{display:block;width:min(100%,11.5em);max-width:100%;height:auto;overflow:visible;color:var(--green);margin:0 0 .15em}
-.ht-outline text{font:900 110px var(--sans);text-transform:uppercase;letter-spacing:.08em}
+/* Baked SVG paths (Inter 900). No live <text>, no viewBox refit, no font-metric races.
+   Sized to the title’s em so it matches DERICK’s cap-height and clamps to the container
+   in portrait and landscape. overflow hidden so it can never cover DERICK or spill off-screen. */
+.ht-2{color:var(--green);line-height:0;width:100%;max-width:100%;letter-spacing:0;font-size:inherit}
+.ht-outline{display:block;width:5.4em;max-width:100%;height:auto;aspect-ratio:593/98;overflow:hidden;color:var(--green);margin:0 0 .12em;font-size:inherit}
 .ht-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .ht-line::before,.ht-line::after{content:attr(data-text);position:absolute;inset:0;pointer-events:none;opacity:0}
 .ht-line:not(.ht-2)::before{color:var(--pink);-webkit-text-stroke:0;transform:translate(-4px,0)}
 .ht-line:not(.ht-2)::after{color:var(--cyan);-webkit-text-stroke:0;transform:translate(4px,0)}
-.ht-2::before,.ht-2::after{content:none}
+.ht-2::before,.ht-2::after{content:none!important}
 .hero-title:hover .ht-line:not(.ht-2)::before,.hero-title:hover .ht-line:not(.ht-2)::after,.hero-title.glitch .ht-line:not(.ht-2)::before,.hero-title.glitch .ht-line:not(.ht-2)::after{animation:glitch .35s steps(2) 1}
-.hero-title:hover .ht-outline,.hero-title.glitch .ht-outline{animation:outlineglitch .35s steps(2) 1}
+@media (hover:hover) and (pointer:fine){
+  .hero-title:hover .ht-outline,.hero-title.glitch .ht-outline{animation:outlineglitch .35s steps(2) 1}
+}
 @keyframes outlineglitch{0%{filter:drop-shadow(-3px 0 var(--pink))}50%{filter:drop-shadow(3px 0 var(--cyan))}100%{filter:none}}
 @keyframes glitch{0%{opacity:.8;clip-path:inset(10% 0 60% 0)}50%{opacity:.8;clip-path:inset(55% 0 10% 0);transform:translate(6px,-2px)}100%{opacity:0;clip-path:inset(40% 0 40% 0)}}
 .hero-role{font:700 clamp(1rem,2.4vw,1.35rem)/1.3 var(--mono);color:var(--text);margin-bottom:.8rem}
@@ -329,7 +331,7 @@ main{position:relative;z-index:2}
 }
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js" defer></script>
+<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=6e87e8d660"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
