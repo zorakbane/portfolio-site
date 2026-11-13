@@ -17,6 +17,7 @@ const hashOf = buf => crypto.createHash('sha256').update(buf).digest('hex').slic
 const CSS_HASH = hashOf(CSS);
 const MAIN_HASH = hashOf(fs.readFileSync(path.join(ROOT, 'static/js/main.js')));
 const GAME_HASH = hashOf(fs.readFileSync(path.join(ROOT, 'static/js/game.js')));
+const CF_WEB_ANALYTICS_TOKEN = 'd32b06ba149348ff889364285db9fec3';
 const S = data.site;
 
 // Baked Inter 900 outlines with overlaps removed (variable-font A/N are
@@ -98,6 +99,7 @@ ${body}
 </footer>
 <div class="wipe" aria-hidden="true"></div>
 <template id="bh-wordmark-outline">${JANSSEN_OUTLINE}</template>
+<script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "${CF_WEB_ANALYTICS_TOKEN}"}'></script>
 </body>
 </html>`;
 }
