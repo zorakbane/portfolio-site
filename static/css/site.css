@@ -270,7 +270,7 @@ html:not(.bh-playing) #bh-canvas,html:not(.bh-playing) #bh-code{display:none}
 .bh-ready-btn:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 0 0 1px #39ff88aa,0 16px 40px -8px #39ff88aa}
 .bh-ready-btn:active{transform:scale(.94)}
 .bh-ready-btn small{font:600 .65rem/1 var(--mono);color:var(--muted);letter-spacing:.14em}
-.bh-ready-pulse{position:absolute;inset:-6px;border-radius:18px;border:2px solid var(--green);opacity:.55;animation:readypulse 1.4s var(--spring) infinite;pointer-events:none}
+.bh-ready-pulse{position:absolute;inset:-6px;border-radius:18px;border:2px solid var(--green);opacity:.55;animation:readypulse 1.4s var(--spring) 6;pointer-events:none}
 .bh-resume .bh-ready-btn{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 0 1px #3de0ff33,0 12px 36px -10px #3de0ff66}
 .bh-resume .bh-ready-pulse{border-color:var(--cyan)}
 @keyframes readypulse{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.06);opacity:.15}}
