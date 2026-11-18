@@ -431,14 +431,16 @@
   }
   // The game and code canvases cover the whole viewport and are cleared/redrawn every frame, so their cost
   // scales with backing-store pixels (Firefox: 1440p at DPR 1.5 ran the late game at ~27 fps vs ~59 at DPR 1).
-  // Cap HiDPI extra resolution at a 1440p-sized budget; never drop below DPR 1 because of the budget alone.
+  // Over a 1440p-sized budget, HiDPI desktops render the game canvases at DPR 1 (never lower because of the budget).
   // Phones/tablets sit well under it (S26 Ultra ≈ 0.85M px, Tab S8 Ultra ≈ 2.3M px at the coarse 1.5 cap).
   const CANVAS_PIXEL_BUDGET = 2560 * 1440;
   function currentDpr() {
     const dpr = Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
     const area = Math.max(1, (W.innerWidth || 1) * (W.innerHeight || 1));
     if (area * dpr * dpr <= CANVAS_PIXEL_BUDGET) return dpr;
-    return Math.min(dpr, Math.max(1, Math.round(Math.sqrt(CANVAS_PIXEL_BUDGET / area) * 20) / 20));
+    // Snap straight to 1 rather than an in-between ratio: a backing store that doesn't map 1:1 or 1:DPR onto
+    // device pixels has to be resampled on every composite (1080p@1.5 boss fight: ~35 fps at 1.33 vs ~58 at 1).
+    return Math.min(dpr, 1);
   }
   function celebrateDpr() {
     // Fanfare does not need the game canvas DPR. Keep it cheap on phones.
