@@ -196,14 +196,23 @@
     const cy = derickEnt ? derickEnt.y : Hd * 0.4;
     return { x: clamp(cx + Math.cos(ang) * r, 24, Math.max(25, Wd - 24)), y: clamp(cy + Math.sin(ang) * r, 64, Math.max(65, Hd - 24)) };
   }
+  const _nearNodes = [];
   function shipEscortSlot(i, n, range) {
-    // A staggered line under the ship centred on Derick: covers a few hardpoints, follows him along the hull.
+    // Under the ship the escort spreads over the few live hardpoints nearest Derick (about three agents per node,
+    // staggered), so every agent sits within laser range of a node and the squad follows him along the hull.
     n = Math.max(1, n);
-    const gap = Math.min(76, Math.max(44, (Wd - 60) / n));
     const cx = derickEnt ? derickEnt.x : Wd * 0.5;
-    const x = clamp(cx + (i - (n - 1) / 2) * gap, 24, Math.max(25, Wd - 24));
-    const y = shipLineY(range) + (i % 2 ? 18 : 0);
-    return { x, y };
+    if (i === 0) {
+      _nearNodes.length = 0;
+      for (const nd of liveShipNodes()) _nearNodes.push(nd);
+      _nearNodes.sort((p, q) => Math.abs(p.x - cx) - Math.abs(q.x - cx));
+      _nearNodes.length = Math.min(_nearNodes.length, Math.max(1, Math.ceil(n / 3)));
+    }
+    const y0 = shipLineY(range);
+    if (!_nearNodes.length) return { x: cx, y: y0 };
+    const m = _nearNodes.length, nd = _nearNodes[i % m], k = Math.floor(i / m);
+    const side = k % 2 ? 1 : -1, ring = Math.floor(k / 2);
+    return { x: clamp(nd.x + side * (16 + ring * 14), 24, Math.max(25, Wd - 24)), y: y0 + ring * 16 + (k % 2) * 8 };
   }
   const ESCORT_AURA = 0.25; // modest share of Derick DPS while holding formation
   const MISSILE_BOSS_FRAC = 0.35; // one blast never deletes a full-health boss
@@ -1112,7 +1121,7 @@
   // have to move along the ship to reach far nodes instead of lasering across it.
   function shipLineY(range) {
     const ny = shipBoss && shipBoss.nodes && shipBoss.nodes[0] ? shipBoss.nodes[0].y : 60;
-    return clamp(ny + range * 0.6, 70, Math.max(71, Hd - 24));
+    return clamp(ny + range * 0.45, 70, Math.max(71, Hd - 24));
   }
   function shipBossLive() { return !!(shipBoss && shipBoss.hp > 0 && liveShipNodes().length); }
   function canReachShip(x, y, range) {
