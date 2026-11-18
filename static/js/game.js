@@ -431,15 +431,20 @@
   }
   // The game and code canvases cover the whole viewport and are cleared/redrawn every frame, so their cost
   // scales with backing-store pixels (Firefox: 1440p at DPR 1.5 ran the late game at ~27 fps vs ~59 at DPR 1).
-  // Over a 1440p-sized budget, HiDPI desktops render the game canvases at DPR 1 (never lower because of the budget).
+  // Over a 4K-sized budget (e.g. 5K iMac), HiDPI desktops render the game canvases at DPR 1 (never lower because of
+  // the budget). 2× laptops/4K screens stay at 2×: a 1× canvas upscaled 2× cost more than drawing 2× (Safari engine,
+  // MacBook 1440×900@2: ~7 fps at 1× vs ~22–42 at 2× without GPU; Firefox holds 59 at 2× even at 3840×2160).
   // Phones/tablets sit well under it (S26 Ultra ≈ 0.85M px, Tab S8 Ultra ≈ 2.3M px at the coarse 1.5 cap).
-  const CANVAS_PIXEL_BUDGET = 2560 * 1440;
+  const CANVAS_PIXEL_BUDGET = 3840 * 2160;
   function currentDpr() {
     let dpr = Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
     // Desktop: only whole-number ratios. Windows laptops at 125%/150% scaling (and Safari/Firefox zoom) report
     // fractional DPRs; a 1.25× backing store gets resampled on every composite, which halved the boss fight in
     // Firefox at 1366×768@1.25 (≈25 → ≈52 fps at 1×). Phones/tablets keep their GPU-friendly fractional caps.
-    if (!COARSE && dpr > 1 && dpr % 1) dpr = Math.floor(dpr);
+    // That includes the lowest tier's 0.7: below 1× the upscale costs more than the pixels it saves (Safari engine
+    // at 2560×1440 fell to ~15 fps at 0.7 vs ~48 at 1×), so desktop canvases use the device's whole-number ratio (max 2).
+    // Quality tiers on desktop therefore shed effects, not resolution.
+    if (!COARSE) dpr = Math.min(2, Math.max(1, Math.floor(W.devicePixelRatio || 1)));
     const area = Math.max(1, (W.innerWidth || 1) * (W.innerHeight || 1));
     if (area * dpr * dpr <= CANVAS_PIXEL_BUDGET) return dpr;
     // Snap straight to 1 rather than an in-between ratio: a backing store that doesn't map 1:1 or 1:DPR onto
