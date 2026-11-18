@@ -431,11 +431,20 @@
   }
   // The game and code canvases cover the whole viewport and are cleared/redrawn every frame, so their cost
   // scales with backing-store pixels (Firefox: 1440p at DPR 1.5 ran the late game at ~27 fps vs ~59 at DPR 1).
-  // Over a 1440p-sized budget, HiDPI desktops render the game canvases at DPR 1 (never lower because of the budget).
+  // Over a 4K-sized budget (e.g. 5K iMac), HiDPI desktops render the game canvases at DPR 1 (never lower because of
+  // the budget). 2× laptops/4K screens stay at 2×: a 1× canvas upscaled 2× cost more than drawing 2× (Safari engine,
+  // MacBook 1440×900@2: ~7 fps at 1× vs ~22–42 at 2× without GPU; Firefox holds 59 at 2× even at 3840×2160).
   // Phones/tablets sit well under it (S26 Ultra ≈ 0.85M px, Tab S8 Ultra ≈ 2.3M px at the coarse 1.5 cap).
-  const CANVAS_PIXEL_BUDGET = 2560 * 1440;
+  const CANVAS_PIXEL_BUDGET = 3840 * 2160;
   function currentDpr() {
-    const dpr = Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
+    let dpr = Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
+    // Desktop: only whole-number ratios. Windows laptops at 125%/150% scaling (and Safari/Firefox zoom) report
+    // fractional DPRs; a 1.25× backing store gets resampled on every composite, which halved the boss fight in
+    // Firefox at 1366×768@1.25 (≈25 → ≈52 fps at 1×). Phones/tablets keep their GPU-friendly fractional caps.
+    // That includes the lowest tier's 0.7: below 1× the upscale costs more than the pixels it saves (Safari engine
+    // at 2560×1440 fell to ~15 fps at 0.7 vs ~48 at 1×), so desktop canvases use the device's whole-number ratio (max 2).
+    // Quality tiers on desktop therefore shed effects, not resolution.
+    if (!COARSE) dpr = Math.min(2, Math.max(1, Math.floor(W.devicePixelRatio || 1)));
     const area = Math.max(1, (W.innerWidth || 1) * (W.innerHeight || 1));
     if (area * dpr * dpr <= CANVAS_PIXEL_BUDGET) return dpr;
     // Snap straight to 1 rather than an in-between ratio: a backing store that doesn't map 1:1 or 1:DPR onto
@@ -444,7 +453,7 @@
   }
   function celebrateDpr() {
     // Fanfare does not need the game canvas DPR. Keep it cheap on phones.
-    return Math.min(COARSE ? 1.05 : 1.15, W.devicePixelRatio || 1);
+    return COARSE ? Math.min(1.05, W.devicePixelRatio || 1) : 1;
   }
   let celebrateDPR = 1;
   function resizeCelebrate(force) {
@@ -1294,15 +1303,24 @@
     map.set(color, c);
     return c;
   }
-  let confettiPainted = true;
+  let confettiPainted = true, celebrateShown = true;
+  // The fanfare canvas is a viewport-sized layer above the page; while empty it is display:none so engines that
+  // composite in software (WebKit without GPU) don't blend an empty full-screen layer on every scroll frame.
+  function showCelebrateCv(on) {
+    if (on === celebrateShown) return;
+    celebrateShown = on; celebrateCv.style.display = on ? '' : 'none';
+  }
+  showCelebrateCv(false);
   function drawConfetti() {
     if (!celebrateCtx) return;
     // Only touch the full-screen fanfare canvas when there is (or just was) confetti on it. Clearing an
     // already-empty canvas every frame still invalidates a viewport-sized layer for the compositor.
     if (!confettiN) {
       if (confettiPainted) { celebrateCtx.clearRect(0, 0, Wd, Hd); confettiPainted = false; }
+      showCelebrateCv(false);
       return;
     }
+    showCelebrateCv(true);
     celebrateCtx.clearRect(0, 0, Wd, Hd);
     confettiPainted = true;
     const cctx = celebrateCtx;
@@ -3165,8 +3183,18 @@
       if (--qHold < -24) { quality++; qHold = 0; frameTimes.length = 0; resize(true); }
     } else if (qHold > 0) qHold--; else if (qHold < 0) qHold++;
   }
+  // Exactly one rAF loop may run. step()/draw() can call kick() (spawns, boss phases, ship card…); while a frame is
+  // running that must not schedule a second loop, or the loops stack up (seen: ~5 loops in the ship boss), each
+  // frame does the work several times, and the adaptive-quality timer sees ~4 ms "frames" and never steps down.
+  let inFrame = false;
   function frame() {
-    raf = 0;
+    raf = 0; inFrame = true;
+    let live = false;
+    try { live = frameWork(); } finally { inFrame = false; }
+    if (live) { if (!raf) raf = requestAnimationFrame(frame); }
+    else if (S.optedIn && !S.paused) { raf = 0; }
+  }
+  function frameWork() {
     const t = now(); const raw = t - last; last = t;
     let dt = Math.min(0.05, raw / 1000);
     if (t < freezeUntil) dt = 0;
@@ -3178,13 +3206,11 @@
       if (!RM && quality >= 2) paintCode();
     }
     noteFrame(raw);
-    const live = S.optedIn && !S.paused && !S.hidden &&
+    return S.optedIn && !S.paused && !S.hidden &&
       (bugs.length || partN || heartN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || heartbeatActive() || S.derick || S.agents || celebrateOn || confettiN || (S.shipPending && shipped && !shipped.hidden));
-    if (live) raf = requestAnimationFrame(frame);
-    else if (S.optedIn && !S.paused) { raf = 0; }
   }
   function kick() {
-    if (!raf && S.optedIn && !S.paused && !S.hidden && !d.hidden) {
+    if (!raf && !inFrame && S.optedIn && !S.paused && !S.hidden && !d.hidden) {
       last = now(); raf = requestAnimationFrame(frame);
     }
   }

@@ -50,7 +50,9 @@
       w = Math.max(1, Math.round(r.width)); h = Math.max(1, Math.round(r.height));
       const topY = -1.5 * h; // element top relative to the origin
       bandTop = Math.max(0, Math.floor(h + topY * COS * proj(topY)) - 2);
-      dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      // Whole-number ratio only: a fractional backing store (e.g. 1.5 on a 2× Retina screen) is resampled on every
+      // composite, and in WebKit's software path that alone pinned the idle page at ~5 fps (MacBook 1440×900@2).
+      dpr = (window.devicePixelRatio || 1) >= 2 ? 2 : 1;
       const bh = h - bandTop;
       cv.style.top = bandTop + 'px'; cv.style.height = bh + 'px';
       cv.width = Math.round(w * dpr); cv.height = Math.max(1, Math.round(bh * dpr));
