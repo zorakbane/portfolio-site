@@ -5,6 +5,7 @@
    Sub-Agent Workflow (the only bombers), Movement Tuning / Multiplayer Sync,
    command mode at 10 agents (faster pulses, no parking), rollback, Ship finale + prestige.
    Click DJ for hearts / Heartbeat buff. Play Space after 25 player actions.
+   In the play space, plain keypresses type hackertyper-style code (+KEY_LOC each) into the HUD feed.
    Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
@@ -138,6 +139,14 @@
   const IDLE_DERRICK = 1.4;
   const IDLE_AGENT = 0.35;
   const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
+  // Hackertyper typing: each plain keypress in the play space writes KEY_LOC lines of code and reveals
+  // KEY_CHARS characters in the HUD code feed. Credited keys are rate-limited (and auto-repeat ignored) so
+  // mashing can't outrun the progression: ~11 keys/s × 3 = ~33 LOC/s max, with bugs hatching from the
+  // typed LOC at the same slow automatic-debt rate as idle code (not the instant hatch a click gives).
+  const KEY_LOC = 3;
+  const KEY_CHARS = 3;
+  const KEY_MIN_GAP_MS = 90;
+  const FEED_LINES = 4;
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
   const HATCH_MIN = 0.18;
   const HATCH_SPAN = 0.17; // jittered 180–350ms between automatic hatches
@@ -304,6 +313,7 @@
       <button class="bh-btn" type="button" data-act="min" aria-label="Minimize Bug Hunt">–</button>
       <button class="bh-btn" type="button" data-act="quit" aria-label="Quit Bug Hunt">✕</button>
     </div>
+    <pre class="bh-feed" aria-hidden="true" hidden></pre>
     <div class="bh-body"><p class="bh-log" aria-live="polite"></p><p class="bh-tip"></p><div class="bh-shop"></div>
     <div class="bh-footer"><button class="bh-btn bh-reset" type="button" data-act="reset">Reset progress</button></div></div>`;
   const hint = d.createElement('div'); hint.id = 'bh-hint'; hint.hidden = true;
@@ -419,8 +429,18 @@
     if (coarse) capD = Math.min(capD, q >= 3 ? 1.5 : q >= 2 ? 1.25 : capD);
     return capD;
   }
+  // The game and code canvases cover the whole viewport and are cleared/redrawn every frame, so their cost
+  // scales with backing-store pixels (Firefox: 1440p at DPR 1.5 ran the late game at ~27 fps vs ~59 at DPR 1).
+  // Over a 1440p-sized budget, HiDPI desktops render the game canvases at DPR 1 (never lower because of the budget).
+  // Phones/tablets sit well under it (S26 Ultra ≈ 0.85M px, Tab S8 Ultra ≈ 2.3M px at the coarse 1.5 cap).
+  const CANVAS_PIXEL_BUDGET = 2560 * 1440;
   function currentDpr() {
-    return Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
+    const dpr = Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
+    const area = Math.max(1, (W.innerWidth || 1) * (W.innerHeight || 1));
+    if (area * dpr * dpr <= CANVAS_PIXEL_BUDGET) return dpr;
+    // Snap straight to 1 rather than an in-between ratio: a backing store that doesn't map 1:1 or 1:DPR onto
+    // device pixels has to be resampled on every composite (1080p@1.5 boss fight: ~35 fps at 1.33 vs ~58 at 1).
+    return Math.min(dpr, 1);
   }
   function celebrateDpr() {
     // Fanfare does not need the game canvas DPR. Keep it cheap on phones.
@@ -1274,10 +1294,17 @@
     map.set(color, c);
     return c;
   }
+  let confettiPainted = true;
   function drawConfetti() {
     if (!celebrateCtx) return;
+    // Only touch the full-screen fanfare canvas when there is (or just was) confetti on it. Clearing an
+    // already-empty canvas every frame still invalidates a viewport-sized layer for the compositor.
+    if (!confettiN) {
+      if (confettiPainted) { celebrateCtx.clearRect(0, 0, Wd, Hd); confettiPainted = false; }
+      return;
+    }
     celebrateCtx.clearRect(0, 0, Wd, Hd);
-    if (!confettiN) return;
+    confettiPainted = true;
     const cctx = celebrateCtx;
     for (let i = 0; i < confettiN; i++) {
       const c = CONFETTI[i];
@@ -1794,6 +1821,61 @@
       log(n ? '↑↑↓↓←→←→BA — extra pulse volley.' : '↑↑↓↓ Konami armed.');
     } else log('↑↑↓↓ Konami armed.');
     punch(6); kick();
+  }, { passive: true });
+
+  // ---------- hackertyper typing ----------
+  const feedEl = hud.querySelector('.bh-feed');
+  const feedText = d.createTextNode('');
+  if (feedEl) feedEl.appendChild(feedText);
+  let feedPos = (S.codeIdx || 0) % CORPUS.length, feedBuf = '', feedRaf = 0, lastKeyAt = 0, hudHover = false;
+  hud.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hudHover = true; }, { passive: true });
+  hud.addEventListener('pointerleave', () => { hudHover = false; }, { passive: true });
+  const FORM_FIELD = 'input,textarea,select,[contenteditable=""],[contenteditable=true]';
+  function inPlaySpace() {
+    if (!S.optedIn || S.paused || S.shelved || shipCardUp()) return false;
+    const ae = d.activeElement;
+    return !!(S.playSpace || hudHover || (ae && ae !== d.body && hud.contains(ae)));
+  }
+  function typingKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.defaultPrevented) return false;
+    const t = e.target;
+    if (t && t.closest && t.closest(FORM_FIELD)) return false;
+    const k = e.key;
+    const activates = k === 'Enter' || k === ' ';
+    // Enter/Space press a focused button or link; never steal those.
+    if (activates && t && t.closest && t.closest('button,a[href],[role=button],summary')) return false;
+    // Outside Play Space the page still scrolls with Space, so leave it alone there.
+    if (k === ' ') return !!S.playSpace;
+    if (k === 'Enter' || k === 'Backspace') return true;
+    return k.length === 1; // printable only: skips Tab, arrows, Escape, F-keys, Page/Home/End, modifiers
+  }
+  function nextFeedChars(n) {
+    let out = '';
+    for (let i = 0; i < n; i++) { out += CORPUS[feedPos]; feedPos = (feedPos + 1) % CORPUS.length; }
+    return out;
+  }
+  function flushFeed() {
+    feedRaf = 0;
+    // keep only the last FEED_LINES lines: the node never grows, and the box has a fixed size (contain: strict)
+    let cut = feedBuf.length, lines = 0;
+    while (cut > 0) { const j = feedBuf.lastIndexOf('\n', cut - 1); if (j < 0) break; if (++lines >= FEED_LINES) { feedBuf = feedBuf.slice(j + 1); break; } cut = j; }
+    feedText.data = feedBuf;
+    if (feedEl && feedEl.hidden) feedEl.hidden = false;
+  }
+  function typeKey() {
+    const t = now();
+    if (t - lastKeyAt < KEY_MIN_GAP_MS) return false;
+    lastKeyAt = t;
+    feedBuf += nextFeedChars(KEY_CHARS);
+    if (feedEl && !feedRaf) feedRaf = requestAnimationFrame(flushFeed);
+    addCode(KEY_LOC, null, null, false);
+    if (!S.intro) { S.intro = true; hint.hidden = true; }
+    kick();
+    return true;
+  }
+  d.addEventListener('keydown', e => {
+    if (e.repeat || !inPlaySpace() || !typingKey(e)) return;
+    typeKey();
   }, { passive: true });
 
   ready.addEventListener('click', e => {
@@ -2825,6 +2907,143 @@
     ctx.restore();
   }
 
+  // ---------- batched drawing ----------
+  // Each beginPath/stroke/fill is a separate raster job (and an IPC message with remote/accelerated canvas in
+  // Firefox). Lasers, agents, subs and trails are grouped by style and a 4-step alpha bucket so a late-game
+  // frame issues a handful of draw calls instead of a few hundred.
+  const A_STEPS = 4;
+  const aBucket = a => Math.max(1, Math.min(A_STEPS, Math.ceil(a * A_STEPS)));
+  const aOf = q => (q - 0.5) / A_STEPS;
+  const _lg = new Map();
+  function drawLasers() {
+    if (!lasers.length) return;
+    if (_lg.size > 48) _lg.clear();
+    for (const g of _lg.values()) g.n = 0;
+    for (const z of lasers) {
+      const q = aBucket(z.life / z.max), color = z.color || LASER_COLOR.derick, wide = z.wide || 1;
+      const key = color + '|' + wide + '|' + q + (z.boosted ? 'b' : '');
+      let g = _lg.get(key);
+      if (!g) { g = { color, wide, q, boosted: !!z.boosted, n: 0, items: [] }; _lg.set(key, g); }
+      g.items[g.n++] = z;
+    }
+    ctx.lineCap = 'butt';
+    for (const g of _lg.values()) {
+      if (!g.n || !g.boosted) continue;
+      ctx.globalAlpha = aOf(g.q) * 0.3;
+      ctx.strokeStyle = LASER_COLOR.buffed;
+      ctx.lineWidth = g.wide * 3.1;
+      ctx.beginPath();
+      for (let i = 0; i < g.n; i++) { const z = g.items[i]; ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); }
+      ctx.stroke();
+    }
+    for (const g of _lg.values()) {
+      if (!g.n) continue;
+      const a = aOf(g.q);
+      ctx.globalAlpha = a * 0.85;
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = g.wide * (0.7 + a * 0.4);
+      ctx.beginPath();
+      for (let i = 0; i < g.n; i++) { const z = g.items[i]; ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#fff';
+    for (let q = 1; q <= A_STEPS; q++) {
+      let any = false;
+      for (const g of _lg.values()) {
+        if (!g.n || g.q !== q) continue;
+        if (!any) { ctx.beginPath(); any = true; }
+        for (let i = 0; i < g.n; i++) { const z = g.items[i]; ctx.moveTo(z.x2 + 1.4, z.y2); ctx.arc(z.x2, z.y2, 1.4, 0, 7); }
+      }
+      if (any) { ctx.globalAlpha = aOf(q) * 0.5; ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function trailPass(list, color, alphaMul, r0, rk, pick) {
+    // list: owners with .trail; pick(owner) → whether to draw it
+    ctx.fillStyle = color;
+    for (let q = 1; q <= A_STEPS; q++) {
+      let any = false;
+      for (const o of list) {
+        const t = pick(o);
+        if (!t || !t.length) continue;
+        for (const p of t) {
+          const al = Math.max(0, p.life / 0.28);
+          if (aBucket(al) !== q || al <= 0) continue;
+          if (!any) { ctx.beginPath(); any = true; }
+          const r = r0 + al * rk;
+          ctx.moveTo(p.x + r, p.y); ctx.arc(p.x, p.y, r, 0, 7);
+        }
+      }
+      if (any) { ctx.globalAlpha = aOf(q) * alphaMul; ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+  const AG_STYLE = [
+    { ring: () => LASER_COLOR.buffed, dot: 'rgba(255,177,66,0.7)' },
+    { ring: () => 'rgba(62,198,255,0.85)', dot: 'rgba(62,198,255,0.6)' },
+    { ring: () => 'rgba(62,198,255,0.55)', dot: 'rgba(62,198,255,0.3)' },
+  ];
+  function drawAgents() {
+    if (!agents.length) return;
+    ctx.save();
+    // trails (missile-out trails are amber, others blue)
+    trailPass(agents, 'rgba(255,177,66,0.95)', 0.6, 1.5, 2.4, a => (a.missilePhase === 'out' ? a.trail : null));
+    trailPass(agents, 'rgba(62,198,255,0.8)', 0.6, 1.5, 2.4, a => (a.missilePhase !== 'out' ? a.trail : null));
+    // turret bodies, batched by style
+    ctx.lineWidth = 1.15;
+    for (let st = 0; st < AG_STYLE.length; st++) {
+      let any = false;
+      for (const a of agents) {
+        if (a.missile && a.missilePhase === 'out') continue;
+        const sty = agentBuffed(a) ? 0 : a.chasing ? 1 : 2;
+        if (sty !== st) continue;
+        if (!any) { ctx.beginPath(); any = true; }
+        ctx.moveTo(a.x + 5, a.y); ctx.arc(a.x, a.y, 5, 0, 7);
+      }
+      if (!any) continue;
+      ctx.strokeStyle = AG_STYLE[st].ring(); ctx.stroke();
+      ctx.beginPath();
+      for (const a of agents) {
+        if (a.missile && a.missilePhase === 'out') continue;
+        if ((agentBuffed(a) ? 0 : a.chasing ? 1 : 2) !== st) continue;
+        ctx.moveTo(a.x + 2.5, a.y); ctx.arc(a.x, a.y, 2.5, 0, 7);
+      }
+      ctx.fillStyle = AG_STYLE[st].dot; ctx.fill();
+    }
+    ctx.restore();
+    // rare cases keep the per-entity path: legacy missile agents and in-flight sub bombs
+    for (const a of agents) {
+      if (a.missile && a.missilePhase === 'out') { const t = a.trail; a.trail = null; drawAgent(a); a.trail = t; }
+    }
+    drawSubs();
+  }
+  function drawSubs() {
+    const subs = _subs; subs.length = 0;
+    for (const a of agents) { const s = a.sub; if (s && s.state !== 'cd') subs.push(s); }
+    if (!subs.length) return;
+    ctx.save();
+    trailPass(subs, 'rgba(255,80,160,0.95)', 0.55, 1.2, 2, s => s.trail);
+    const orbit = s => !(s.state === 'out' || (s.missile && s.missilePhase === 'out'));
+    let any = false;
+    ctx.beginPath();
+    for (const s of subs) { if (!orbit(s)) continue; const r = 7 * (s.pop || 1); ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, 7); any = true; }
+    if (any) {
+      ctx.fillStyle = 'rgba(255,61,129,0.22)'; ctx.fill();
+      ctx.beginPath();
+      for (const s of subs) { if (!orbit(s)) continue; const r = 3.3 * (s.pop || 1); ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, 7); }
+      ctx.strokeStyle = 'rgba(255,61,129,0.85)'; ctx.lineWidth = 1.05; ctx.stroke();
+      ctx.beginPath();
+      for (const s of subs) { if (!orbit(s)) continue; const r = 1.6 * (s.pop || 1); ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, 7); }
+      ctx.fillStyle = 'rgba(255,180,200,0.95)'; ctx.fill();
+    }
+    ctx.restore();
+    for (const s of subs) {
+      if (orbit(s)) continue;
+      const t = s.trail; s.trail = null; drawSub({ sub: s }); s.trail = t;
+    }
+  }
+  const _subs = [];
+
   function shipCardUp() {
     return !!(S.shipPending && shipped && !shipped.hidden);
   }
@@ -2851,24 +3070,7 @@
     for (const b of bugs) drawBug(b);
     drawShip();
     drawRangeRings();
-    // thin lasers
-    for (const z of lasers) {
-      const a = z.life / z.max;
-      if (z.boosted) {
-        ctx.globalAlpha = a * 0.3;
-        ctx.strokeStyle = LASER_COLOR.buffed;
-        ctx.lineWidth = (z.wide || 1) * 3.1;
-        ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
-      }
-      ctx.globalAlpha = a * 0.85;
-      ctx.strokeStyle = z.color || LASER_COLOR.derick;
-      ctx.lineWidth = (z.wide || 1) * (0.7 + a * 0.4);
-      ctx.shadowBlur = 0;
-      ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
-      ctx.globalAlpha = a * 0.5;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(z.x2, z.y2, 1.4, 0, 7); ctx.fill();
-    }
+    drawLasers();
     ctx.globalAlpha = 1;
     for (const s of shields) {
       const a = s.life / s.max;
@@ -2900,7 +3102,7 @@
       }
       if (anyAura) ctx.fill();
     }
-    for (const a of agents) drawAgent(a);
+    drawAgents();
     drawDerick();
     for (const e of explosions) {
       const u = Math.max(0, e.life / e.max);
@@ -3103,6 +3305,8 @@
     syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange,
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
+    KEY_LOC, KEY_CHARS, KEY_MIN_GAP_MS, FEED_LINES, typeKey, inPlaySpace,
+    get feedText() { return feedText.data; },
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },

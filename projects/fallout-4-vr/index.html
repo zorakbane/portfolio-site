@@ -6,7 +6,7 @@
 <title>Fallout 4 VR | Derick Janssen</title>
 <meta name="description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:329a673787;js:fbf1d00811;game:adaa9ca237">
+<meta name="asset-rev" content="css:c812dcb2d3;js:3e68492bda;game:945be0a8fc">
 <meta property="og:title" content="Fallout 4 VR | Derick Janssen">
 <meta property="og:description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta property="og:type" content="website">
@@ -32,6 +32,11 @@ p{margin:0 0 1em}
 
 /* ---- header ---- */
 .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:1rem;justify-content:space-between;padding:.6rem max(1.25rem,env(safe-area-inset-left));background:rgba(7,7,13,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);view-transition-name:topbar}
+/* While Bug Hunt runs, its full-screen canvas changes every frame underneath the header, and a backdrop blur over it
+   is recomputed per frame (Firefox drops to ~25 fps at 1440p). Swap the blur for a slightly more opaque fill. */
+.bh-playing .top{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(7,7,13,.93)}
+/* Firefox re-blurs the backdrop on every scrolled frame too (4K: ~37 → ~52 fps without it), so it always gets the fill. */
+@supports (-moz-appearance:none){.top{backdrop-filter:none;background:rgba(7,7,13,.93)}}
 .brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;font-weight:800;letter-spacing:.02em;flex-shrink:0}
 .brand-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#05050a;font:900 15px/1 var(--mono);transition:transform .35s var(--spring)}
 .brand:hover .brand-mark{transform:rotate(-12deg) scale(1.12)}
@@ -66,6 +71,8 @@ p{margin:0 0 1em}
 .hero-bg{position:absolute;inset:0;z-index:-1;pointer-events:none}
 .grid{position:absolute;inset:-50% -10% 0;background-image:linear-gradient(rgba(57,255,136,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(57,255,136,.09) 1px,transparent 1px);background-size:48px 48px;transform:perspective(600px) rotateX(58deg) translateY(0);transform-origin:50% 100%;mask-image:linear-gradient(to top,#000 10%,transparent 75%);animation:gridmove 6s linear infinite}
 @keyframes gridmove{to{background-position:0 48px,0 0}}
+.grid-cv{position:absolute;left:0;width:100%;pointer-events:none}
+.has-grid-cv .grid{display:none}
 .glow{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5}
 .g1{width:46vw;height:46vw;max-width:620px;max-height:620px;background:radial-gradient(circle,#ff3d8166,transparent 65%);top:-12%;right:-10%}
 .g2{width:40vw;height:40vw;max-width:520px;max-height:520px;background:radial-gradient(circle,#3de0ff44,transparent 65%);bottom:-20%;left:-12%}
@@ -280,7 +287,7 @@ main{position:relative;z-index:2}
 #bh-hint{position:fixed;left:50%;top:28%;transform:translate(-50%,-50%);z-index:45;pointer-events:none;max-width:min(92vw,420px);padding:.7rem 1rem;border-radius:12px;background:rgba(12,12,22,.88);border:1px solid var(--cyan);color:var(--cyan);font:700 .85rem/1.35 var(--mono);text-align:center;box-shadow:0 12px 40px -12px #000;animation:hintin .45s var(--spring)}
 #bh-hint[hidden]{display:none!important}
 @keyframes hintin{from{opacity:0;transform:translate(-50%,-40%) scale(.9)}}
-.bh-hud{position:fixed;right:max(.5rem,env(safe-area-inset-right));bottom:max(.5rem,env(safe-area-inset-bottom));z-index:50;width:min(300px,calc(100vw - 1rem));font:600 .76rem/1.3 var(--mono);color:var(--text);background:rgba(12,12,22,.94);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px -12px #000;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .35s var(--spring),opacity .2s;transform-origin:100% 100%}
+.bh-hud{position:fixed;right:max(.5rem,env(safe-area-inset-right));bottom:max(.5rem,env(safe-area-inset-bottom));z-index:50;width:min(300px,calc(100vw - 1rem));font:600 .76rem/1.3 var(--mono);color:var(--text);background:rgba(12,12,22,.94);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px -12px #000;transition:transform .35s var(--spring),opacity .2s;transform-origin:100% 100%}
 .bh-hud.pop{animation:hudpop .35s var(--spring)}
 @keyframes hudpop{40%{transform:scale(1.06,.94)}70%{transform:scale(.98,1.03)}}
 .bh-hud.shake{animation:shake .22s linear}
@@ -312,6 +319,10 @@ main{position:relative;z-index:2}
   .bh-footer{margin-top:.3rem;padding-top:.28rem}
 }
 .bh-min .bh-body{display:none}
+/* hackertyper feed: fixed box, layout/paint contained, so a keystroke only repaints these few lines */
+.bh-feed{margin:0;border-top:1px solid var(--line);padding:.35rem .55rem;height:calc(4 * 1.35em + .7rem);overflow:hidden;contain:strict;white-space:pre;font:500 .66rem/1.35 var(--mono);color:var(--green);opacity:.85;background:rgba(57,255,136,.035)}
+.bh-feed[hidden],.bh-min .bh-feed,.bh-hidden .bh-hud .bh-feed{display:none}
+.bh-feed::after{content:"";display:inline-block;width:.55em;height:1.05em;background:var(--green);vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
 .bh-tip{color:var(--muted);margin:0 0 .4rem}
 .bh-log{color:var(--cyan);min-height:1.2em;margin:0 0 .4rem;font-size:.72rem}
 .bh-shop{display:grid;gap:.35rem}
@@ -400,7 +411,7 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
 #bh-shipped.rm .bh-shipped-card{animation:none}
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=fbf1d00811" defer data-game="/portfolio-site/js/game.js?v=adaa9ca237"></script>
+<script src="/portfolio-site/js/main.js?v=3e68492bda" defer data-game="/portfolio-site/js/game.js?v=945be0a8fc"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
