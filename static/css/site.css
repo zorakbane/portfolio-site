@@ -261,6 +261,9 @@ p{margin:0 0 1em}
 #bh-code{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0;opacity:1}
 main{position:relative;z-index:2}
 #bh-canvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1}
+/* Both game canvases are blank unless a run is live (syncShell clears them), so don't keep two empty viewport-sized
+   layers in the compositor while a visitor just reads the site (Safari engine without GPU: idle page ~8 → ~28 fps @2×). */
+html:not(.bh-playing) #bh-canvas,html:not(.bh-playing) #bh-code{display:none}
 #bh-ready{position:fixed;right:max(.75rem,env(safe-area-inset-right));bottom:max(.75rem,env(safe-area-inset-bottom));z-index:52}
 #bh-ready[hidden]{display:none!important}
 .bh-ready-btn{appearance:none;position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;padding:.85rem 1.1rem .9rem;border:2px solid var(--green);border-radius:14px;background:rgba(8,16,12,.94);color:var(--green);font:900 .95rem/1.1 var(--mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;box-shadow:0 0 0 1px #39ff8833,0 12px 36px -10px #39ff8866,inset 0 0 24px #39ff8814;transition:transform .25s var(--spring),box-shadow .2s,border-color .15s}
