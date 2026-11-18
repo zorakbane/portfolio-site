@@ -309,10 +309,6 @@ html:not(.bh-playing) #bh-canvas,html:not(.bh-playing) #bh-code{display:none}
   .bh-footer{margin-top:.3rem;padding-top:.28rem}
 }
 .bh-min .bh-body{display:none}
-/* hackertyper feed: fixed box, layout/paint contained, so a keystroke only repaints these few lines */
-.bh-feed{margin:0;border-top:1px solid var(--line);padding:.35rem .55rem;height:calc(4 * 1.35em + .7rem);overflow:hidden;contain:strict;white-space:pre;font:500 .66rem/1.35 var(--mono);color:var(--green);opacity:.85;background:rgba(57,255,136,.035)}
-.bh-feed[hidden],.bh-min .bh-feed,.bh-hidden .bh-hud .bh-feed{display:none}
-.bh-feed::after{content:"";display:inline-block;width:.55em;height:1.05em;background:var(--green);vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
 .bh-tip{color:var(--muted);margin:0 0 .4rem}
 .bh-log{color:var(--cyan);min-height:1.2em;margin:0 0 .4rem;font-size:.72rem}
 .bh-shop{display:grid;gap:.35rem}

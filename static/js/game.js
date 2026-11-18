@@ -5,7 +5,7 @@
    Sub-Agent Workflow (the only bombers), Movement Tuning / Multiplayer Sync,
    command mode at 10 agents (faster pulses, no parking), rollback, Ship finale + prestige.
    Click DJ for hearts / Heartbeat buff. Play Space after 25 player actions.
-   In the play space, plain keypresses type hackertyper-style code (+KEY_LOC each) into the HUD feed.
+   In the play space, plain keypresses type hackertyper-style code (+KEY_LOC each) into the background code.
    Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
@@ -139,14 +139,14 @@
   const IDLE_DERRICK = 1.4;
   const IDLE_AGENT = 0.35;
   const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
-  // Hackertyper typing: each plain keypress in the play space writes KEY_LOC lines of code and reveals
-  // KEY_CHARS characters in the HUD code feed. Credited keys are rate-limited (and auto-repeat ignored) so
+  // Hackertyper typing: each plain keypress in the play space writes KEY_LOC lines of code into the game's
+  // scrolling background code (the same corpus idle code types), painted at once with the freshly typed
+  // characters lit up and a cursor at the end. Credited keys are rate-limited (and auto-repeat ignored) so
   // mashing can't outrun the progression: ~11 keys/s × 3 = ~33 LOC/s max, with bugs hatching from the
   // typed LOC at the same slow automatic-debt rate as idle code (not the instant hatch a click gives).
   const KEY_LOC = 3;
-  const KEY_CHARS = 3;
   const KEY_MIN_GAP_MS = 90;
-  const FEED_LINES = 4;
+  const KEY_HOT_MS = 1400; // typed characters stay lit this long after the last key
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
   const HATCH_MIN = 0.18;
   const HATCH_SPAN = 0.17; // jittered 180–350ms between automatic hatches
@@ -195,6 +195,15 @@
     const cx = derickEnt ? derickEnt.x : Wd * 0.5;
     const cy = derickEnt ? derickEnt.y : Hd * 0.4;
     return { x: clamp(cx + Math.cos(ang) * r, 24, Math.max(25, Wd - 24)), y: clamp(cy + Math.sin(ang) * r, 64, Math.max(65, Hd - 24)) };
+  }
+  function shipEscortSlot(i, n, range) {
+    // A staggered line under the ship centred on Derick: covers a few hardpoints, follows him along the hull.
+    n = Math.max(1, n);
+    const gap = Math.min(76, Math.max(44, (Wd - 60) / n));
+    const cx = derickEnt ? derickEnt.x : Wd * 0.5;
+    const x = clamp(cx + (i - (n - 1) / 2) * gap, 24, Math.max(25, Wd - 24));
+    const y = shipLineY(range) + (i % 2 ? 18 : 0);
+    return { x, y };
   }
   const ESCORT_AURA = 0.25; // modest share of Derick DPS while holding formation
   const MISSILE_BOSS_FRAC = 0.35; // one blast never deletes a full-health boss
@@ -313,7 +322,6 @@
       <button class="bh-btn" type="button" data-act="min" aria-label="Minimize Bug Hunt">–</button>
       <button class="bh-btn" type="button" data-act="quit" aria-label="Quit Bug Hunt">✕</button>
     </div>
-    <pre class="bh-feed" aria-hidden="true" hidden></pre>
     <div class="bh-body"><p class="bh-log" aria-live="polite"></p><p class="bh-tip"></p><div class="bh-shop"></div>
     <div class="bh-footer"><button class="bh-btn bh-reset" type="button" data-act="reset">Reset progress</button></div></div>`;
   const hint = d.createElement('div'); hint.id = 'bh-hint'; hint.hidden = true;
@@ -372,6 +380,7 @@
   const CORPUS_MOD = CORPUS.length * 4;
   let typed = Math.min(S.codeIdx || 0, CORPUS_MOD);
   let codeDirty = true;
+  let keyHot = 0, keyHotAt = 0, keyPaintRaf = 0; // characters typed by recent keypresses (drawn brighter)
 
   function typeCode(n) {
     typed = (typed + Math.max(1, n | 0)) % CORPUS_MOD;
@@ -379,6 +388,7 @@
     codeDirty = true;
     if (!raf) paintCode();
   }
+  function keyPaint() { keyPaintRaf = 0; paintCode(true); }
   function paintCode(force) {
     if (!force && !codeDirty) return;
     // Coarse/phone: ~5Hz. Desktop: ~7Hz. Keep dirty so a skipped frame paints later.
@@ -387,12 +397,14 @@
     lastCodePaint = now();
     codeCtx.clearRect(0, 0, Wd, Hd);
     if (!S.optedIn || S.paused || typed <= 0) return;
+    if (keyHot && now() - keyHotAt > KEY_HOT_MS) keyHot = 0;
     const fs = COARSE ? 11 : 12;
     const lh = fs + 3;
     const cols = Math.max(1, Math.floor(Wd / (fs * 0.62)));
     const rows = Math.ceil(Hd / lh) + 1;
     const budget = COARSE ? Math.min(cols * rows, 960) : Math.min(cols * rows, 2800);
     const maxChars = Math.min(typed, budget);
+    const hotFrom = keyHot ? maxChars - Math.min(keyHot, maxChars) : Infinity;
     codeCtx.font = `${fs}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     codeCtx.fillStyle = 'rgba(57,255,136,0.11)';
     codeCtx.textBaseline = 'top';
@@ -412,6 +424,7 @@
         lx = 8; ly = y;
         if (ch === '\n') { drawn++; continue; }
       }
+      if (drawn === hotFrom) { flush(); codeCtx.fillStyle = 'rgba(57,255,136,0.5)'; }
       if (!line) { lx = x; ly = y; }
       line += ch;
       x += cw;
@@ -466,9 +479,32 @@
     celebrateCv.height = h;
     celebrateCtx.setTransform(next, 0, 0, next, 0, 0);
   }
+  // Window resizes keep everything that sits still at the same spot relative to the play area (parked
+  // agents, sub-agents, Derick, bugs, the ship) instead of clamping it into the new bounds.
+  function rescaleWorld(sx, sy) {
+    const mv = o => { if (o) { o.x *= sx; o.y *= sy; } };
+    const mvT = o => { if (o && o.tx != null) { o.tx *= sx; o.ty *= sy; } };
+    if (derickEnt) { mv(derickEnt); mvT(derickEnt); }
+    for (const a of agents) {
+      mv(a); a.homeX *= sx; a.homeY *= sy;
+      if (a.aimX != null) { a.aimX *= sx; a.aimY *= sy; }
+      if (a.trail) a.trail.length = 0;
+      if (a.sub) { mv(a.sub); if (a.sub.trail) a.sub.trail.length = 0; }
+    }
+    for (const b of bugs) { mv(b); if (b.ox != null) { b.ox *= sx; b.oy *= sy; } }
+    for (const p of pulses) { mv(p); mvT(p); }
+    for (const sp of splats) mv(sp);
+    lasers.length = 0;
+    if (shipBoss) {
+      shipBoss.x = Wd * 0.5; shipBoss.w = Math.max(280, Wd - 24);
+      syncShipNodePositions();
+    }
+  }
   function resize(force) {
     const next = currentDpr();
+    const pw = Wd, ph = Hd;
     Wd = innerWidth; Hd = innerHeight;
+    if (pw && ph && (pw !== Wd || ph !== Hd)) rescaleWorld(Wd / pw, Hd / ph);
     if (!force && next === DPR && cv.width === Math.floor(Wd * next)) {
       resizeCelebrate(false);
       return;
@@ -479,11 +515,10 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     resizeCelebrate(true);
-    // Keep entities on-screen
+    // Keep entities on-screen (rescaleWorld already kept their relative spots)
     if (derickEnt) { derickEnt.x = clamp(derickEnt.x, 20, Wd - 20); derickEnt.y = clamp(derickEnt.y, 60, Hd - 20); }
     for (const a of agents) {
       a.homeX = clamp(a.homeX, 24, Wd - 24); a.homeY = clamp(a.homeY, 70, Hd - 24);
-      if (!a.chasing && !a.missile && !S.agentic) { a.x = a.homeX; a.y = a.homeY; }
     }
     paintCode(true); kick();
   }
@@ -1061,11 +1096,25 @@
     for (const n of nodes) {
       if (opts.uncovered && targetHasCover(n)) continue;
       const dist = Math.hypot(n.x - (fromX || 0), n.y - (fromY || 0));
+      if (opts.range != null && dist - (n.r || 0) > opts.range) continue;
       const key = nodeFocus(n) + dist * 0.0001;
       if (key < bestKey) { best = n; bestKey = key; }
     }
     return best;
   }
+  function shipBombReach() { return Math.max(agentRange() * 2.5, missileRadius() * 2); }
+  function nearestShipNode(x, y) {
+    let best = null, bd = 1e15;
+    for (const n of liveShipNodes()) { const dd = Math.hypot(n.x - x, n.y - y); if (dd < bd) { bd = dd; best = n; } }
+    return best;
+  }
+  // Boss formation: units line up just under the hardpoints (laser range ≈ one node to either side), so they
+  // have to move along the ship to reach far nodes instead of lasering across it.
+  function shipLineY(range) {
+    const ny = shipBoss && shipBoss.nodes && shipBoss.nodes[0] ? shipBoss.nodes[0].y : 60;
+    return clamp(ny + range * 0.6, 70, Math.max(71, Hd - 24));
+  }
+  function shipBossLive() { return !!(shipBoss && shipBoss.hp > 0 && liveShipNodes().length); }
   function canReachShip(x, y, range) {
     return !!(shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) <= range);
   }
@@ -1079,7 +1128,9 @@
   }
   function inLaserRange(x, y, t, range) {
     if (!t) return false;
-    if (t.shipNode && canReachShip(x, y, range)) return true;
+    // Ship hardpoints are hit like bugs: centre-to-edge distance to that node. (This used to accept any node
+    // once the ship's hull box was in range, so a unit under one end of the ship lasered nodes ~750px away.)
+    if (t.shipNode) return Math.hypot(t.x - x, t.y - y) - (t.r || 0) <= range;
     return laserDist(x, y, t) <= range;
   }
   function pickLaserTarget(x, y, range) {
@@ -1088,7 +1139,8 @@
     const swarm = nearestBug(x, y, range, b => !isBoss(b) && !b.ship && !b.shipNode);
     if (swarm) return swarm;
     if (canReachShip(x, y, range)) {
-      const n = pickShipNode(x, y, { uncovered: true }) || pickShipNode(x, y);
+      // Only nodes this unit can actually reach; focus still spreads across the reachable ones.
+      const n = pickShipNode(x, y, { uncovered: true, range }) || pickShipNode(x, y, { range });
       if (n) return n;
     }
     return nearestBug(x, y, range, b => !b.shipNode);
@@ -1842,10 +1894,7 @@
   }, { passive: true });
 
   // ---------- hackertyper typing ----------
-  const feedEl = hud.querySelector('.bh-feed');
-  const feedText = d.createTextNode('');
-  if (feedEl) feedEl.appendChild(feedText);
-  let feedPos = (S.codeIdx || 0) % CORPUS.length, feedBuf = '', feedRaf = 0, lastKeyAt = 0, hudHover = false;
+  let lastKeyAt = 0, hudHover = false, keyCoolId = 0;
   hud.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hudHover = true; }, { passive: true });
   hud.addEventListener('pointerleave', () => { hudHover = false; }, { passive: true });
   const FORM_FIELD = 'input,textarea,select,[contenteditable=""],[contenteditable=true]';
@@ -1867,26 +1916,19 @@
     if (k === 'Enter' || k === 'Backspace') return true;
     return k.length === 1; // printable only: skips Tab, arrows, Escape, F-keys, Page/Home/End, modifiers
   }
-  function nextFeedChars(n) {
-    let out = '';
-    for (let i = 0; i < n; i++) { out += CORPUS[feedPos]; feedPos = (feedPos + 1) % CORPUS.length; }
-    return out;
-  }
-  function flushFeed() {
-    feedRaf = 0;
-    // keep only the last FEED_LINES lines: the node never grows, and the box has a fixed size (contain: strict)
-    let cut = feedBuf.length, lines = 0;
-    while (cut > 0) { const j = feedBuf.lastIndexOf('\n', cut - 1); if (j < 0) break; if (++lines >= FEED_LINES) { feedBuf = feedBuf.slice(j + 1); break; } cut = j; }
-    feedText.data = feedBuf;
-    if (feedEl && feedEl.hidden) feedEl.hidden = false;
-  }
   function typeKey() {
     const t = now();
     if (t - lastKeyAt < KEY_MIN_GAP_MS) return false;
     lastKeyAt = t;
-    feedBuf += nextFeedChars(KEY_CHARS);
-    if (feedEl && !feedRaf) feedRaf = requestAnimationFrame(flushFeed);
-    addCode(KEY_LOC, null, null, false);
+    const before = typed;
+    addCode(KEY_LOC, null, null, false); // writes KEY_LOC lines into the background code (typeCode)
+    // Light up what this key typed; the run of lit characters grows while typing and fades out after a pause.
+    keyHot = (keyHot && t - keyHotAt <= KEY_HOT_MS ? keyHot : 0) + ((typed - before + CORPUS_MOD) % CORPUS_MOD);
+    keyHotAt = t;
+    // Paint on the next frame instead of waiting for the ~7 Hz background repaint (one paint per frame at most).
+    if (!keyPaintRaf) keyPaintRaf = requestAnimationFrame(keyPaint);
+    clearTimeout(keyCoolId);
+    keyCoolId = setTimeout(() => { keyHot = 0; codeDirty = true; if (!keyPaintRaf) keyPaintRaf = requestAnimationFrame(keyPaint); }, KEY_HOT_MS + 30);
     if (!S.intro) { S.intro = true; hint.hidden = true; }
     kick();
     return true;
@@ -2149,9 +2191,12 @@
     for (const b of bugs) consider(b);
     const fromX = derickEnt ? derickEnt.x : 0;
     const fromY = derickEnt ? derickEnt.y : 0;
-    const node = pickShipNode(fromX, fromY, { uncovered: true });
+    // Sub-agent bombs go for hardpoints near the squad, not the far end of the ship.
+    const reach = shipBombReach();
+    const node = pickShipNode(fromX, fromY, { uncovered: true, range: reach }) || pickShipNode(fromX, fromY, { range: reach });
     if (node) return node;
-    return best;
+    if (best) return best;
+    return nearestShipNode(fromX, fromY);
   }
   function agentReadyForPulse(a) {
     if (!a) return false;
@@ -2639,19 +2684,28 @@
     if (S.agentic && derickEnt) escortPhase += dt * 0.45;
     const range = agentRange();
     const ringN = escortCount();
+    const shipOn = shipBossLive();
     let escortI = 0;
     for (const a of agents) {
       a.beam = Math.max(0, a.beam - dt * 4);
       if (a.missile) {
         updateMissile(a, dt);
       } else if (S.agentic && derickEnt) {
-        const slot = escortSlot(escortI++, ringN);
+        const slot = shipOn ? shipEscortSlot(escortI++, ringN, range) : escortSlot(escortI++, ringN);
         a.x += (slot.x - a.x) * Math.min(1, dt * 5);
         a.y += (slot.y - a.y) * Math.min(1, dt * 5);
         a.target = pickLaserTarget(a.x, a.y, range);
       } else {
-        a.x += (a.homeX - a.x) * Math.min(1, dt * 3);
-        a.y += (a.homeY - a.y) * Math.min(1, dt * 3);
+        // Turret agents stay spread out (each keys off its own home column) and step up under the ship.
+        let hx = a.homeX, hy = a.homeY;
+        if (shipOn) {
+          // Walk to the hardpoint nearest their own column; when it goes down they move on along the hull.
+          const n = nearestShipNode(a.homeX, shipLineY(range));
+          if (n) hx = n.x + clamp(a.homeX - n.x, -30, 30);
+          hy = shipLineY(range);
+        }
+        a.x += (hx - a.x) * Math.min(1, dt * 3);
+        a.y += (hy - a.y) * Math.min(1, dt * 3);
         a.target = pickLaserTarget(a.x, a.y, range);
       }
       if (a.missile) continue;
@@ -3328,11 +3382,11 @@
     kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
-    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange,
+    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
-    KEY_LOC, KEY_CHARS, KEY_MIN_GAP_MS, FEED_LINES, typeKey, inPlaySpace,
-    get feedText() { return feedText.data; },
+    KEY_LOC, KEY_MIN_GAP_MS, KEY_HOT_MS, typeKey, inPlaySpace,
+    get keyHot() { return keyHot; }, get typed() { return typed; },
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },
