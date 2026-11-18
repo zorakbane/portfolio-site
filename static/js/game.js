@@ -5,6 +5,7 @@
    Sub-Agent Workflow (the only bombers), Movement Tuning / Multiplayer Sync,
    command mode at 10 agents (faster pulses, no parking), rollback, Ship finale + prestige.
    Click DJ for hearts / Heartbeat buff. Play Space after 25 player actions.
+   In the play space, plain keypresses type hackertyper-style code (+KEY_LOC each) into the background code.
    Persist in localStorage. Never preventDefault. */
 (() => {
   if (window.__bugHunt && !window.__bugHunt.__booting) return;
@@ -138,6 +139,14 @@
   const IDLE_DERRICK = 1.4;
   const IDLE_AGENT = 0.35;
   const IDLE_AGENTIC = 0.60; // added to Derick's draft rate when Agentic is owned
+  // Hackertyper typing: each plain keypress in the play space writes KEY_LOC lines of code into the game's
+  // scrolling background code (the same corpus idle code types), painted at once with the freshly typed
+  // characters lit up and a cursor at the end. Credited keys are rate-limited (and auto-repeat ignored) so
+  // mashing can't outrun the progression: ~11 keys/s × 3 = ~33 LOC/s max, with bugs hatching from the
+  // typed LOC at the same slow automatic-debt rate as idle code (not the instant hatch a click gives).
+  const KEY_LOC = 3;
+  const KEY_MIN_GAP_MS = 90;
+  const KEY_HOT_MS = 1400; // typed characters stay lit this long after the last key
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
   const HATCH_MIN = 0.18;
   const HATCH_SPAN = 0.17; // jittered 180–350ms between automatic hatches
@@ -186,6 +195,24 @@
     const cx = derickEnt ? derickEnt.x : Wd * 0.5;
     const cy = derickEnt ? derickEnt.y : Hd * 0.4;
     return { x: clamp(cx + Math.cos(ang) * r, 24, Math.max(25, Wd - 24)), y: clamp(cy + Math.sin(ang) * r, 64, Math.max(65, Hd - 24)) };
+  }
+  const _nearNodes = [];
+  function shipEscortSlot(i, n, range) {
+    // Under the ship the escort spreads over the few live hardpoints nearest Derick (about three agents per node,
+    // staggered), so every agent sits within laser range of a node and the squad follows him along the hull.
+    n = Math.max(1, n);
+    const cx = derickEnt ? derickEnt.x : Wd * 0.5;
+    if (i === 0) {
+      _nearNodes.length = 0;
+      for (const nd of liveShipNodes()) _nearNodes.push(nd);
+      _nearNodes.sort((p, q) => Math.abs(p.x - cx) - Math.abs(q.x - cx));
+      _nearNodes.length = Math.min(_nearNodes.length, Math.max(1, Math.ceil(n / 3)));
+    }
+    const y0 = shipLineY(range);
+    if (!_nearNodes.length) return { x: cx, y: y0 };
+    const m = _nearNodes.length, nd = _nearNodes[i % m], k = Math.floor(i / m);
+    const side = k % 2 ? 1 : -1, ring = Math.floor(k / 2);
+    return { x: clamp(nd.x + side * (16 + ring * 14), 24, Math.max(25, Wd - 24)), y: y0 + ring * 16 + (k % 2) * 8 };
   }
   const ESCORT_AURA = 0.25; // modest share of Derick DPS while holding formation
   const MISSILE_BOSS_FRAC = 0.35; // one blast never deletes a full-health boss
@@ -362,6 +389,7 @@
   const CORPUS_MOD = CORPUS.length * 4;
   let typed = Math.min(S.codeIdx || 0, CORPUS_MOD);
   let codeDirty = true;
+  let keyHot = 0, keyHotAt = 0, keyPaintRaf = 0; // characters typed by recent keypresses (drawn brighter)
 
   function typeCode(n) {
     typed = (typed + Math.max(1, n | 0)) % CORPUS_MOD;
@@ -369,6 +397,7 @@
     codeDirty = true;
     if (!raf) paintCode();
   }
+  function keyPaint() { keyPaintRaf = 0; paintCode(true); }
   function paintCode(force) {
     if (!force && !codeDirty) return;
     // Coarse/phone: ~5Hz. Desktop: ~7Hz. Keep dirty so a skipped frame paints later.
@@ -377,12 +406,14 @@
     lastCodePaint = now();
     codeCtx.clearRect(0, 0, Wd, Hd);
     if (!S.optedIn || S.paused || typed <= 0) return;
+    if (keyHot && now() - keyHotAt > KEY_HOT_MS) keyHot = 0;
     const fs = COARSE ? 11 : 12;
     const lh = fs + 3;
     const cols = Math.max(1, Math.floor(Wd / (fs * 0.62)));
     const rows = Math.ceil(Hd / lh) + 1;
     const budget = COARSE ? Math.min(cols * rows, 960) : Math.min(cols * rows, 2800);
     const maxChars = Math.min(typed, budget);
+    const hotFrom = keyHot ? maxChars - Math.min(keyHot, maxChars) : Infinity;
     codeCtx.font = `${fs}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     codeCtx.fillStyle = 'rgba(57,255,136,0.11)';
     codeCtx.textBaseline = 'top';
@@ -402,6 +433,7 @@
         lx = 8; ly = y;
         if (ch === '\n') { drawn++; continue; }
       }
+      if (drawn === hotFrom) { flush(); codeCtx.fillStyle = 'rgba(57,255,136,0.5)'; }
       if (!line) { lx = x; ly = y; }
       line += ch;
       x += cw;
@@ -419,12 +451,31 @@
     if (coarse) capD = Math.min(capD, q >= 3 ? 1.5 : q >= 2 ? 1.25 : capD);
     return capD;
   }
+  // The game and code canvases cover the whole viewport and are cleared/redrawn every frame, so their cost
+  // scales with backing-store pixels (Firefox: 1440p at DPR 1.5 ran the late game at ~27 fps vs ~59 at DPR 1).
+  // Over a 4K-sized budget (e.g. 5K iMac), HiDPI desktops render the game canvases at DPR 1 (never lower because of
+  // the budget). 2× laptops/4K screens stay at 2×: a 1× canvas upscaled 2× cost more than drawing 2× (Safari engine,
+  // MacBook 1440×900@2: ~7 fps at 1× vs ~22–42 at 2× without GPU; Firefox holds 59 at 2× even at 3840×2160).
+  // Phones/tablets sit well under it (S26 Ultra ≈ 0.85M px, Tab S8 Ultra ≈ 2.3M px at the coarse 1.5 cap).
+  const CANVAS_PIXEL_BUDGET = 3840 * 2160;
   function currentDpr() {
-    return Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
+    let dpr = Math.min(dprCapFor(quality, COARSE), W.devicePixelRatio || 1);
+    // Desktop: only whole-number ratios. Windows laptops at 125%/150% scaling (and Safari/Firefox zoom) report
+    // fractional DPRs; a 1.25× backing store gets resampled on every composite, which halved the boss fight in
+    // Firefox at 1366×768@1.25 (≈25 → ≈52 fps at 1×). Phones/tablets keep their GPU-friendly fractional caps.
+    // That includes the lowest tier's 0.7: below 1× the upscale costs more than the pixels it saves (Safari engine
+    // at 2560×1440 fell to ~15 fps at 0.7 vs ~48 at 1×), so desktop canvases use the device's whole-number ratio (max 2).
+    // Quality tiers on desktop therefore shed effects, not resolution.
+    if (!COARSE) dpr = Math.min(2, Math.max(1, Math.floor(W.devicePixelRatio || 1)));
+    const area = Math.max(1, (W.innerWidth || 1) * (W.innerHeight || 1));
+    if (area * dpr * dpr <= CANVAS_PIXEL_BUDGET) return dpr;
+    // Snap straight to 1 rather than an in-between ratio: a backing store that doesn't map 1:1 or 1:DPR onto
+    // device pixels has to be resampled on every composite (1080p@1.5 boss fight: ~35 fps at 1.33 vs ~58 at 1).
+    return Math.min(dpr, 1);
   }
   function celebrateDpr() {
     // Fanfare does not need the game canvas DPR. Keep it cheap on phones.
-    return Math.min(COARSE ? 1.05 : 1.15, W.devicePixelRatio || 1);
+    return COARSE ? Math.min(1.05, W.devicePixelRatio || 1) : 1;
   }
   let celebrateDPR = 1;
   function resizeCelebrate(force) {
@@ -437,9 +488,32 @@
     celebrateCv.height = h;
     celebrateCtx.setTransform(next, 0, 0, next, 0, 0);
   }
+  // Window resizes keep everything that sits still at the same spot relative to the play area (parked
+  // agents, sub-agents, Derick, bugs, the ship) instead of clamping it into the new bounds.
+  function rescaleWorld(sx, sy) {
+    const mv = o => { if (o) { o.x *= sx; o.y *= sy; } };
+    const mvT = o => { if (o && o.tx != null) { o.tx *= sx; o.ty *= sy; } };
+    if (derickEnt) { mv(derickEnt); mvT(derickEnt); }
+    for (const a of agents) {
+      mv(a); a.homeX *= sx; a.homeY *= sy;
+      if (a.aimX != null) { a.aimX *= sx; a.aimY *= sy; }
+      if (a.trail) a.trail.length = 0;
+      if (a.sub) { mv(a.sub); if (a.sub.trail) a.sub.trail.length = 0; }
+    }
+    for (const b of bugs) { mv(b); if (b.ox != null) { b.ox *= sx; b.oy *= sy; } }
+    for (const p of pulses) { mv(p); mvT(p); }
+    for (const sp of splats) mv(sp);
+    lasers.length = 0;
+    if (shipBoss) {
+      shipBoss.x = Wd * 0.5; shipBoss.w = Math.max(280, Wd - 24);
+      syncShipNodePositions();
+    }
+  }
   function resize(force) {
     const next = currentDpr();
+    const pw = Wd, ph = Hd;
     Wd = innerWidth; Hd = innerHeight;
+    if (pw && ph && (pw !== Wd || ph !== Hd)) rescaleWorld(Wd / pw, Hd / ph);
     if (!force && next === DPR && cv.width === Math.floor(Wd * next)) {
       resizeCelebrate(false);
       return;
@@ -450,11 +524,10 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     codeCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     resizeCelebrate(true);
-    // Keep entities on-screen
+    // Keep entities on-screen (rescaleWorld already kept their relative spots)
     if (derickEnt) { derickEnt.x = clamp(derickEnt.x, 20, Wd - 20); derickEnt.y = clamp(derickEnt.y, 60, Hd - 20); }
     for (const a of agents) {
       a.homeX = clamp(a.homeX, 24, Wd - 24); a.homeY = clamp(a.homeY, 70, Hd - 24);
-      if (!a.chasing && !a.missile && !S.agentic) { a.x = a.homeX; a.y = a.homeY; }
     }
     paintCode(true); kick();
   }
@@ -1032,11 +1105,25 @@
     for (const n of nodes) {
       if (opts.uncovered && targetHasCover(n)) continue;
       const dist = Math.hypot(n.x - (fromX || 0), n.y - (fromY || 0));
+      if (opts.range != null && dist - (n.r || 0) > opts.range) continue;
       const key = nodeFocus(n) + dist * 0.0001;
       if (key < bestKey) { best = n; bestKey = key; }
     }
     return best;
   }
+  function shipBombReach() { return Math.max(agentRange() * 2.5, missileRadius() * 2); }
+  function nearestShipNode(x, y) {
+    let best = null, bd = 1e15;
+    for (const n of liveShipNodes()) { const dd = Math.hypot(n.x - x, n.y - y); if (dd < bd) { bd = dd; best = n; } }
+    return best;
+  }
+  // Boss formation: units line up just under the hardpoints (laser range ≈ one node to either side), so they
+  // have to move along the ship to reach far nodes instead of lasering across it.
+  function shipLineY(range) {
+    const ny = shipBoss && shipBoss.nodes && shipBoss.nodes[0] ? shipBoss.nodes[0].y : 60;
+    return clamp(ny + range * 0.45, 70, Math.max(71, Hd - 24));
+  }
+  function shipBossLive() { return !!(shipBoss && shipBoss.hp > 0 && liveShipNodes().length); }
   function canReachShip(x, y, range) {
     return !!(shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) <= range);
   }
@@ -1050,7 +1137,9 @@
   }
   function inLaserRange(x, y, t, range) {
     if (!t) return false;
-    if (t.shipNode && canReachShip(x, y, range)) return true;
+    // Ship hardpoints are hit like bugs: centre-to-edge distance to that node. (This used to accept any node
+    // once the ship's hull box was in range, so a unit under one end of the ship lasered nodes ~750px away.)
+    if (t.shipNode) return Math.hypot(t.x - x, t.y - y) - (t.r || 0) <= range;
     return laserDist(x, y, t) <= range;
   }
   function pickLaserTarget(x, y, range) {
@@ -1059,7 +1148,8 @@
     const swarm = nearestBug(x, y, range, b => !isBoss(b) && !b.ship && !b.shipNode);
     if (swarm) return swarm;
     if (canReachShip(x, y, range)) {
-      const n = pickShipNode(x, y, { uncovered: true }) || pickShipNode(x, y);
+      // Only nodes this unit can actually reach; focus still spreads across the reachable ones.
+      const n = pickShipNode(x, y, { uncovered: true, range }) || pickShipNode(x, y, { range });
       if (n) return n;
     }
     return nearestBug(x, y, range, b => !b.shipNode);
@@ -1274,10 +1364,26 @@
     map.set(color, c);
     return c;
   }
+  let confettiPainted = true, celebrateShown = true;
+  // The fanfare canvas is a viewport-sized layer above the page; while empty it is display:none so engines that
+  // composite in software (WebKit without GPU) don't blend an empty full-screen layer on every scroll frame.
+  function showCelebrateCv(on) {
+    if (on === celebrateShown) return;
+    celebrateShown = on; celebrateCv.style.display = on ? '' : 'none';
+  }
+  showCelebrateCv(false);
   function drawConfetti() {
     if (!celebrateCtx) return;
+    // Only touch the full-screen fanfare canvas when there is (or just was) confetti on it. Clearing an
+    // already-empty canvas every frame still invalidates a viewport-sized layer for the compositor.
+    if (!confettiN) {
+      if (confettiPainted) { celebrateCtx.clearRect(0, 0, Wd, Hd); confettiPainted = false; }
+      showCelebrateCv(false);
+      return;
+    }
+    showCelebrateCv(true);
     celebrateCtx.clearRect(0, 0, Wd, Hd);
-    if (!confettiN) return;
+    confettiPainted = true;
     const cctx = celebrateCtx;
     for (let i = 0; i < confettiN; i++) {
       const c = CONFETTI[i];
@@ -1796,6 +1902,51 @@
     punch(6); kick();
   }, { passive: true });
 
+  // ---------- hackertyper typing ----------
+  let lastKeyAt = 0, hudHover = false, keyCoolId = 0;
+  hud.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hudHover = true; }, { passive: true });
+  hud.addEventListener('pointerleave', () => { hudHover = false; }, { passive: true });
+  const FORM_FIELD = 'input,textarea,select,[contenteditable=""],[contenteditable=true]';
+  function inPlaySpace() {
+    if (!S.optedIn || S.paused || S.shelved || shipCardUp()) return false;
+    const ae = d.activeElement;
+    return !!(S.playSpace || hudHover || (ae && ae !== d.body && hud.contains(ae)));
+  }
+  function typingKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.defaultPrevented) return false;
+    const t = e.target;
+    if (t && t.closest && t.closest(FORM_FIELD)) return false;
+    const k = e.key;
+    const activates = k === 'Enter' || k === ' ';
+    // Enter/Space press a focused button or link; never steal those.
+    if (activates && t && t.closest && t.closest('button,a[href],[role=button],summary')) return false;
+    // Outside Play Space the page still scrolls with Space, so leave it alone there.
+    if (k === ' ') return !!S.playSpace;
+    if (k === 'Enter' || k === 'Backspace') return true;
+    return k.length === 1; // printable only: skips Tab, arrows, Escape, F-keys, Page/Home/End, modifiers
+  }
+  function typeKey() {
+    const t = now();
+    if (t - lastKeyAt < KEY_MIN_GAP_MS) return false;
+    lastKeyAt = t;
+    const before = typed;
+    addCode(KEY_LOC, null, null, false); // writes KEY_LOC lines into the background code (typeCode)
+    // Light up what this key typed; the run of lit characters grows while typing and fades out after a pause.
+    keyHot = (keyHot && t - keyHotAt <= KEY_HOT_MS ? keyHot : 0) + ((typed - before + CORPUS_MOD) % CORPUS_MOD);
+    keyHotAt = t;
+    // Paint on the next frame instead of waiting for the ~7 Hz background repaint (one paint per frame at most).
+    if (!keyPaintRaf) keyPaintRaf = requestAnimationFrame(keyPaint);
+    clearTimeout(keyCoolId);
+    keyCoolId = setTimeout(() => { keyHot = 0; codeDirty = true; if (!keyPaintRaf) keyPaintRaf = requestAnimationFrame(keyPaint); }, KEY_HOT_MS + 30);
+    if (!S.intro) { S.intro = true; hint.hidden = true; }
+    kick();
+    return true;
+  }
+  d.addEventListener('keydown', e => {
+    if (e.repeat || !inPlaySpace() || !typingKey(e)) return;
+    typeKey();
+  }, { passive: true });
+
   ready.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.act === 'ready') optIn();
@@ -2049,9 +2200,12 @@
     for (const b of bugs) consider(b);
     const fromX = derickEnt ? derickEnt.x : 0;
     const fromY = derickEnt ? derickEnt.y : 0;
-    const node = pickShipNode(fromX, fromY, { uncovered: true });
+    // Sub-agent bombs go for hardpoints near the squad, not the far end of the ship.
+    const reach = shipBombReach();
+    const node = pickShipNode(fromX, fromY, { uncovered: true, range: reach }) || pickShipNode(fromX, fromY, { range: reach });
     if (node) return node;
-    return best;
+    if (best) return best;
+    return nearestShipNode(fromX, fromY);
   }
   function agentReadyForPulse(a) {
     if (!a) return false;
@@ -2539,19 +2693,28 @@
     if (S.agentic && derickEnt) escortPhase += dt * 0.45;
     const range = agentRange();
     const ringN = escortCount();
+    const shipOn = shipBossLive();
     let escortI = 0;
     for (const a of agents) {
       a.beam = Math.max(0, a.beam - dt * 4);
       if (a.missile) {
         updateMissile(a, dt);
       } else if (S.agentic && derickEnt) {
-        const slot = escortSlot(escortI++, ringN);
+        const slot = shipOn ? shipEscortSlot(escortI++, ringN, range) : escortSlot(escortI++, ringN);
         a.x += (slot.x - a.x) * Math.min(1, dt * 5);
         a.y += (slot.y - a.y) * Math.min(1, dt * 5);
         a.target = pickLaserTarget(a.x, a.y, range);
       } else {
-        a.x += (a.homeX - a.x) * Math.min(1, dt * 3);
-        a.y += (a.homeY - a.y) * Math.min(1, dt * 3);
+        // Turret agents stay spread out (each keys off its own home column) and step up under the ship.
+        let hx = a.homeX, hy = a.homeY;
+        if (shipOn) {
+          // Walk to the hardpoint nearest their own column; when it goes down they move on along the hull.
+          const n = nearestShipNode(a.homeX, shipLineY(range));
+          if (n) hx = n.x + clamp(a.homeX - n.x, -30, 30);
+          hy = shipLineY(range);
+        }
+        a.x += (hx - a.x) * Math.min(1, dt * 3);
+        a.y += (hy - a.y) * Math.min(1, dt * 3);
         a.target = pickLaserTarget(a.x, a.y, range);
       }
       if (a.missile) continue;
@@ -2825,6 +2988,143 @@
     ctx.restore();
   }
 
+  // ---------- batched drawing ----------
+  // Each beginPath/stroke/fill is a separate raster job (and an IPC message with remote/accelerated canvas in
+  // Firefox). Lasers, agents, subs and trails are grouped by style and a 4-step alpha bucket so a late-game
+  // frame issues a handful of draw calls instead of a few hundred.
+  const A_STEPS = 4;
+  const aBucket = a => Math.max(1, Math.min(A_STEPS, Math.ceil(a * A_STEPS)));
+  const aOf = q => (q - 0.5) / A_STEPS;
+  const _lg = new Map();
+  function drawLasers() {
+    if (!lasers.length) return;
+    if (_lg.size > 48) _lg.clear();
+    for (const g of _lg.values()) g.n = 0;
+    for (const z of lasers) {
+      const q = aBucket(z.life / z.max), color = z.color || LASER_COLOR.derick, wide = z.wide || 1;
+      const key = color + '|' + wide + '|' + q + (z.boosted ? 'b' : '');
+      let g = _lg.get(key);
+      if (!g) { g = { color, wide, q, boosted: !!z.boosted, n: 0, items: [] }; _lg.set(key, g); }
+      g.items[g.n++] = z;
+    }
+    ctx.lineCap = 'butt';
+    for (const g of _lg.values()) {
+      if (!g.n || !g.boosted) continue;
+      ctx.globalAlpha = aOf(g.q) * 0.3;
+      ctx.strokeStyle = LASER_COLOR.buffed;
+      ctx.lineWidth = g.wide * 3.1;
+      ctx.beginPath();
+      for (let i = 0; i < g.n; i++) { const z = g.items[i]; ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); }
+      ctx.stroke();
+    }
+    for (const g of _lg.values()) {
+      if (!g.n) continue;
+      const a = aOf(g.q);
+      ctx.globalAlpha = a * 0.85;
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = g.wide * (0.7 + a * 0.4);
+      ctx.beginPath();
+      for (let i = 0; i < g.n; i++) { const z = g.items[i]; ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#fff';
+    for (let q = 1; q <= A_STEPS; q++) {
+      let any = false;
+      for (const g of _lg.values()) {
+        if (!g.n || g.q !== q) continue;
+        if (!any) { ctx.beginPath(); any = true; }
+        for (let i = 0; i < g.n; i++) { const z = g.items[i]; ctx.moveTo(z.x2 + 1.4, z.y2); ctx.arc(z.x2, z.y2, 1.4, 0, 7); }
+      }
+      if (any) { ctx.globalAlpha = aOf(q) * 0.5; ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function trailPass(list, color, alphaMul, r0, rk, pick) {
+    // list: owners with .trail; pick(owner) → whether to draw it
+    ctx.fillStyle = color;
+    for (let q = 1; q <= A_STEPS; q++) {
+      let any = false;
+      for (const o of list) {
+        const t = pick(o);
+        if (!t || !t.length) continue;
+        for (const p of t) {
+          const al = Math.max(0, p.life / 0.28);
+          if (aBucket(al) !== q || al <= 0) continue;
+          if (!any) { ctx.beginPath(); any = true; }
+          const r = r0 + al * rk;
+          ctx.moveTo(p.x + r, p.y); ctx.arc(p.x, p.y, r, 0, 7);
+        }
+      }
+      if (any) { ctx.globalAlpha = aOf(q) * alphaMul; ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+  const AG_STYLE = [
+    { ring: () => LASER_COLOR.buffed, dot: 'rgba(255,177,66,0.7)' },
+    { ring: () => 'rgba(62,198,255,0.85)', dot: 'rgba(62,198,255,0.6)' },
+    { ring: () => 'rgba(62,198,255,0.55)', dot: 'rgba(62,198,255,0.3)' },
+  ];
+  function drawAgents() {
+    if (!agents.length) return;
+    ctx.save();
+    // trails (missile-out trails are amber, others blue)
+    trailPass(agents, 'rgba(255,177,66,0.95)', 0.6, 1.5, 2.4, a => (a.missilePhase === 'out' ? a.trail : null));
+    trailPass(agents, 'rgba(62,198,255,0.8)', 0.6, 1.5, 2.4, a => (a.missilePhase !== 'out' ? a.trail : null));
+    // turret bodies, batched by style
+    ctx.lineWidth = 1.15;
+    for (let st = 0; st < AG_STYLE.length; st++) {
+      let any = false;
+      for (const a of agents) {
+        if (a.missile && a.missilePhase === 'out') continue;
+        const sty = agentBuffed(a) ? 0 : a.chasing ? 1 : 2;
+        if (sty !== st) continue;
+        if (!any) { ctx.beginPath(); any = true; }
+        ctx.moveTo(a.x + 5, a.y); ctx.arc(a.x, a.y, 5, 0, 7);
+      }
+      if (!any) continue;
+      ctx.strokeStyle = AG_STYLE[st].ring(); ctx.stroke();
+      ctx.beginPath();
+      for (const a of agents) {
+        if (a.missile && a.missilePhase === 'out') continue;
+        if ((agentBuffed(a) ? 0 : a.chasing ? 1 : 2) !== st) continue;
+        ctx.moveTo(a.x + 2.5, a.y); ctx.arc(a.x, a.y, 2.5, 0, 7);
+      }
+      ctx.fillStyle = AG_STYLE[st].dot; ctx.fill();
+    }
+    ctx.restore();
+    // rare cases keep the per-entity path: legacy missile agents and in-flight sub bombs
+    for (const a of agents) {
+      if (a.missile && a.missilePhase === 'out') { const t = a.trail; a.trail = null; drawAgent(a); a.trail = t; }
+    }
+    drawSubs();
+  }
+  function drawSubs() {
+    const subs = _subs; subs.length = 0;
+    for (const a of agents) { const s = a.sub; if (s && s.state !== 'cd') subs.push(s); }
+    if (!subs.length) return;
+    ctx.save();
+    trailPass(subs, 'rgba(255,80,160,0.95)', 0.55, 1.2, 2, s => s.trail);
+    const orbit = s => !(s.state === 'out' || (s.missile && s.missilePhase === 'out'));
+    let any = false;
+    ctx.beginPath();
+    for (const s of subs) { if (!orbit(s)) continue; const r = 7 * (s.pop || 1); ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, 7); any = true; }
+    if (any) {
+      ctx.fillStyle = 'rgba(255,61,129,0.22)'; ctx.fill();
+      ctx.beginPath();
+      for (const s of subs) { if (!orbit(s)) continue; const r = 3.3 * (s.pop || 1); ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, 7); }
+      ctx.strokeStyle = 'rgba(255,61,129,0.85)'; ctx.lineWidth = 1.05; ctx.stroke();
+      ctx.beginPath();
+      for (const s of subs) { if (!orbit(s)) continue; const r = 1.6 * (s.pop || 1); ctx.moveTo(s.x + r, s.y); ctx.arc(s.x, s.y, r, 0, 7); }
+      ctx.fillStyle = 'rgba(255,180,200,0.95)'; ctx.fill();
+    }
+    ctx.restore();
+    for (const s of subs) {
+      if (orbit(s)) continue;
+      const t = s.trail; s.trail = null; drawSub({ sub: s }); s.trail = t;
+    }
+  }
+  const _subs = [];
+
   function shipCardUp() {
     return !!(S.shipPending && shipped && !shipped.hidden);
   }
@@ -2851,24 +3151,7 @@
     for (const b of bugs) drawBug(b);
     drawShip();
     drawRangeRings();
-    // thin lasers
-    for (const z of lasers) {
-      const a = z.life / z.max;
-      if (z.boosted) {
-        ctx.globalAlpha = a * 0.3;
-        ctx.strokeStyle = LASER_COLOR.buffed;
-        ctx.lineWidth = (z.wide || 1) * 3.1;
-        ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
-      }
-      ctx.globalAlpha = a * 0.85;
-      ctx.strokeStyle = z.color || LASER_COLOR.derick;
-      ctx.lineWidth = (z.wide || 1) * (0.7 + a * 0.4);
-      ctx.shadowBlur = 0;
-      ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.lineTo(z.x2, z.y2); ctx.stroke();
-      ctx.globalAlpha = a * 0.5;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(z.x2, z.y2, 1.4, 0, 7); ctx.fill();
-    }
+    drawLasers();
     ctx.globalAlpha = 1;
     for (const s of shields) {
       const a = s.life / s.max;
@@ -2900,7 +3183,7 @@
       }
       if (anyAura) ctx.fill();
     }
-    for (const a of agents) drawAgent(a);
+    drawAgents();
     drawDerick();
     for (const e of explosions) {
       const u = Math.max(0, e.life / e.max);
@@ -2963,8 +3246,18 @@
       if (--qHold < -24) { quality++; qHold = 0; frameTimes.length = 0; resize(true); }
     } else if (qHold > 0) qHold--; else if (qHold < 0) qHold++;
   }
+  // Exactly one rAF loop may run. step()/draw() can call kick() (spawns, boss phases, ship card…); while a frame is
+  // running that must not schedule a second loop, or the loops stack up (seen: ~5 loops in the ship boss), each
+  // frame does the work several times, and the adaptive-quality timer sees ~4 ms "frames" and never steps down.
+  let inFrame = false;
   function frame() {
-    raf = 0;
+    raf = 0; inFrame = true;
+    let live = false;
+    try { live = frameWork(); } finally { inFrame = false; }
+    if (live) { if (!raf) raf = requestAnimationFrame(frame); }
+    else if (S.optedIn && !S.paused) { raf = 0; }
+  }
+  function frameWork() {
     const t = now(); const raw = t - last; last = t;
     let dt = Math.min(0.05, raw / 1000);
     if (t < freezeUntil) dt = 0;
@@ -2976,13 +3269,11 @@
       if (!RM && quality >= 2) paintCode();
     }
     noteFrame(raw);
-    const live = S.optedIn && !S.paused && !S.hidden &&
+    return S.optedIn && !S.paused && !S.hidden &&
       (bugs.length || partN || heartN || splats.length || lasers.length || ghosts.length || codeBursts.length || pulses.length || shields.length || flashes.length || shipBoss || shake || flash || heartbeatActive() || S.derick || S.agents || celebrateOn || confettiN || (S.shipPending && shipped && !shipped.hidden));
-    if (live) raf = requestAnimationFrame(frame);
-    else if (S.optedIn && !S.paused) { raf = 0; }
   }
   function kick() {
-    if (!raf && S.optedIn && !S.paused && !S.hidden && !d.hidden) {
+    if (!raf && !inFrame && S.optedIn && !S.paused && !S.hidden && !d.hidden) {
       last = now(); raf = requestAnimationFrame(frame);
     }
   }
@@ -3100,9 +3391,11 @@
     kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
-    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange,
+    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
+    KEY_LOC, KEY_MIN_GAP_MS, KEY_HOT_MS, typeKey, inPlaySpace,
+    get keyHot() { return keyHot; }, get typed() { return typed; },
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
     get spawnLog() { return spawnLog; },

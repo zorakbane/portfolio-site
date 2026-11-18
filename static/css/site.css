@@ -16,6 +16,11 @@ p{margin:0 0 1em}
 
 /* ---- header ---- */
 .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:1rem;justify-content:space-between;padding:.6rem max(1.25rem,env(safe-area-inset-left));background:rgba(7,7,13,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);view-transition-name:topbar}
+/* While Bug Hunt runs, its full-screen canvas changes every frame underneath the header, and a backdrop blur over it
+   is recomputed per frame (Firefox drops to ~25 fps at 1440p). Swap the blur for a slightly more opaque fill. */
+.bh-playing .top{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(7,7,13,.93)}
+/* Firefox re-blurs the backdrop on every scrolled frame too (4K: ~37 → ~52 fps without it), so it always gets the fill. */
+@supports (-moz-appearance:none){.top{backdrop-filter:none;background:rgba(7,7,13,.93)}}
 .brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;font-weight:800;letter-spacing:.02em;flex-shrink:0}
 .brand-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#05050a;font:900 15px/1 var(--mono);transition:transform .35s var(--spring)}
 .brand:hover .brand-mark{transform:rotate(-12deg) scale(1.12)}
@@ -50,9 +55,14 @@ p{margin:0 0 1em}
 .hero-bg{position:absolute;inset:0;z-index:-1;pointer-events:none}
 .grid{position:absolute;inset:-50% -10% 0;background-image:linear-gradient(rgba(57,255,136,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(57,255,136,.09) 1px,transparent 1px);background-size:48px 48px;transform:perspective(600px) rotateX(58deg) translateY(0);transform-origin:50% 100%;mask-image:linear-gradient(to top,#000 10%,transparent 75%);animation:gridmove 6s linear infinite}
 @keyframes gridmove{to{background-position:0 48px,0 0}}
-.glow{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5}
-.g1{width:46vw;height:46vw;max-width:620px;max-height:620px;background:radial-gradient(circle,#ff3d8166,transparent 65%);top:-12%;right:-10%}
-.g2{width:40vw;height:40vw;max-width:520px;max-height:520px;background:radial-gradient(circle,#3de0ff44,transparent 65%);bottom:-20%;left:-12%}
+.grid-cv{position:absolute;left:0;width:100%;pointer-events:none}
+.has-grid-cv .grid{display:none}
+/* Glows: the old filter:blur(70px) is pre-baked into the gradient (same falloff, sampled from the blurred
+   original) and the box is padded out by the blur's reach. WebKit re-ran that blur every frame while the game
+   canvas animated underneath (Safari engine: late game ~24 → ~58 fps at 1366×768). */
+.glow{position:absolute;box-sizing:content-box;padding:140px;margin:-140px;opacity:.5;pointer-events:none}
+.g1{width:46vw;height:46vw;max-width:620px;max-height:620px;background:radial-gradient(circle closest-side,rgba(255,61,129,0.278) 0%, rgba(255,61,129,0.265) 10%, rgba(255,61,129,0.231) 20%, rgba(255,61,129,0.184) 30%, rgba(255,61,129,0.131) 40%, rgba(255,61,129,0.081) 50%, rgba(255,61,129,0.042) 60%, rgba(255,61,129,0.017) 70%, rgba(255,61,129,0.005) 80%, rgba(255,61,129,0.001) 90%, rgba(255,61,129,0) 100%);top:-12%;right:-10%}
+.g2{width:40vw;height:40vw;max-width:520px;max-height:520px;background:radial-gradient(circle closest-side,rgba(61,224,255,0.186) 0%, rgba(61,224,255,0.177) 10%, rgba(61,224,255,0.154) 20%, rgba(61,224,255,0.123) 30%, rgba(61,224,255,0.087) 40%, rgba(61,224,255,0.054) 50%, rgba(61,224,255,0.028) 60%, rgba(61,224,255,0.011) 70%, rgba(61,224,255,0.003) 80%, rgba(61,224,255,0.001) 90%, rgba(61,224,255,0) 100%);bottom:-20%;left:-12%}
 .hero-title{font:900 clamp(3.4rem,13vw,9.5rem)/.86 var(--sans);text-transform:uppercase;letter-spacing:-.04em;margin:0 0 1.2rem;display:flex;flex-direction:column;width:100%;max-width:100%}
 .ht-line{position:relative;display:block;width:max-content;max-width:100%}
 /* Baked SVG paths (Inter 900). No live <text>, no viewBox refit, no font-metric races.
@@ -251,20 +261,23 @@ p{margin:0 0 1em}
 #bh-code{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0;opacity:1}
 main{position:relative;z-index:2}
 #bh-canvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1}
+/* Both game canvases are blank unless a run is live (syncShell clears them), so don't keep two empty viewport-sized
+   layers in the compositor while a visitor just reads the site (Safari engine without GPU: idle page ~8 → ~28 fps @2×). */
+html:not(.bh-playing) #bh-canvas,html:not(.bh-playing) #bh-code{display:none}
 #bh-ready{position:fixed;right:max(.75rem,env(safe-area-inset-right));bottom:max(.75rem,env(safe-area-inset-bottom));z-index:52}
 #bh-ready[hidden]{display:none!important}
 .bh-ready-btn{appearance:none;position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;padding:.85rem 1.1rem .9rem;border:2px solid var(--green);border-radius:14px;background:rgba(8,16,12,.94);color:var(--green);font:900 .95rem/1.1 var(--mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;box-shadow:0 0 0 1px #39ff8833,0 12px 36px -10px #39ff8866,inset 0 0 24px #39ff8814;transition:transform .25s var(--spring),box-shadow .2s,border-color .15s}
 .bh-ready-btn:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 0 0 1px #39ff88aa,0 16px 40px -8px #39ff88aa}
 .bh-ready-btn:active{transform:scale(.94)}
 .bh-ready-btn small{font:600 .65rem/1 var(--mono);color:var(--muted);letter-spacing:.14em}
-.bh-ready-pulse{position:absolute;inset:-6px;border-radius:18px;border:2px solid var(--green);opacity:.55;animation:readypulse 1.4s var(--spring) infinite;pointer-events:none}
+.bh-ready-pulse{position:absolute;inset:-6px;border-radius:18px;border:2px solid var(--green);opacity:.55;animation:readypulse 1.4s var(--spring) 6;pointer-events:none}
 .bh-resume .bh-ready-btn{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 0 1px #3de0ff33,0 12px 36px -10px #3de0ff66}
 .bh-resume .bh-ready-pulse{border-color:var(--cyan)}
 @keyframes readypulse{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.06);opacity:.15}}
 #bh-hint{position:fixed;left:50%;top:28%;transform:translate(-50%,-50%);z-index:45;pointer-events:none;max-width:min(92vw,420px);padding:.7rem 1rem;border-radius:12px;background:rgba(12,12,22,.88);border:1px solid var(--cyan);color:var(--cyan);font:700 .85rem/1.35 var(--mono);text-align:center;box-shadow:0 12px 40px -12px #000;animation:hintin .45s var(--spring)}
 #bh-hint[hidden]{display:none!important}
 @keyframes hintin{from{opacity:0;transform:translate(-50%,-40%) scale(.9)}}
-.bh-hud{position:fixed;right:max(.5rem,env(safe-area-inset-right));bottom:max(.5rem,env(safe-area-inset-bottom));z-index:50;width:min(300px,calc(100vw - 1rem));font:600 .76rem/1.3 var(--mono);color:var(--text);background:rgba(12,12,22,.94);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px -12px #000;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .35s var(--spring),opacity .2s;transform-origin:100% 100%}
+.bh-hud{position:fixed;right:max(.5rem,env(safe-area-inset-right));bottom:max(.5rem,env(safe-area-inset-bottom));z-index:50;width:min(300px,calc(100vw - 1rem));font:600 .76rem/1.3 var(--mono);color:var(--text);background:rgba(12,12,22,.94);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px -12px #000;transition:transform .35s var(--spring),opacity .2s;transform-origin:100% 100%}
 .bh-hud.pop{animation:hudpop .35s var(--spring)}
 @keyframes hudpop{40%{transform:scale(1.06,.94)}70%{transform:scale(.98,1.03)}}
 .bh-hud.shake{animation:shake .22s linear}
