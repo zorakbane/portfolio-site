@@ -278,7 +278,22 @@ Idle drafting is **per-unit**, not global. Derick and each agent write code inde
 - Each drafted line adds only `bugsPerLoc() × 0.045` debt (`IDLE_DEBT`), and hatches still respect the post-kill quiet window, so the faster idle typing does not instantly refill the board.
 - Automatic hatches (idle debt, leftover click debt, backlog, QA) go through a global hatch queue and drain at a jittered **180–350ms** interval, one birth per live econ tick even when a phone hitch delivers a large `dt`. Player clicks and Ship-finale spawns are still immediate. Split kids and any same-frame extras stagger their visible pop-in so a pile does not appear on one frame.
 
-If you leave and come back still opted-in and unpaused, up to **900s** of absence is estimated: a capped number of auto-kills and commit payout, logged when you were away more than 20 seconds. Pause and quit both save and stop the loops.
+Pause and quit both save and stop the loops.
+
+### Sleep mode and fast-forward
+
+**Sleep.** When the tab is hidden (`visibilitychange` → hidden, or `pagehide`), the game saves and goes to sleep. It cancels the rAF loop, clears the econ (250ms) and save (2s) intervals and stops the hackertyper key repaint/cooldown timers, so a background tab does ~0 work. (The game has no audio.) Plain window `blur` only saves: a window that has lost focus but is still visible keeps running. On `visibilitychange` → visible (or a bfcache `pageshow`), `wake()` runs once. It is guarded by an `asleep` flag, so repeated events can't stack rAF loops. It resets the frame clock before restarting, so there is no dt spike (frame dt is also capped at 50ms).
+
+**Fast-forward.** The save stores `lastActive`. It is refreshed with every save (every 2s while playing, and on hide or pagehide) and frozen while asleep. On wake, and on page load with an existing save, the gap `now − lastActive` is credited from the passive rates (older saves fall back to their last-save time `t`):
+
+- **LOC/s** = the idle draft rates: Derick `1.4` (+`0.60` with Agentic Workflow) + `0.35` per agent + `0.35` per orbiting sub-agent (one per agent once Sub-Agent Workflow is owned). The temporary Heartbeat ×5 buff is *not* included.
+- **Commits/s** = LOC/s × `bugsPerLoc()` × `IDLE_DEBT` (bugs that idle code would hatch) × expected commits per bug (`3 × E[tier] × mult()`, using the current spawn tier mix and the prestige multiplier). Splits are ignored, so this is a slight underestimate.
+- Credit = rate × seconds, floored. Gaps **under 2s**, negative gaps (clock skew) and NaN are ignored. The gap is capped at **24h** (`FF_CAP_S`).
+- Only LOC and commits are credited. There is no offline debt (no bug flood on return), no bosses, combat or auto-buying. The background code types a catch-up burst so the new LOC shows up visually.
+- Nothing is credited while paused, quit/shelved, waiting on the Ship N.0 card, or before opting in.
+- A **Welcome back** toast (`#bh-away`, top-centre under the header) shows `+X LOC · +Y commits (Zm)`. It is click-through except for its × button and fades after ~6s. It is not written to the HUD feed.
+
+`window.__bugHunt.passiveRates()`, `offlineCredit(ms, rates)`, `sleep()`, `wake()` and `fastForward()` are exposed for tests. `tests/test-sleep.mjs` (puppeteer-core + Chrome) covers the math, hidden-tab loop shutdown, 12 hide/show cycles without stacked loops, the dt spike after a long nap, reload fast-forward and a real background-tab switch: run `TB=http://127.0.0.1:8080 node tests/test-sleep.mjs` against a served `dist/`, with `puppeteer-core` resolvable (for example a git-ignored `tests/node_modules` symlink).
 
 ### Saves and migration
 
@@ -287,7 +302,7 @@ If you leave and come back still opted-in and unpaused, up to **900s** of absenc
 - `lastBoss` (the previous boss name) is persisted so a reload cannot immediately repeat it.
 - `clicks`, `playUnlocked`, and `playSpace` remember Play Space progress and whether you are in that mode. Quitting writes `playSpace: false` and `shelved: true` so a later resume stays on the site and a reload does not pop the HUD or SHIPPED card back open — only **Resume Bug Hunt** stays up.
 - `prestige` (and `ships`, kept in sync) remember how many finales you have shipped. A v3 save that has `ships` but no `prestige` is migrated on load. `shipPending` remembers an unconfirmed Ship win so the fanfare and **Ship N.0?** button survive a reload.
-- Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide, and on `bh-save` (used before in-site navigations).
+- Up to 20 live bugs are stored as normalized positions plus tier/HP/boss/name. The save writes every 2 seconds while playing, on pause/quit/hide (plus `lastActive`, see above), and on `bh-save` (used before in-site navigations).
 - **Reset progress** (and `__bugHunt.reset()`) confirms, then clears `dj-bughunt-v3` **and** any leftover `v1`/`v2` keys, wipes in-memory state, and sets a flag so the pagehide / visibilitychange / 2s-interval savers cannot write the old run back before reload. That last step is what made Reset appear to do nothing on phones.
 
 ### Performance tiers
