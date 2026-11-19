@@ -3364,7 +3364,7 @@
     typeCode(Math.min(4000, c.loc * 14)); // the background code catches up too (no debt: nothing hatches offline)
     lastAway = c;
     showAway(c);
-    log(`While away (${fmtAway(c.sec)}): +${fmt(c.loc)} LOC · +${fmt(c.commits)} commits`);
+    // (No HUD log line: the welcome-back toast is the only place this shows.)
     dirty = true;
     save();
     return c;
