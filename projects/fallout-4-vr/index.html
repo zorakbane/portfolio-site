@@ -6,7 +6,7 @@
 <title>Fallout 4 VR | Derick Janssen</title>
 <meta name="description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:4ba8528010;js:f891c1e3c5;game:8f567dc479">
+<meta name="asset-rev" content="css:7c0232de59;js:f891c1e3c5;game:23f47d2e22">
 <meta property="og:title" content="Fallout 4 VR | Derick Janssen">
 <meta property="og:description" content="I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.">
 <meta property="og:type" content="website">
@@ -365,6 +365,18 @@ body.bh-play #bh-canvas{z-index:4}
 #bh-playmark .ht-outline{display:block;width:5.4em;max-width:100%;height:auto;aspect-ratio:593/98;overflow:hidden;color:var(--green);margin:.05em 0 0}
 #bh-promote{position:fixed;left:50%;top:16%;transform:translate(-50%,0);z-index:60;pointer-events:none;padding:.85rem 1.25rem;border:2px solid var(--green);border-radius:14px;background:rgba(8,16,12,.94);color:var(--green);font:900 .95rem/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;box-shadow:0 0 0 1px #39ff8833,0 16px 40px -10px #39ff88aa,inset 0 0 24px #39ff8814;text-align:center}
 #bh-promote[hidden]{display:none!important}
+/* Welcome-back fast-forward toast: under the header, out of the way, click-through except the ×; auto-fades */
+#bh-away{position:fixed;left:50%;top:calc(56px + .75rem);transform:translateX(-50%);z-index:59;pointer-events:none;display:grid;grid-template-columns:auto auto;align-items:center;column-gap:.6rem;row-gap:.15rem;max-width:min(92vw,460px);padding:.6rem .55rem .6rem 1rem;border:1.5px solid var(--cyan);border-radius:12px;background:rgba(8,12,18,.94);color:var(--text);font:700 .82rem/1.3 var(--mono);box-shadow:0 0 0 1px #3de0ff22,0 14px 36px -12px #3de0ff88,inset 0 0 20px #3de0ff10}
+#bh-away[hidden]{display:none!important}
+#bh-away .bh-away-k{grid-column:1;color:var(--cyan);font-weight:900;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase}
+#bh-away .bh-away-v{grid-column:1;color:var(--green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bh-away .bh-away-x{grid-column:2;grid-row:1/3;pointer-events:auto;appearance:none;border:0;background:transparent;color:var(--muted);font:700 1.1rem/1 var(--mono);width:1.9rem;height:1.9rem;border-radius:8px;cursor:pointer}
+#bh-away .bh-away-x:hover,#bh-away .bh-away-x:focus-visible{color:var(--text);background:#ffffff12}
+#bh-away.in{animation:awayIn .4s var(--spring) both,awayOut .6s ease 5.4s forwards}
+@keyframes awayIn{from{opacity:0;transform:translate(-50%,-10px) scale(.94)}}
+@keyframes awayOut{to{opacity:0;transform:translate(-50%,-6px)}}
+body.bh-play #bh-away{top:.75rem}
+@media (prefers-reduced-motion:reduce){#bh-away.in{animation:awayOut .3s ease 5.7s forwards}}
 #bh-promote.in{animation:promoteIn .45s var(--spring) both,promoteOut 3.4s ease 0s forwards}
 @keyframes promoteIn{from{opacity:0;transform:translate(-50%,-18px) scale(.86)}}
 @keyframes promoteOut{0%,70%{opacity:1}100%{opacity:0}}
@@ -413,7 +425,7 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
 #bh-shipped.rm .bh-shipped-card{animation:none}
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=f891c1e3c5" defer data-game="/portfolio-site/js/game.js?v=8f567dc479"></script>
+<script src="/portfolio-site/js/main.js?v=f891c1e3c5" defer data-game="/portfolio-site/js/game.js?v=23f47d2e22"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
