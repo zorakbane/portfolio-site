@@ -6,7 +6,7 @@
 <title>ARK: Survival Ascended | Derick Janssen</title>
 <meta name="description" content="Optimization, tools, and bug fixes on the Unreal Engine 5 remaster of ARK, including 25% more server performance in my first week.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:bf99dd259c;js:f891c1e3c5;game:9b0dc32183">
+<meta name="asset-rev" content="css:463725f78a;js:f891c1e3c5;game:40bc32a14b">
 <meta property="og:title" content="ARK: Survival Ascended | Derick Janssen">
 <meta property="og:description" content="Optimization, tools, and bug fixes on the Unreal Engine 5 remaster of ARK, including 25% more server performance in my first week.">
 <meta property="og:type" content="website">
@@ -382,6 +382,9 @@ body.bh-play #bh-ready,body.bh-play .bh-hud{z-index:70}
 #bh-shipbar.held{border-color:#ffb142}
 #bh-shipbar.held .bh-shiptrack i{background:linear-gradient(90deg,#ffb142,#ff5a5a)}
 #bh-shipbar.held .bh-shipblock{color:#ffd166}
+#bh-shipbar.shielded{border-color:#ff5a5a}
+#bh-shipbar.shielded .bh-shiptrack i{background:linear-gradient(90deg,#ff5a5a,#a06bff);opacity:.7}
+#bh-shipbar.shielded .bh-shipblock{color:#ff8a8a}
 body.bh-play #bh-shipbar{z-index:55}
 #bh-shipwarn{position:fixed;left:50%;top:10%;transform:translateX(-50%);z-index:58;pointer-events:none;padding:.7rem 1.15rem;border:2px solid #ff5a5a;border-radius:12px;background:rgba(22,8,10,.94);color:#ff8a8a;font:900 .9rem/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 0 1px #ff5a5a33,0 16px 40px -10px #ff5a5aaa}
 #bh-shipwarn[hidden]{display:none!important}
@@ -416,9 +419,12 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
   #bh-shipped.in .bh-shipped-card{animation:none}
 }
 #bh-shipped.rm .bh-shipped-card{animation:none}
+.bh-item.bh-new{animation:bhNew 1.4s ease-out 1}
+@keyframes bhNew{0%{box-shadow:0 0 0 2px #39ff88,0 0 18px -2px #39ff88}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.bh-item.bh-new{animation:none;outline:2px solid #39ff88;outline-offset:-2px}}
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=f891c1e3c5" defer data-game="/portfolio-site/js/game.js?v=9b0dc32183"></script>
+<script src="/portfolio-site/js/main.js?v=f891c1e3c5" defer data-game="/portfolio-site/js/game.js?v=40bc32a14b"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
