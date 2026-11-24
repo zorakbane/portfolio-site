@@ -85,6 +85,7 @@ Lead / Senior Programmer · 6 direct reports, incl. a junior UI artist and a jun
 Feature lead for the StarMap. I later worked on Ship Building, Localization, Optimizations, and Outposts.
 
 - Lead for the StarMap feature.
+- Moved over from Skyrim VR after its launch, and kept mentoring the VR team.
 - Six direct reports, including a junior UI artist and a junior producer whom I mentored hands-on.
 - Later worked on Ship Building, Localization, Optimizations, and Outposts.
 - Awards: Xbox Game of the Year 2023; Most Innovative Gameplay 2023
@@ -100,14 +101,17 @@ Brought on to ship post-release features: bulldozing, vending, and CAMP decorati
 
 ### Skyrim VR, Bethesda Game Studios
 
-Lead Programmer · 12 engineers, all direct reports · Released 2017 · Proprietary C++ engine
+Lead Programmer · 12 engineers, all direct reports · Dec 2016 – Nov 2017 · Proprietary C++ engine
 
 I spearheaded Skyrim VR from conception until launch, on both PSVR and Vive.
 
-- Spearheaded the project from conception until launch.
+- Spearheaded the project from conception until launch (Dec 2016 – Nov 2017, PSVR launch).
 - Led a team of 12 engineers, all direct reports.
-- Worked on pretty much every feature of the game except the zoomed-out map mode and the tutorial.
+- Touched or led every feature of the game except map mode.
+- Did all of the Havok gameplay physics on Skyrim VR and Fallout 4 VR: wand-based weapon mapping for melee and projectile weapons, VR gestures, Doom VR-style lerp teleport movement, and player collision and bounds that keep players in the world across multiple movement techniques, with a snapback based on a Vitruvian Man golden-ratio body calculation.
+- Team result: Sony asked us to port our PSVR stability changes back to the original Skyrim release after Skyrim VR showed 5% fewer crashes.
 - Shipped on both PSVR and Vive.
+- After launch, moved to lead Starfield's StarMap while continuing to mentor the VR team.
 - Awards: Steam VR Game of the Year 2018; Golden Joystick Award 2018
 
 ### Fallout 4 VR, Bethesda Game Studios
@@ -116,6 +120,7 @@ Senior Game Programmer · Released 2017 · Proprietary C++ engine · AS3 UI
 
 I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.
 
+- Did all of the Havok gameplay physics (shared with Skyrim VR): wand-based melee and projectile weapon mapping, gestures, lerp teleport movement, and player collision and bounds.
 - Created VR melee.
 - Polished teleporting and movement.
 - Created the Workshop mode in VR.
@@ -157,7 +162,7 @@ More: /portfolio-site/agentic-ai/
 
 - Languages: C++, C#, C, Python, Lua, ActionScript, Blueprint, Java
 - Engines: Unity (incl. ECS), Unreal 4/5 (incl. GAS), Proprietary C++ engines, UDK, XNA, Torque
-- Focus: Deterministic rollback netcode, Gameplay & game feel, Performance & optimization, Tools & pipelines, VR, Agentic coding & AI
+- Focus: Deterministic rollback netcode, Gameplay & game feel, Gameplay physics (Havok), Performance & optimization, Tools & pipelines, VR, Agentic coding & AI
 
 ## Awards
 
