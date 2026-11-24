@@ -48,7 +48,7 @@ Principal Engineer · 12-person studio · reports to the CEO · Jan 2025 – Pre
 
 - Owner of the deterministic multiplayer rollback netcode simulation in ECS.
 - Built a V-Rising-size world with a mean simulation time of ~1.5 ms.
-- Foundation work: optimized, multithreaded finite-state machines that cut how many ECS systems the game needs. Voidwood runs on about 40 systems.
+- Foundation work: optimized, multithreaded finite-state machines absorb work that would otherwise be many separate ECS systems, so Voidwood runs on about 40 — for scale, Unity's V Rising case study cites 1,600 (different scopes; https://unity.com/resources/stunlock-studios-v-rising). Agents default to creating new systems, so I enforce project rules against that sprawl.
 - Kept a performant build with no crashes or desyncs at each milestone.
 - I use and build on Voidwood's AWS backend in Python: a game-data wrapper over the AWS database service, matchmaking, live ops, Photon Quantum webhooks, analytics, and build scripts that hook into Unreal Build Accelerator (UBA). I didn't write the UBA builder itself. The backend isn't public.
 - Principal Engineer in a 12-person studio, reporting to the CEO.
