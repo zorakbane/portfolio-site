@@ -77,6 +77,7 @@ const hold = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(6);
   const nodes = g.liveShipNodes().slice();
   for (const n of nodes.slice(1)) g.destroyShipNode(n);
+  g.bugs.splice(0); // node-down bursts/swarms are tested separately
   const last = nodes[0]; last.hp = 5; g.syncShipHp();
   const b = g.spawnBug(innerWidth * 0.5, innerHeight - 100, { force: true, tier: 1, src: 'test' }); b.hatching = false; b.appearIn = 0; b.hp = b.maxHp = 1e6;
   const bar = document.getElementById('bh-shipbar');
@@ -96,6 +97,7 @@ const bomb = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(6);
   const nodes = g.liveShipNodes().slice();
   for (const n of nodes.slice(1)) g.destroyShipNode(n);
+  g.bugs.splice(0); // node-down bursts/swarms are tested separately
   const last = nodes[0]; last.hp = 3; g.syncShipHp();
   const b = g.spawnBug(innerWidth * 0.5, innerHeight - 60, { force: true, tier: 1, src: 'test' }); b.hatching = false; b.appearIn = 0; b.hp = b.maxHp = 1e6;
   const fake = { isSub: true, x: last.x, y: last.y + 4, missile: true, missilePhase: 'out', state: 'out' };
@@ -108,6 +110,7 @@ const instant = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(6);
   const nodes = g.liveShipNodes().slice();
   for (const n of nodes.slice(1)) g.destroyShipNode(n);
+  g.bugs.splice(0); // node-down bursts/swarms are tested separately
   const last = nodes[0];
   const b1 = g.spawnBug(innerWidth * 0.3, innerHeight - 100, { force: true, tier: 1, src: 'test' }); b1.hatching = false;
   const b2 = g.spawnBug(innerWidth * 0.7, innerHeight - 100, { force: true, tier: 1, src: 'test' }); b2.hatching = false;
@@ -130,6 +133,7 @@ const chaos = await page.evaluate(() => {
   // Hold it, then confirm the ship still drops minions while held.
   const nodes = g.liveShipNodes().slice();
   for (const n of nodes.slice(1)) g.destroyShipNode(n);
+  g.bugs.splice(0); // node-down bursts/swarms are tested separately
   const keep = g.spawnBug(innerWidth * 0.5, innerHeight - 80, { force: true, tier: 3, src: 'test' }); keep.hatching = false; keep.hp = keep.maxHp = 1e9;
   nodes[0].hp = -1; g.holdLastNode(nodes[0]);
   const h0 = g.spawnLog.filter(e => e.src === 'ship').length;
@@ -170,6 +174,74 @@ const shipNow = await page.evaluate(() => {
 });
 ok('knocking out every hardpoint with a bug alive leaves exactly one held node', shipNow.alive && shipNow.liveNodes === 1 && !shipNow.pending, JSON.stringify(shipNow));
 
+// ---------- node down: a 'Regression' boss from the node + a swarm from offscreen ----------
+const nd = await page.evaluate(() => {
+  const g = window.__bugHunt; window.__setup(10, 1);
+  const W = innerWidth, H = innerHeight;
+  const counts = new Set(); let badCount = 0;
+  for (let i = 0; i < 60; i++) { const c = g.regressionKids(); counts.add(c); if (c < 3 || c > 5) badCount++; }
+  const n = g.liveShipNodes()[2];
+  g.destroyShipNode(n);
+  const regs = g.bugs.filter(b => b.regression);
+  const reg = regs[0];
+  const regOk = regs.length === 1 && reg.name === 'Regression' && reg.boss && Math.hypot(reg.x - n.x, reg.y - n.y) < 40 && reg.regShed === 0;
+  const swarm = g.bugs.filter(b => b.entering);
+  const swarmOffscreen = swarm.every(b => b.x < 0 || b.x > W || b.y > H);
+  // Counts as a live bug: bugs-first targeting picks it over hardpoints, and it's huntable.
+  g.bugs.splice(0, g.bugs.length, reg);
+  const targeted = g.pickThreat() === reg && g.pickLaunchTarget() === reg && g.pickLaserTarget(reg.x, reg.y - 30, 400) === reg && g.liveBugCount() === 1;
+  // Chip it down step by step: kids shed at HP thresholds, the last one on death.
+  for (const b of g.bugs) if (b !== reg) b.hp = b.maxHp = 1e9;
+  const k = reg.regKids, shedLog = [];
+  for (let f = 1; f < k; f++) {
+    reg.hp = reg.maxHp * (1 - f / k) - 0.01; g.regressionShed(reg, false); shedLog.push(reg.regShed);
+  }
+  const before = g.bugs.filter(b => !b.regression).length;
+  g.squash(reg, { auto: true });
+  const kids = g.bugs.filter(b => !b.regression).length;
+  const total = reg.regShed;
+  // swarm: watch it walk in (fresh node drop)
+  g.bugs.splice(0);
+  g.destroyShipNode(g.liveShipNodes()[1]);
+  const sw = g.bugs.filter(b => b.entering);
+  for (const b of g.bugs) b.hp = b.maxHp = 1e9;
+  for (let i = 0; i < 120; i++) g.step(1 / 30);
+  const inside = sw.filter(b => !b.entering && b.x >= 0 && b.x <= W && b.y >= 56 && b.y <= H).length;
+  // The Regression keeps the last node held until it's squashed.
+  g.bugs.splice(0);
+  const nodes = g.liveShipNodes();
+  for (const m of nodes.slice(1)) g.destroyShipNode(m);
+  const afterAll = g.bugs.length;
+  const regAlive = g.bugs.some(b => b.regression);
+  nodes[0].hp = -1; const held = g.holdLastNode(nodes[0]);
+  g.bugs.splice(0); g.completeHeldShip();
+  return { counts: [...counts].sort(), badCount, regOk, targeted, k, shedLog, before, kids, total, swarm: swarm.length, size: g.swarmSize(), swarmOffscreen, inside, swN: sw.length, fightCap: g.fightCap(), afterAll, regAlive, held, shipped: !g.liveShipNodes().length };
+});
+ok('a downed hardpoint drops one boss labeled "Regression" out of the node', nd.regOk, JSON.stringify(nd));
+ok('a Regression counts as a live bug: picked over hardpoints by lasers, Derick and bombs', nd.targeted);
+ok('the Regression sheds 3–5 bugs over its life, one per HP threshold and the last on death', nd.badCount === 0 && nd.counts[0] === 3 && nd.counts[nd.counts.length - 1] === 5 && nd.total === nd.k && nd.kids === nd.k && nd.before === nd.k - 1 && nd.shedLog.every((v, i) => v === i + 1));
+ok('…and calls in a swarm that starts offscreen (desktop, 10 agents: 6+ bugs)', nd.swarm === nd.size && nd.swarm >= 6 && nd.swarmOffscreen);
+ok('swarm bugs walk onto the board within 4s', nd.inside === nd.swN, `${nd.inside}/${nd.swN}`);
+ok('node-down spawns respect the fight cap, and a live Regression blocks shipping', nd.afterAll <= nd.fightCap && nd.regAlive && nd.held && nd.shipped);
+const mshed = await page.evaluate(() => {
+  const g = window.__bugHunt; window.__setup(10, 1);
+  // A single huge missile hit from full to dead still sheds every kid (none skipped).
+  const r = g.spawnRegression(innerWidth / 2, innerHeight / 2); const k = r.regKids;
+  g.bugs.splice(0, g.bugs.length, r);
+  r.hp = -1; g.squash(r, { auto: true });
+  return { k, kids: g.bugs.length };
+});
+ok('a Regression one-shot from full HP still drops all of its kids', mshed.kids === mshed.k, JSON.stringify(mshed));
+const lastNode = await page.evaluate(() => {
+  const g = window.__bugHunt; window.__setup(6);
+  const nodes = g.liveShipNodes();
+  for (const m of nodes.slice(1)) { m.hp = -1; g.destroyShipNode(m); }
+  g.bugs.splice(0);
+  nodes[0].hp = -1; g.destroyShipNode(nodes[0]); // final node: ship goes out, no swarm
+  return { bugs: g.bugs.length, won: !g.liveShipNodes().length };
+});
+ok('the final hardpoint ships the release without spawning a swarm', lastNode.won && lastNode.bugs === 0, JSON.stringify(lastNode));
+
 // ---------- copy ----------
 await page.evaluate(() => {
   const g = window.__bugHunt, S = g.S;
@@ -190,6 +262,12 @@ ok('upgrade button is disabled mid-fight and says to squash the live bugs first'
 // ---------- mobile: S26-sized fight ----------
 const mp = await fresh({ width: 412, height: 915, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
 const fm = await fight(mp, 4, 0);
+const mnd = await mp.evaluate(() => {
+  const g = window.__bugHunt; window.__setup(4);
+  const n = g.liveShipNodes()[2]; g.destroyShipNode(n);
+  return { total: g.bugs.length, swarm: g.bugs.filter(b => b.entering).length, regression: g.bugs.filter(b => b.regression).length, size: g.swarmSize(), fightCap: g.fightCap() };
+});
+ok('phone: one Regression + a smaller swarm (3–4), under the phone fight cap', mnd.regression === 1 && mnd.swarm >= 3 && mnd.swarm <= 4 && mnd.total <= mnd.fightCap && mnd.fightCap <= 13, JSON.stringify(mnd));
 ok('phone-size 4-agent release fight ships with 0 live bugs, no softlock', fm.won && fm.liveAtWin === 0 && fm.t <= 220, JSON.stringify(fm));
 
 ok('no page errors', !errs.length, errs.join(' | '));
