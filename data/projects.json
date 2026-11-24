@@ -188,6 +188,7 @@
       "summary": "Feature lead for the StarMap. I later worked on Ship Building, Localization, Optimizations, and Outposts.",
       "bullets": [
         "Lead for the StarMap feature.",
+        "Moved over from Skyrim VR after its launch, and kept mentoring the VR team.",
         "Six direct reports, including a junior UI artist and a junior producer whom I mentored hands-on.",
         "Later worked on Ship Building, Localization, Optimizations, and Outposts."
       ],
@@ -256,7 +257,7 @@
       "title": "Skyrim VR",
       "studio": "Bethesda Game Studios",
       "role": "Lead Programmer",
-      "years": "Released 2017",
+      "years": "Dec 2016 – Nov 2017",
       "engine": "Proprietary C++ engine",
       "status": "Steam VR GOTY & Golden Joystick 2018",
       "accent": "#e2e8f0",
@@ -264,15 +265,19 @@
       "cardImage": "skyrimvr-header",
       "summary": "I spearheaded Skyrim VR from conception until launch, on both PSVR and Vive.",
       "bullets": [
-        "Spearheaded the project from conception until launch.",
+        "Spearheaded the project from conception until launch (Dec 2016 – Nov 2017, PSVR launch).",
         "Led a team of 12 engineers, all direct reports.",
-        "Worked on pretty much every feature of the game except the zoomed-out map mode and the tutorial.",
-        "Shipped on both PSVR and Vive."
+        "Touched or led every feature of the game except map mode.",
+        "Did all of the Havok gameplay physics on Skyrim VR and Fallout 4 VR: wand-based weapon mapping for melee and projectile weapons, VR gestures, Doom VR-style lerp teleport movement, and player collision and bounds that keep players in the world across multiple movement techniques, with a snapback based on a Vitruvian Man golden-ratio body calculation.",
+        "Team result: Sony asked us to port our PSVR stability changes back to the original Skyrim release after Skyrim VR showed 5% fewer crashes.",
+        "Shipped on both PSVR and Vive.",
+        "After launch, moved to lead Starfield's StarMap while continuing to mentor the VR team."
       ],
       "tags": [
         "VR",
         "Project lead",
         "Gameplay",
+        "Havok physics",
         "PSVR",
         "Vive"
       ],
@@ -308,6 +313,7 @@
       "cardImage": "fo4vr-header",
       "summary": "I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.",
       "bullets": [
+        "Did all of the Havok gameplay physics (shared with Skyrim VR): wand-based melee and projectile weapon mapping, gestures, lerp teleport movement, and player collision and bounds.",
         "Created VR melee.",
         "Polished teleporting and movement.",
         "Created the Workshop mode in VR.",
@@ -316,6 +322,7 @@
       "tags": [
         "VR",
         "Melee",
+        "Havok physics",
         "Locomotion",
         "Workshop",
         "UI"
@@ -971,6 +978,7 @@
     "Focus": [
       "Deterministic rollback netcode",
       "Gameplay & game feel",
+      "Gameplay physics (Havok)",
       "Performance & optimization",
       "Tools & pipelines",
       "VR",
