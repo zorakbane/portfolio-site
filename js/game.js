@@ -561,6 +561,10 @@
     return src[Math.floor(Math.random() * src.length)];
   }
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
+  // Extra room for node-burst / swarm bugs during the release fight, so a swarm actually shows up instead of
+  // silently going to backlog (or merging into tier-3s). Kept small on phones.
+  const SWARM_ROOM = () => (COARSE || Wd < 700 ? 5 : 8);
+  const fightCap = () => cap() + SWARM_ROOM();
   function isBoss(b) { return !!(b && (b.boss || b.tier >= 4)); }
   function hasBossDamage() { return !!(S.derick || S.agents > 0); }
   function canSpawnBoss(opts) {
@@ -600,7 +604,8 @@
   }
   function canAutoSpawn() { return !S.shipPending && now() >= spawnQuietUntil; }
   function mergeIfOver() {
-    while (bugs.length > cap() && bugs.length >= 2) {
+    const lim = shipBoss && shipBoss.hp > 0 ? fightCap() : cap();
+    while (bugs.length > lim && bugs.length >= 2) {
       let bi = 0, bj = 1, bd = 1e15;
       for (let i = 0; i < bugs.length; i++) {
         if (isBoss(bugs[i])) continue;
@@ -668,7 +673,7 @@
       return null;
     }
     if (!opts.force && !opts.fromClick && !canAutoSpawn()) { S.backlog++; return null; }
-    if (bugs.length >= cap()) { S.backlog++; return null; }
+    if (bugs.length >= (opts.swarm ? fightCap() : cap())) { S.backlog++; return null; }
     let tier = opts.tier;
     if (!tier) {
       if (opts.boss) tier = 4;
@@ -865,6 +870,7 @@
   function squash(b, opts = {}) {
     const i = bugs.indexOf(b); if (i < 0) return;
     const auto = !!opts.auto;
+    if (b.regression) { bugs.splice(i, 1); regressionShed(b, true); bugs.splice(i, 0, b); } // shed the rest with b out of the cap count
     const noSplit = !!opts.noSplit || !!b.targeted || (b.boss && !!opts.qaBoss);
     const val = Math.round((b.boss ? 18 : b.tier * 3) * mult() * (b.targeted ? 1.25 : 1));
     S.commits += val; S.squashed++;
@@ -1098,7 +1104,67 @@
     }
     gain(n.x, n.y - 16, 'DOWN', '#3de0ff');
     syncShipHp();
-    if (!liveShipNodes().length) winFinale();
+    if (!liveShipNodes().length) { winFinale(); return; }
+    nodeDownSpawns(n);
+  }
+  // A hardpoint going down drops a 'Regression' boss out of the node and calls in a swarm from offscreen
+  // (release-day chaos). The Regression sheds 3–5 bugs over its life as it's chipped down (see regressionShed).
+  // Swarm size scales with screen (phone < tablet < desktop) and squad strength.
+  function regressionKids() { return 3 + Math.floor(Math.random() * 3); }
+  function swarmSize() {
+    const base = (COARSE || Wd < 700) ? 3 : Wd < 1300 ? 4 : 5;
+    return clamp(Math.round(base + (S.agents || 0) * 0.25 + (S.subagent ? 1 : 0)), base, base + 3);
+  }
+  function spawnRegression(x, y) {
+    const b = spawnBug(x, y, { force: true, swarm: true, boss: true, tier: 4, name: 'Regression', src: 'regression' });
+    if (!b) return null;
+    b.hatching = false; b.appearIn = 0;
+    b.regression = true; b.regKids = regressionKids(); b.regShed = 0;
+    b.a = Math.PI / 2 + (Math.random() - .5) * 0.8; b.boost = 2.2; b.pop = 0.5; b.flash = 1; b.sq = 1;
+    return b;
+  }
+  // Shed kids at evenly spaced HP thresholds: with k kids, one at each (k-1)/k, …, 1/k of max HP, the last on death.
+  function regressionShed(b, dead) {
+    if (!b.regression) return 0;
+    const k = b.regKids;
+    const due = dead ? k : Math.min(k - 1, Math.floor((1 - Math.max(0, b.hp) / b.maxHp) * k + 1e-9));
+    let n = 0;
+    while (b.regShed < due) {
+      b.regShed++;
+      const a = Math.random() * Math.PI * 2;
+      const c = spawnBug(b.x + Math.cos(a) * 10, b.y + Math.sin(a) * 10, { force: true, swarm: true, tier: Math.random() < 0.3 ? 2 : 1, src: 'regression-kid' });
+      if (!c) continue;
+      c.hatching = false; c.appearIn = 0; c.a = a; c.boost = 3.4; c.pop = 0.5; c.flash = 1; c.sq = 1;
+      n++;
+    }
+    if (n && quality < 2) burst(b.x, b.y, 8, 6, 160);
+    return n;
+  }
+  function nodeDownSpawns(n) {
+    if (!shipBoss || !n) return { regression: null, swarm: 0 };
+    let swarm = 0;
+    const regression = spawnRegression(n.x, n.y + 18);
+    if (regression) log('A Regression crawled out of the downed hardpoint.');
+    // Swarm: stream in from one side (left / right / bottom), offscreen, toward the middle band.
+    const ns = swarmSize();
+    const side = Math.floor(Math.random() * 3);
+    for (let i = 0; i < ns; i++) {
+      const pad = 40 + Math.random() * 40;
+      let x, y;
+      if (side === 0) { x = -pad; y = Hd * (0.35 + Math.random() * 0.55); }
+      else if (side === 1) { x = Wd + pad; y = Hd * (0.35 + Math.random() * 0.55); }
+      else { x = Wd * (0.1 + Math.random() * 0.8); y = Hd + pad; }
+      const b = spawnBug(x, y, { force: true, swarm: true, tier: Math.random() < 0.3 ? 2 : 1, src: 'swarm' });
+      if (!b) break;
+      b.hatching = false;
+      b.appearIn = i * 0.09; // stream in, not one clump
+      b.entering = true; b.enterT = 3.5;
+      b.ex = Wd * (0.2 + Math.random() * 0.6); b.ey = Hd * (0.4 + Math.random() * 0.45);
+      b.pop = 1;
+      swarm++;
+    }
+    if (swarm) showShipWarn(`⚠ Regression + swarm incoming (${swarm})`);
+    return { regression, swarm };
   }
   function nodeFocus(n) {
     if (!n) return 0;
@@ -2752,10 +2818,26 @@
         continue;
       }
       b.ph += dt * (8 - Math.min(3, b.tier));
+      if (b.regression && b.regShed < b.regKids - 1) regressionShed(b, false);
+      const m = R[Math.min(4, b.tier)];
+      if (b.entering) {
+        // Swarm bugs march in from offscreen toward their entry point, then join the normal wander.
+        b.enterT -= dt;
+        b.a = Math.atan2(b.ey - b.y, b.ex - b.x);
+        const esp = SPEED[Math.min(4, b.tier)] * 2.4;
+        b.x += Math.cos(b.a) * esp * dt; b.y += Math.sin(b.a) * esp * dt;
+        const inside = b.x >= m && b.x <= Wd - m && b.y >= m + 56 && b.y <= Hd - m;
+        if ((inside && Math.hypot(b.ex - b.x, b.ey - b.y) < 40) || b.enterT <= 0) {
+          b.entering = false;
+          b.x = clamp(b.x, m, Wd - m); b.y = clamp(b.y, m + 56, Hd - m);
+        }
+        b.pop += (1 - b.pop) * Math.min(1, dt * 10);
+        b.sq *= Math.pow(0.002, dt); b.flash = Math.max(0, b.flash - dt * 6);
+        continue;
+      }
       b.turn += (Math.random() - .5) * dt * 6; b.turn *= 0.96; b.a += b.turn * dt * 3;
       const sp = SPEED[Math.min(4, b.tier)] * (b.boost || 1); if (b.boost) b.boost = Math.max(1, b.boost - dt * 6);
       b.x += Math.cos(b.a) * sp * dt; b.y += Math.sin(b.a) * sp * dt;
-      const m = R[Math.min(4, b.tier)];
       if (b.x < m) { b.x = m; b.a = Math.PI - b.a; } else if (b.x > Wd - m) { b.x = Wd - m; b.a = Math.PI - b.a; }
       if (b.y < m + 56) { b.y = m + 56; b.a = -b.a; } else if (b.y > Hd - m) { b.y = Hd - m; b.a = -b.a; }
       b.pop += (1 - b.pop) * Math.min(1, dt * (b.popRate || 10));
@@ -3468,7 +3550,7 @@
     kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
-    syncShipNodePositions, syncShipHp, destroyShipNode, liveBugCount, anyHuntableBug, holdLastNode, shipHoldHp, canAutoSpawn, completeHeldShip, chipShip, SHIP_CHIP, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
+    syncShipNodePositions, syncShipHp, destroyShipNode, liveBugCount, anyHuntableBug, holdLastNode, shipHoldHp, canAutoSpawn, completeHeldShip, chipShip, SHIP_CHIP, nodeDownSpawns, regressionKids, regressionShed, spawnRegression, swarmSize, fightCap, SWARM_ROOM, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
     KEY_LOC, KEY_MIN_GAP_MS, KEY_HOT_MS, typeKey, inPlaySpace,
