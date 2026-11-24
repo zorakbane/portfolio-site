@@ -55,5 +55,15 @@ ok('skills include Cursor/Claude Code, AWS/Python, and CI on JanssEngine',
   home.includes('Cursor and Claude Code daily') && home.includes('CI on JanssEngine') && md.includes('Cursor and Claude Code daily'));
 ok('talks are in person and listed in about + resume.md', home.includes('given talks in person at GR Dev Night') && md.includes('GR Dev Night, Grand Rapids') && md.includes('All of these talks were given in person'));
 ok('JanssEngine page mentions CI', D('projects/janssengine/index.html').includes('continuous integration'));
+ok('Best AI Editor\'s Pick is restored with AIGameDev.com source',
+  home.includes("Editor's Pick") && home.includes('Best AI in an Independent Game') && home.includes('AIGameDev.com')
+  && home.includes('web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/')
+  && md.includes("Editor's Pick") && md.includes('aigamedev.com/open/editorial/2009-awards-results/')
+  && D('projects/galactic-arms-race/index.html').includes('aigamedev.com/open/editorial/2009-awards-results/'));
+ok('awards strip lists AI Battle as a confirmed school competition, 2nd place overall',
+  /id="awards"[\s\S]*AI Battle \(school AI competition\): 2nd place overall[\s\S]*id="about"/.test(home)
+  && home.includes('time and memory limits') && home.includes('ran matches deterministically')
+  && md.includes('AI Battle (school AI competition): 2nd place overall'));
+
 console.log(`--- ${pass}/${pass + fail} passed ---`);
 process.exit(fail ? 1 : 0);

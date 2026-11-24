@@ -574,7 +574,8 @@
       ],
       "awards": [
         "Indie Game Challenge 2010 Finalist",
-        "SMU Guildhall scholarship"
+        "SMU Guildhall scholarship",
+        "Editor's Pick — Best AI in an Independent Game (AIGameDev.com, 2009)"
       ],
       "youtube": "MOKNoZSAGGQ",
       "youtubeTitle": "Galactic Arms Race (GAR) Informational Video",
@@ -586,6 +587,10 @@
         {
           "label": "SMU Guildhall scholarship announcement",
           "url": "https://www.smu.edu/news/archives/2010/guildhall-scholarship-winner-25may2010"
+        },
+        {
+          "label": "2009 AIGameDev.com Awards (archived)",
+          "url": "https://web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/"
         }
       ]
     },
@@ -669,13 +674,13 @@
     {
       "slug": "ai-battle",
       "group": "lab",
-      "title": "AI Battle — 2nd place",
-      "studio": "AI competition",
+      "title": "AI Battle — 2nd place overall",
+      "studio": "School AI competition",
       "role": "Solo",
       "engine": "Agent AI",
       "accent": "#84cc16",
       "image": "aibattle",
-      "summary": "A battle for food and survival between programmed AIs. My cockroach-like agents build and share a light map and try to move toward darkness. Walls, enemies, and dirt emit light, and found food emits darkness toward the nearest unit. Took 2nd place overall.",
+      "summary": "A battle for food and survival between programmed AIs. Each student's AI was a DLL; a master program enforced time and memory limits on each one and ran matches deterministically (the project screenshot is that deterministic result). My cockroach-like agents build and share a light map and try to move toward darkness. Walls, enemies, and dirt emit light, and found food emits darkness toward the nearest unit. Took 2nd place overall.",
       "tags": [
         "Multi-agent",
         "Emergent behavior"
@@ -897,6 +902,13 @@
       "icon": "star"
     },
     {
+      "title": "Editor's Pick — Best AI in an Independent Game",
+      "year": "2009",
+      "project": "Galactic Arms Race · AIGameDev.com Awards",
+      "icon": "star",
+      "url": "https://web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/"
+    },
+    {
       "title": "Indie Game Challenge Finalist",
       "year": "2010",
       "project": "Galactic Arms Race",
@@ -907,6 +919,11 @@
       "year": "2010",
       "project": "Galactic Arms Race · $50,000 scholarship announced by SMU, May 25, 2010",
       "icon": "paper"
+    },
+    {
+      "title": "AI Battle (school AI competition): 2nd place overall",
+      "project": "Student AI DLLs under time and memory limits",
+      "icon": "medal"
     }
   ],
   "experience": [

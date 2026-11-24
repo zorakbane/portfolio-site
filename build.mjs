@@ -196,7 +196,7 @@ function home() {
 
 <section id="awards" class="sec wrap" aria-labelledby="awards-h">
   <header class="sec-head reveal"><p class="sec-num">04</p><h2 id="awards-h">Achievements unlocked</h2></header>
-  <ul class="awards">${data.awards.map((a, i) => `<li class="award reveal" style="--i:${i % 8}"><span class="award-ico">${icon(a.icon)}</span><div><b>${esc(a.title)}</b><span>${esc(a.project)}${a.year ? ' · ' + esc(a.year) : ''}</span></div></li>`).join('')}</ul>
+  <ul class="awards">${data.awards.map((a, i) => { const title = a.url ? `<a href="${esc(a.url)}"${/^https?:/i.test(a.url) ? ' target="_blank" rel="noopener"' : ''}>${esc(a.title)}</a>` : esc(a.title); return `<li class="award reveal" style="--i:${i % 8}"><span class="award-ico">${icon(a.icon)}</span><div><b>${title}</b><span>${esc(a.project)}${a.year ? ' · ' + esc(a.year) : ''}</span></div></li>`; }).join('')}</ul>
 </section>
 
 <section id="about" class="sec wrap" aria-labelledby="about-h">
@@ -355,7 +355,7 @@ function resumeMd() {
   L.push(`More: ${abs('agentic-ai/')}`, '');
   L.push('### Earlier games', '', ...group('earlier').map(p => `- **${p.title}** (${p.studio}${p.role ? ', ' + p.role : ''}): ${p.summary}`), '');
   L.push('## Skills', '', ...Object.entries(data.skills).map(([k, v]) => `- ${k}: ${v.join(', ')}`), '');
-  L.push('## Awards', '', ...data.awards.map(a => `- ${a.title}${a.year ? ' (' + a.year + ')' : ''}, ${a.project}`), '');
+  L.push('## Awards', '', ...data.awards.map(a => `- ${a.title}${a.year ? ' (' + a.year + ')' : ''}, ${a.project}${a.url ? ' — ' + a.url : ''}`), '');
   L.push('## Education', '', ...data.education.map(e => `- **${e.school}**, ${e.degree}, ${e.years}. ${e.note}`), '');
   L.push('## Talks', '', ...data.talks.map(t => `- ${t}`), '');
   return L.join('\n').replace(/\n{3,}/g, '\n\n');
