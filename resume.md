@@ -175,8 +175,10 @@ More: /portfolio-site/agentic-ai/
 - Golden Joystick Award (2018), Skyrim VR
 - Xbox Game of the Year (2023), Starfield
 - Most Innovative Gameplay (2023), Starfield
+- Editor's Pick — Best AI in an Independent Game (2009), Galactic Arms Race · AIGameDev.com Awards — https://web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/
 - Indie Game Challenge Finalist (2010), Galactic Arms Race
 - SMU Guildhall Scholarship (2010), Galactic Arms Race · $50,000 scholarship announced by SMU, May 25, 2010
+- AI Battle (school AI competition): 2nd place overall, Student AI DLLs under time and memory limits
 
 ## Education
 
