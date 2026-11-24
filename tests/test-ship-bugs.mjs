@@ -184,9 +184,10 @@ const nd = await page.evaluate(() => {
   g.destroyShipNode(n);
   const regs = g.bugs.filter(b => b.regression);
   const reg = regs[0];
+  const swarmSnap = g.bugs.filter(b => b.entering);
   const regOk = regs.length === 1 && reg.name === 'Regression' && reg.boss && Math.hypot(reg.x - n.x, reg.y - n.y) < 40 && reg.regShed === 0;
   const swarm = g.bugs.filter(b => b.entering);
-  const swarmOffscreen = swarm.every(b => b.x < 0 || b.x > W || b.y > H);
+  const swarmOffscreen = swarm.every(b => b.y < 0); // pours in from the top
   // Counts as a live bug: bugs-first targeting picks it over hardpoints, and it's huntable.
   g.bugs.splice(0, g.bugs.length, reg);
   const targeted = g.pickThreat() === reg && g.pickLaunchTarget() === reg && g.pickLaserTarget(reg.x, reg.y - 30, 400) === reg && g.liveBugCount() === 1;
@@ -220,8 +221,8 @@ const nd = await page.evaluate(() => {
 ok('a downed hardpoint drops one boss labeled "Regression" out of the node', nd.regOk, JSON.stringify(nd));
 ok('a Regression counts as a live bug: picked over hardpoints by lasers, Derick and bombs', nd.targeted);
 ok('the Regression sheds 3–5 bugs over its life, one per HP threshold and the last on death', nd.badCount === 0 && nd.counts[0] === 3 && nd.counts[nd.counts.length - 1] === 5 && nd.total === nd.k && nd.kids === nd.k && nd.before === nd.k - 1 && nd.shedLog.every((v, i) => v === i + 1));
-ok('…and calls in a swarm that starts offscreen (desktop, 10 agents: 6+ bugs)', nd.swarm === nd.size && nd.swarm >= 6 && nd.swarmOffscreen);
-ok('swarm bugs walk onto the board within 4s', nd.inside === nd.swN, `${nd.inside}/${nd.swN}`);
+ok('…and calls in a swarm that starts above the top edge (desktop, 10 agents: 6+ bugs)', nd.swarm === nd.size && nd.swarm >= 6 && nd.swarmOffscreen);
+ok('swarm bugs are on the board within 4s', nd.inside === nd.swN, `${nd.inside}/${nd.swN}`);
 ok('node-down spawns respect the fight cap, and a live Regression blocks shipping', nd.afterAll <= nd.fightCap && nd.regAlive && nd.held && nd.shipped);
 const mshed = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(10, 1);
@@ -241,6 +242,68 @@ const lastNode = await page.evaluate(() => {
   return { bugs: g.bugs.length, won: !g.liveShipNodes().length };
 });
 ok('the final hardpoint ships the release without spawning a swarm', lastNode.won && lastNode.bugs === 0, JSON.stringify(lastNode));
+
+
+// ---------- Regression swarm shield ----------
+const sh = await page.evaluate(() => {
+  const g = window.__bugHunt; window.__setup(10, 1);
+  const H = innerHeight;
+  const n0 = g.liveShipNodes()[2];
+  g.destroyShipNode(n0);
+  const swarm = g.bugs.filter(b => b.entering);
+  const fromTop = swarm.length > 0 && swarm.every(b => b.y < 0);
+  // Fast entry: everyone's on the board in ~1.5s.
+  for (const b of g.bugs) b.hp = b.maxHp = 1e9;
+  let tIn = 0; while (tIn < 4 && g.bugs.some(b => b.entering)) { g.step(1 / 30); tIn += 1 / 30; }
+  const shielded = g.shipShielded();
+  const nodes = g.liveShipNodes(); const n = nodes[0];
+  const hp0 = nodes.map(x => x.hp);
+  g.bugs.splice(0); // only the shield-holders matter for the next checks: rebuild a small swarm
+  const r = g.spawnRegression(n.x, n.y + 60);
+  const laser = g.pickLaserTarget(n.x, n.y + 20, 2000);
+  const threat = g.pickThreat(), launch = g.pickLaunchTarget();
+  g.bugs.splice(g.bugs.indexOf(r), 1);
+  const r2 = g.spawnRegression(innerWidth * 0.1, H - 40); // far from every node
+  const laserFar = g.pickLaserTarget(n.x, n.y + 20, 120);
+  const threatFar = g.pickThreat();
+  g.damageBug(n, 1e6, 1, null);
+  g.detonateMissile({ isSub: true, x: n.x, y: n.y + 4, missile: true, missilePhase: 'out', state: 'out' });
+  const t1 = g.spawnBug(n.x, n.y + 40, { force: true, tier: 1, src: 'test' }); t1.hatching = false;
+  g.shipBoss.chipBank = 0;
+  const chip = g.chipShip(t1);
+  const bank = g.shipBoss.chipBank;
+  g.bugs.splice(g.bugs.indexOf(t1), 1);
+  const hp1 = nodes.map(x => x.hp);
+  const untouched = hp1.every((v, i) => v === hp0[i]);
+  const barText = (document.querySelector('#bh-shipbar .bh-shipblock') || {}).textContent || '';
+  // Clear it: the shield drops and the banked fixes land as one patch (× PATCH_BONUS).
+  g.shipBoss.chipBank = g.shipBoss.maxHp * 0.01;
+  g.bugs.splice(0);
+  const before = g.liveShipNodes().reduce((s, x) => s + x.hp, 0);
+  const patches0 = g.shipBoss.patches || 0;
+  g.step(1 / 30);
+  const after = g.liveShipNodes().reduce((s, x) => s + x.hp, 0);
+  return { fromTop, tIn: +tIn.toFixed(2), shielded, laserIsReg: laser === r, threatIsReg: threat === r, launchIsReg: launch === r, laserFar: laserFar ? (laserFar.shipNode ? 'node' : 'bug') : null, threatFar: threatFar ? (threatFar.shipNode ? 'node' : 'bug') : null, chip, bank: +bank.toFixed(2), untouched, barText, patched: before - after, expect: g.shipBoss ? g.shipBoss.maxHp * 0.01 * g.PATCH_BONUS : 0, patches: (g.shipBoss.patches || 0) - patches0, shieldAfter: g.shipShielded() };
+});
+ok('the swarm pours in from the top and is on the board within ~1.5s', sh.fromTop && sh.tIn <= 1.6, JSON.stringify(sh));
+ok('while the Regression swarm is up the ship is shielded: no node is picked by lasers, Derick or bombs', sh.shielded && sh.laserIsReg && sh.threatIsReg && sh.launchIsReg && sh.laserFar === null && sh.threatFar === 'bug');
+ok('shielded nodes take no laser, bomb or chip damage; squash chips are banked instead', sh.untouched && sh.chip === 0 && sh.bank > 0);
+ok('ship bar says the ship is shielded', /Shielded · clear the Regression swarm/.test(sh.barText), sh.barText);
+ok('clearing the swarm drops the shield and lands the banked patch (×1.5)', !sh.shieldAfter && sh.patches === 1 && Math.abs(sh.patched - sh.expect) < 1);
+
+// ---------- z-order: bugs draw over the ship ----------
+const zo = await page.evaluate(() => {
+  const g = window.__bugHunt; window.__setup(6);
+  g.setQuality(3);
+  const n = g.liveShipNodes()[3];
+  const r = g.spawnRegression(n.x, n.y + 4); r.entering = false; r.pop = 1; r.flash = 0; r.boost = 0;
+  g.draw();
+  const cv = document.getElementById('bh-canvas'); const k = cv.width / innerWidth;
+  const px = cv.getContext('2d').getImageData(Math.round(r.x * k), Math.round(r.y * k), 1, 1).data;
+  g.bugs.splice(0);
+  return { rgb: [px[0], px[1], px[2]] };
+});
+ok('a Regression sitting on a hardpoint draws over the ship (red body on top)', zo.rgb[0] > 120 && zo.rgb[0] > zo.rgb[2] + 40, JSON.stringify(zo));
 
 // ---------- copy ----------
 await page.evaluate(() => {
