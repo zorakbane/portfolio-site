@@ -94,8 +94,7 @@
         }
       ],
       "niceToHave": [
-        "Personal screenshots / GIFs (rollback debug view, agent test loop)",
-        "Short write-up of the agentic verification loop"
+        "Personal screenshots / GIFs (rollback debug view, agent test loop)"
       ],
       "team": "12-person studio · reports to the CEO",
       "teamShort": "12-person studio · reports to the CEO"
@@ -586,9 +585,6 @@
       ],
       "noPage": true,
       "glyph": "AI⇄",
-      "niceToHave": [
-        "Diagram or short clip"
-      ],
       "url": "/agentic-ai/",
       "internal": true,
       "linkLabel": "How it works"

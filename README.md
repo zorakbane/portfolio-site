@@ -56,12 +56,24 @@ Everything lives in **`data/projects.json`**:
 - `site`: name, title, tagline, email, location, links, hero stats. `location` is shown at the top of the About section.
 - `projects[]`: one entry per project. `group` sets the section: `featured` (big cards), `earlier`, or `lab` (tech/AI/side).
   - `slug` is the URL (`/projects/<slug>/`). Set `"noPage": true` for a card with no detail page.
-  - `url` / `linkLabel`: optional external card link when `"noPage": true` (opens in a new tab).
+  - `url` / `linkLabel`: optional card link when `"noPage": true`. External links open in a new tab; add `"internal": true` for a site path such as `/agentic-ai/` (same tab, base-path aware). `links[]` entries take `"internal": true` the same way.
+  - `team` (project page meta row) and `teamShort` (one line on featured cards): team size and reporting line.
   - `image` / `cardImage` / `gallery[]` take image **keys** (see below). `youtube` takes a video id, and it loads only when clicked.
   - `summary`, `bullets[]`, `tags[]`, `awards[]`, `links[]`, `todo[]`, `niceToHave[]`.
+- `agentic`: the **Agentic AI workflows** page (`/agentic-ai/`): `lede`, `flow[]` (the five diagram steps, drawn in plain HTML/CSS so it reflows on phones and stays readable), `rules`, `fewer` and its `source` link.
 - `jams[]`, `awards[]`, `experience[]`, `education[]`, `skills`, `talks[]`, `about[]`, `aboutTodo`, `gaming[]`.
 
 Order in the JSON = order on the page. Rebuild after editing.
+
+### Machine-readable layer
+
+The human site and the PDF stay primary. The builder also emits plain versions of the same facts, generated from `data/projects.json` so they can't drift:
+
+- **JSON-LD `Person`** in the home page `<head>` (name, job title, employer, region, schools, skills, awards, `sameAs` profile links).
+- **`/resume.md`**: a Markdown resume (experience, team sizes, projects, the agentic page, skills, awards, education, talks). It's advertised with `<link rel="alternate" type="text/markdown">` and in a small visible footer link.
+- **`/llms.txt`** ([llmstxt.org](https://llmstxt.org) format): a short summary that links `resume.md`, the PDF and every page. It also has a footer link.
+
+Rules: no hidden text, no white-on-white or zero-size text, and no instructions aimed at AI readers. Everything in these files is also visible on the site. `node tests/test-content.mjs` (zero-dependency, run after a build) checks the JSON-LD, team sizes, the agentic page, `resume.md`, `llms.txt`, the footer links, and that the output has no hidden-text styles or prompt-injection phrasing.
 
 ### TODOs vs nice-to-haves
 
@@ -72,12 +84,11 @@ There are currently no blocker TODOs.
 
 Current nice-to-haves (kept on each project in `data/projects.json`):
 
-- **Voidwood** — personal screenshots / GIFs (rollback debug view, agent test loop); short write-up of the agentic verification loop.
+- **Voidwood** — personal screenshots / GIFs (rollback debug view, agent test loop).
 - **Starfield** — StarMap screenshots or a short clip (possibly the `origin` pptx in Drive).
 - **Fallout 76** — a public trailer or clip to embed (the old site's video is private).
 - **Skyrim VR** — VR systems highlights from the "Skyrim VR - Systems" slides in Drive.
 - **Force of Elements** — link / image.
-- **Agentic AI workflows** — diagram or short clip.
 - **More side projects** — links (Amiibo repo, any playable builds).
 
 ### Adding an image
