@@ -43,10 +43,10 @@ const gar = D('projects/galactic-arms-race/index.html');
 ok('GAR page uses the verified contribution wording, not authorship', gar.includes("contributed client and server code, game design and Steam integration") && gar.includes("Erin Hastings") && gar.includes('cgNEAT') && !/author of the (papers|paper)/i.test(gar));
 ok('GAR page credits the team page, acknowledgments, IGC finalist and SMU scholarship', gar.includes('galacticarmsrace.blogspot.com/p/developers.html') && /acknowledgments/i.test(gar) && /Indie Game Challenge 2010/i.test(gar) && gar.includes('smu.edu/news/archives/2010/guildhall-scholarship-winner-25may2010'));
 ok('hero badges are links: sim time, ARK +25%, GOTY awards, IGC finalist',
-  /<a class="stat" href="[^"]*projects\/voidwood\/"/.test(home)
-  && /<a class="stat" href="[^"]*projects\/ark-survival-ascended\/"/.test(home)
-  && /<a class="stat" href="#awards"/.test(home) && home.includes('2× GOTY')
-  && /<a class="stat" href="[^"]*projects\/galactic-arms-race\/"/.test(home) && home.includes('IGC Finalist')
+  /<a class="stat" href="[^"]*projects\/voidwood\/">/.test(home)
+  && /<a class="stat" href="[^"]*projects\/ark-survival-ascended\/">/.test(home)
+  && /<a class="stat" href="#awards">/.test(home) && home.includes('2× GOTY')
+  && /<a class="stat" href="[^"]*projects\/galactic-arms-race\/">/.test(home) && home.includes('IGC Finalist')
   && !home.includes('Best Paper'));
 ok('Voidwood mentions the Python AWS backend without claiming UBA itself',
   D('projects/voidwood/index.html').includes('Photon Quantum') && D('projects/voidwood/index.html').includes('UBA builder itself') && md.includes('Photon Quantum') && md.includes("didn't write the UBA builder"));

@@ -171,7 +171,7 @@ function home() {
       const local = href.startsWith('#') || !/^https?:/i.test(href);
       const dest = href.startsWith('#') || href.startsWith('/') ? href : (href ? u(href) : '');
       return dest
-        ? `<li class="reveal" style="--i:${i}"><a class="stat" href="${esc(dest)}"${local ? '' : ' target="_blank" rel="noopener"'}">${inner}</a></li>`
+        ? `<li class="reveal" style="--i:${i}"><a class="stat" href="${esc(dest)}"${local ? '' : ' target="_blank" rel="noopener'}>${inner}</a></li>`
         : `<li class="stat reveal" style="--i:${i}">${inner}</li>`;
     }).join('')}</ul>
   </div>
