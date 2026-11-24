@@ -55,6 +55,9 @@ ok('skills include Cursor/Claude Code, AWS/Python, and CI on JanssEngine',
   home.includes('Cursor and Claude Code daily') && home.includes('CI on JanssEngine') && md.includes('Cursor and Claude Code daily'));
 ok('talks are in person and listed in about + resume.md', home.includes('given talks in person at GR Dev Night') && md.includes('GR Dev Night, Grand Rapids') && md.includes('All of these talks were given in person'));
 ok('JanssEngine page mentions CI', D('projects/janssengine/index.html').includes('continuous integration'));
+ok('Voidwood short bullet cites V Rising 1,600 with the Unity case study, a scope caveat, and agent sprawl rules',
+  (() => { const vw = D('projects/voidwood/index.html'); return vw.includes('about 40') && vw.includes('1,600') && vw.includes('https://unity.com/resources/stunlock-studios-v-rising') && /different scopes/.test(vw) && /multithreaded finite-state machines/.test(vw) && /agents default to creating new systems/i.test(vw) && /href="https:\/\/unity.com\/resources\/stunlock-studios-v-rising"/.test(vw); })());
+
 ok('Best AI Editor\'s Pick is restored with AIGameDev.com source',
   home.includes("Editor's Pick") && home.includes('Best AI in an Independent Game') && home.includes('AIGameDev.com')
   && home.includes('web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/')
