@@ -179,28 +179,49 @@ const nd = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(10, 1);
   const W = innerWidth, H = innerHeight;
   const counts = new Set(); let badCount = 0;
-  for (let i = 0; i < 60; i++) { const c = g.regressionKids(); counts.add(c); if (c < 3 || c > 5) badCount++; }
+  for (let i = 0; i < 60; i++) { const c = g.regressionKids(); counts.add(c); if (c < 2 || c > 3) badCount++; }
   const n = g.liveShipNodes()[2];
   g.destroyShipNode(n);
   const regs = g.bugs.filter(b => b.regression);
   const reg = regs[0];
-  const swarmSnap = g.bugs.filter(b => b.entering);
-  const regOk = regs.length === 1 && reg.name === 'Regression' && reg.boss && Math.hypot(reg.x - n.x, reg.y - n.y) < 40 && reg.regShed === 0;
+  const regOk = regs.length === 1 && reg.name === 'Regression' && reg.boss && Math.hypot(reg.x - n.x, reg.y - n.y) < 40 && reg.regShed === 0 && reg.maxHp === g.REGRESSION_HP;
   const swarm = g.bugs.filter(b => b.entering);
   const swarmOffscreen = swarm.every(b => b.y < 0); // pours in from the top
   // Counts as a live bug: bugs-first targeting picks it over hardpoints, and it's huntable.
   g.bugs.splice(0, g.bugs.length, reg);
   const targeted = g.pickThreat() === reg && g.pickLaunchTarget() === reg && g.pickLaserTarget(reg.x, reg.y - 30, 400) === reg && g.liveBugCount() === 1;
-  // Chip it down step by step: kids shed at HP thresholds, the last one on death.
-  for (const b of g.bugs) if (b !== reg) b.hp = b.maxHp = 1e9;
-  const k = reg.regKids, shedLog = [];
-  for (let f = 1; f < k; f++) {
-    reg.hp = reg.maxHp * (1 - f / k) - 0.01; g.regressionShed(reg, false); shedLog.push(reg.regShed);
+  // Chip it to the first threshold: a named sub-boss appears, the parent teleports and goes invincible.
+  const ox = reg.x, oy = reg.y, k = reg.regKids, next = g.regressionThresh(reg);
+  g.hurtBug(reg, reg.hp - next + 1);
+  const subs = g.bugs.filter(b => b.regressed);
+  const sub = subs[0];
+  const subOk = subs.length === 1 && sub && sub.boss && sub.name === 'Regressed' && sub.maxHp === g.REGRESSED_HP;
+  const warped = Math.hypot(reg.x - ox, reg.y - oy) > 40;
+  const ship = g.shipBoss;
+  const away = reg.x > innerWidth * 0.12 && reg.x < innerWidth * 0.88
+    && reg.y > ship.y + ship.h * 0.5 + 40 && reg.y < innerHeight * 0.9;
+  const invuln = !!reg.regShield && !g.huntableBug(reg)
+    && g.pickThreat() === sub && g.pickLaunchTarget() === sub
+    && g.pickLaserTarget(reg.x, reg.y, 2000) === sub;
+  const noDmg = reg.hp;
+  g.hurtBug(reg, 1e9);
+  const stillInv = reg.regShield && reg.hp === noDmg;
+  // Killing the sub-boss makes the Regression vulnerable again; it does not spawn the rest on death.
+  g.squash(sub, { auto: true });
+  g.step(1 / 30);
+  const vulnerable = !reg.regShield && g.huntableBug(reg) && g.pickThreat() === reg;
+  // Walk remaining phases, then finish it: no extra spawn on death.
+  while (reg.regShed < k && g.bugs.includes(reg)) {
+    const t = g.regressionThresh(reg);
+    g.hurtBug(reg, reg.hp - t + 1);
+    const live = (reg.regSubs || []).filter(c => g.bugs.includes(c));
+    for (const c of live) g.squash(c, { auto: true });
+    g.step(1 / 30);
   }
-  const before = g.bugs.filter(b => !b.regression).length;
-  g.squash(reg, { auto: true });
-  const kids = g.bugs.filter(b => !b.regression).length;
-  const total = reg.regShed;
+  const afterPhases = { shed: reg.regShed, shield: !!reg.regShield, hp: reg.hp, kids: g.bugs.filter(b => b.regressed).length };
+  g.hurtBug(reg, 1e9);
+  if (g.bugs.includes(reg)) g.squash(reg, { auto: true });
+  const left = g.bugs.filter(b => b.regression || b.regressed).length;
   // swarm: watch it walk in (fresh node drop)
   g.bugs.splice(0);
   g.destroyShipNode(g.liveShipNodes()[1]);
@@ -216,23 +237,26 @@ const nd = await page.evaluate(() => {
   const regAlive = g.bugs.some(b => b.regression);
   nodes[0].hp = -1; const held = g.holdLastNode(nodes[0]);
   g.bugs.splice(0); g.completeHeldShip();
-  return { counts: [...counts].sort(), badCount, regOk, targeted, k, shedLog, before, kids, total, swarm: swarm.length, size: g.swarmSize(), swarmOffscreen, inside, swN: sw.length, fightCap: g.fightCap(), afterAll, regAlive, held, shipped: !g.liveShipNodes().length };
+  return { counts: [...counts].sort(), badCount, regOk, targeted, k, subOk, warped, away, invuln, stillInv, vulnerable, afterPhases, left, swarm: swarm.length, size: g.swarmSize(), swarmOffscreen, inside, swN: sw.length, fightCap: g.fightCap(), afterAll, regAlive, held, shipped: !g.liveShipNodes().length };
 });
 ok('a downed hardpoint drops one boss labeled "Regression" out of the node', nd.regOk, JSON.stringify(nd));
 ok('a Regression counts as a live bug: picked over hardpoints by lasers, Derick and bombs', nd.targeted);
-ok('the Regression sheds 3–5 bugs over its life, one per HP threshold and the last on death', nd.badCount === 0 && nd.counts[0] === 3 && nd.counts[nd.counts.length - 1] === 5 && nd.total === nd.k && nd.kids === nd.k && nd.before === nd.k - 1 && nd.shedLog.every((v, i) => v === i + 1));
+ok('a chipped Regression spawns a labeled sub-boss, teleports away from the ship/edges, and goes invincible', nd.subOk && nd.warped && nd.away && nd.invuln && nd.stillInv && nd.counts[0] === 2 && nd.counts[nd.counts.length - 1] === 3 && nd.badCount === 0, JSON.stringify(nd));
+ok('it becomes vulnerable again once the sub-boss is squashed, and death does not spawn another', nd.vulnerable && nd.afterPhases.shed === nd.k && nd.afterPhases.kids === 0 && nd.left === 0, JSON.stringify(nd));
 ok('…and calls in a swarm that starts above the top edge (desktop, 10 agents: 6+ bugs)', nd.swarm === nd.size && nd.swarm >= 6 && nd.swarmOffscreen);
 ok('swarm bugs are on the board within 4s', nd.inside === nd.swN, `${nd.inside}/${nd.swN}`);
 ok('node-down spawns respect the fight cap, and a live Regression blocks shipping', nd.afterAll <= nd.fightCap && nd.regAlive && nd.held && nd.shipped);
-const mshed = await page.evaluate(() => {
+const oneshot = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(10, 1);
-  // A single huge missile hit from full to dead still sheds every kid (none skipped).
+  // A single huge hit from full HP stops at the first threshold (it cannot skip the dance).
   const r = g.spawnRegression(innerWidth / 2, innerHeight / 2); const k = r.regKids;
   g.bugs.splice(0, g.bugs.length, r);
-  r.hp = -1; g.squash(r, { auto: true });
-  return { k, kids: g.bugs.length };
+  const ox = r.x, oy = r.y;
+  const died = g.hurtBug(r, 1e9);
+  const sub = g.bugs.find(b => b.regressed);
+  return { k, died, hp: r.hp, thresh: r.maxHp * k / (k + 1), shield: !!r.regShield, sub: !!(sub && sub.name === 'Regressed'), moved: Math.hypot(r.x - ox, r.y - oy) > 40, n: g.bugs.length };
 });
-ok('a Regression one-shot from full HP still drops all of its kids', mshed.kids === mshed.k, JSON.stringify(mshed));
+ok('a one-shot from full HP stops at the first threshold, spawns one sub-boss, and phases out', !oneshot.died && Math.abs(oneshot.hp - oneshot.thresh) < 1e-6 && oneshot.shield && oneshot.sub && oneshot.moved && oneshot.n === 2, JSON.stringify(oneshot));
 const lastNode = await page.evaluate(() => {
   const g = window.__bugHunt; window.__setup(6);
   const nodes = g.liveShipNodes();
@@ -289,7 +313,7 @@ ok('the swarm pours in from the top and is on the board within ~1.5s', sh.fromTo
 ok('while the Regression swarm is up the ship is shielded: no node is picked by lasers, Derick or bombs', sh.shielded && sh.laserIsReg && sh.threatIsReg && sh.launchIsReg && sh.laserFar === null && sh.threatFar === 'bug');
 ok('shielded nodes take no laser, bomb or chip damage; squash chips are banked instead', sh.untouched && sh.chip === 0 && sh.bank > 0);
 ok('ship bar says the ship is shielded', /Shielded · clear the Regression swarm/.test(sh.barText), sh.barText);
-ok('clearing the swarm drops the shield and lands the banked patch (×1.5)', !sh.shieldAfter && sh.patches === 1 && Math.abs(sh.patched - sh.expect) < 1);
+ok('clearing the swarm drops the shield and lands the banked patch (× PATCH_BONUS)', !sh.shieldAfter && sh.patches === 1 && Math.abs(sh.patched - sh.expect) < 1);
 
 // ---------- z-order: bugs draw over the ship ----------
 const zo = await page.evaluate(() => {
