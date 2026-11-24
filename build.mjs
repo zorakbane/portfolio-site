@@ -165,7 +165,15 @@ function home() {
       <a class="btn primary" href="#work">See the work</a>
       <a class="btn" href="#contact">Get in touch</a>
     </div>
-    <ul class="stats">${S.stats.map((s, i) => `<li class="stat reveal" style="--i:${i}"><b>${esc(s.value)}</b><span>${esc(s.label)}</span></li>`).join('')}</ul>
+    <ul class="stats">${S.stats.map((s, i) => {
+      const inner = `<b>${esc(s.value)}</b><span>${esc(s.label)}</span>`;
+      const href = s.href || '';
+      const local = href.startsWith('#') || !/^https?:/i.test(href);
+      const dest = href.startsWith('#') || href.startsWith('/') ? href : (href ? u(href) : '');
+      return dest
+        ? `<li class="reveal" style="--i:${i}"><a class="stat" href="${esc(dest)}"${local ? '' : ' target="_blank" rel="noopener"'}">${inner}</a></li>`
+        : `<li class="stat reveal" style="--i:${i}">${inner}</li>`;
+    }).join('')}</ul>
   </div>
 </section>
 

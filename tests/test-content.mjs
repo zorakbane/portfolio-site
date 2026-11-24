@@ -36,5 +36,24 @@ const all = [home, ag, md, llms, ...fs.readdirSync(path.join(ROOT, 'dist/project
 ok('no prompt-injection phrasing', !/ignore (all |any )?(previous|prior) instructions|you are an? (ai|llm|language model)|as an ai|system prompt/i.test(all));
 ok('no inline hidden/white text styles', !/style="[^"]*(display:\s*none|visibility:\s*hidden|font-size:\s*0|color:\s*(#fff\b|#ffffff|white))/i.test(all));
 ok('sitemap includes the agentic page', D('sitemap.xml').includes('/agentic-ai/') || !D('robots.txt').includes('Allow'));
+
+ok('no Best Paper claim anywhere in the built output', !/best paper/i.test(all));
+ok('source data has no Best Paper claim either', !/best paper/i.test(JSON.stringify(data)));
+const gar = D('projects/galactic-arms-race/index.html');
+ok('GAR page uses the verified contribution wording, not authorship', gar.includes("contributed client and server code, game design and Steam integration") && gar.includes("Erin Hastings") && gar.includes('cgNEAT') && !/author of the (papers|paper)/i.test(gar));
+ok('GAR page credits the team page, acknowledgments, IGC finalist and SMU scholarship', gar.includes('galacticarmsrace.blogspot.com/p/developers.html') && /acknowledgments/i.test(gar) && /Indie Game Challenge 2010/i.test(gar) && gar.includes('smu.edu/news/archives/2010/guildhall-scholarship-winner-25may2010'));
+ok('hero badges are links: sim time, ARK +25%, GOTY awards, IGC finalist',
+  /<a class="stat" href="[^"]*projects\/voidwood\/"/.test(home)
+  && /<a class="stat" href="[^"]*projects\/ark-survival-ascended\/"/.test(home)
+  && /<a class="stat" href="#awards"/.test(home) && home.includes('2× GOTY')
+  && /<a class="stat" href="[^"]*projects\/galactic-arms-race\/"/.test(home) && home.includes('IGC Finalist')
+  && !home.includes('Best Paper'));
+ok('Voidwood mentions the Python AWS backend without claiming UBA itself',
+  D('projects/voidwood/index.html').includes('Photon Quantum') && D('projects/voidwood/index.html').includes('UBA builder itself') && md.includes('Photon Quantum') && md.includes("didn't write the UBA builder"));
+ok('Wicked Fox is labeled part-time after Jan 2025', home.includes('part-time, about 3 hrs/week, from Jan 2025') && md.includes('part-time, about 3 hrs/week, from Jan 2025'));
+ok('skills include Cursor/Claude Code, AWS/Python, and CI on JanssEngine',
+  home.includes('Cursor and Claude Code daily') && home.includes('CI on JanssEngine') && md.includes('Cursor and Claude Code daily'));
+ok('talks are in person and listed in about + resume.md', home.includes('given talks in person at GR Dev Night') && md.includes('GR Dev Night, Grand Rapids') && md.includes('All of these talks were given in person'));
+ok('JanssEngine page mentions CI', D('projects/janssengine/index.html').includes('continuous integration'));
 console.log(`--- ${pass}/${pass + fail} passed ---`);
 process.exit(fail ? 1 : 0);

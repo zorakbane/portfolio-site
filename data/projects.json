@@ -27,19 +27,23 @@
     "stats": [
       {
         "value": "~1.5 ms",
-        "label": "mean sim time, V-Rising-size world (Voidwood rollback ECS)"
+        "label": "mean sim time, V-Rising-size world (Voidwood rollback ECS)",
+        "href": "projects/voidwood/"
       },
       {
         "value": "+25%",
-        "label": "server performance in my first week (ARK: Survival Ascended)"
+        "label": "server performance in my first week (ARK: Survival Ascended)",
+        "href": "projects/ark-survival-ascended/"
       },
       {
         "value": "2× GOTY",
-        "label": "Skyrim VR (Steam VR GOTY 2018) · Starfield (Xbox GOTY 2023)"
+        "label": "Skyrim VR (Steam VR GOTY 2018) · Starfield (Xbox GOTY 2023)",
+        "href": "#awards"
       },
       {
-        "value": "Best Paper",
-        "label": "IEEE CIG 2009 — Galactic Arms Race (NEAT / CPPN)"
+        "value": "IGC Finalist",
+        "label": "Indie Game Challenge 2010 · SMU Guildhall scholarship (Galactic Arms Race)",
+        "href": "projects/galactic-arms-race/"
       }
     ]
   },
@@ -62,6 +66,7 @@
         "Built a V-Rising-size world with a mean simulation time of ~1.5 ms.",
         "Foundation work: optimized, multithreaded finite-state machines that cut how many ECS systems the game needs. Voidwood runs on about 40 systems.",
         "Kept a performant build with no crashes or desyncs at each milestone.",
+        "I use and build on Voidwood's AWS backend in Python: a game-data wrapper over the AWS database service, matchmaking, live ops, Photon Quantum webhooks, analytics, and build scripts that hook into Unreal Build Accelerator (UBA). I didn't write the UBA builder itself. The backend isn't public.",
         "Principal Engineer in a 12-person studio, reporting to the CEO.",
         "My agentic AI workflow lets 10 non-engineers ship pull requests. I run their process and review their PRs through it.",
         "Everyone at the studio except the CFO and the community manager uses my tools.",
@@ -74,7 +79,9 @@
         "Unity ECS",
         "Performance",
         "Agentic AI",
-        "Tools"
+        "Tools",
+        "Python",
+        "AWS"
       ],
       "youtube": "Zm2sxH-uLa4",
       "youtubeTitle": "Voidwood — Official Playtest Trailer",
@@ -105,7 +112,7 @@
       "title": "Rise of Elements",
       "studio": "Wicked Fox Games",
       "role": "Senior / Lead Programmer",
-      "years": "May 2024 – Jan 2026",
+      "years": "May 2024 – Jan 2026 (part-time, about 3 hrs/week, from Jan 2025)",
       "engine": "Unity · C#",
       "status": "Coming soon",
       "accent": "#f59e0b",
@@ -544,36 +551,43 @@
       "slug": "galactic-arms-race",
       "group": "earlier",
       "title": "Galactic Arms Race",
-      "studio": "2-person project · UCF thesis",
+      "studio": "Evolutionary Games · Erin Hastings's research game (UCF)",
       "role": "Programmer",
-      "years": "",
+      "years": "Jul 2008 – May 2010",
       "engine": "XNA · C#",
       "accent": "#a78bfa",
       "image": "gar",
-      "summary": "A multiplayer Diablo-esque looter shooter whose weapons are evolved by neural networks while you play. Also the thesis game for cgNEAT (content generation with AI).",
+      "summary": "I contributed client and server code, game design and Steam integration to Erin Hastings's research game on evolved procedural content (cgNEAT neural-network weapons). It's a 32-player online space shooter.",
       "bullets": [
-        "CPPNs (compositional pattern-producing networks) generate the weapon patterns.",
-        "Fitness rises with each shot fired from a weapon and falls when another weapon is used, so the gene pool evolves toward what players actually like.",
-        "The gene pool is drawn from every weapon on the current server.",
-        "GOFAI for player drone interactions.",
-        "32-player online multiplayer using Lidgren networking.",
-        "Steam integration: achievements via Steamworks and cloud save/load."
+        "Contributed client and server code, game design and Steam integration to Erin Hastings's research game at UCF. I didn't write the papers; the authors are Erin J. Hastings, Ratan K. Guha and Kenneth O. Stanley.",
+        "Weapons are evolved while you play with cgNEAT (content generation with neuroevolution). CPPNs generate the weapon patterns, and fitness comes from what players actually fire.",
+        "32-player online multiplayer using Lidgren networking, plus Steam achievements and cloud saves.",
+        "Credited on the official GAR team page (client and server programming, game design, sound effects, Steam integration) and named in the papers' acknowledgments (as \"Derrick Janssen\").",
+        "Indie Game Challenge 2010 finalist team. The same work came with a $50,000 scholarship to SMU Guildhall (SMU announcement, May 25, 2010)."
       ],
       "tags": [
         "Neuroevolution",
-        "NEAT / CPPN",
+        "cgNEAT",
         "Procedural content",
-        "Multiplayer"
+        "Multiplayer",
+        "XNA"
       ],
       "awards": [
-        "Best Paper — IEEE CIG 2009",
-        "Best AI in an Independent Game (Editor's Choice)",
-        "Indie Game Challenge Finalist",
-        "Full scholarship to SMU Guildhall"
+        "Indie Game Challenge 2010 Finalist",
+        "SMU Guildhall scholarship"
       ],
       "youtube": "MOKNoZSAGGQ",
       "youtubeTitle": "Galactic Arms Race (GAR) Informational Video",
-      "links": []
+      "links": [
+        {
+          "label": "GAR team page",
+          "url": "http://galacticarmsrace.blogspot.com/p/developers.html"
+        },
+        {
+          "label": "SMU Guildhall scholarship announcement",
+          "url": "https://www.smu.edu/news/archives/2010/guildhall-scholarship-winner-25may2010"
+        }
+      ]
     },
     {
       "slug": "agentic-workflows",
@@ -613,13 +627,16 @@
         "Collada loading and a custom 3ds Max exporter (Dj3d) with animation and skinning.",
         "DLL plugin loader with live reload, threaded background loading, hierarchical clocks and profiling.",
         "Data-driven, classless game object loader using XML and named properties.",
-        "Memory manager, string pool, intrusive smart pointers, fixed-point math, and a computational geometry library."
+        "Memory manager, string pool, intrusive smart pointers, fixed-point math, and a computational geometry library.",
+        "Swept-sphere-to-triangle collision, spring physics, and car physics on height-map terrain.",
+        "Set up continuous integration for the engine."
       ],
       "tags": [
         "C++",
         "Rendering",
         "Engine architecture",
-        "Lua"
+        "Lua",
+        "CI"
       ],
       "gallery": [
         "engine-lod",
@@ -880,28 +897,16 @@
       "icon": "star"
     },
     {
-      "title": "Best Paper — IEEE CIG",
-      "year": "2009",
-      "project": "Galactic Arms Race",
-      "icon": "paper"
-    },
-    {
-      "title": "Best AI in an Independent Game (Editor's Choice)",
-      "year": "",
-      "project": "Galactic Arms Race",
-      "icon": "brain"
-    },
-    {
-      "title": "Indie Games Challenge Finalist",
+      "title": "Indie Game Challenge Finalist",
       "year": "2010",
-      "project": "Galactic Arms Race · full scholarship to SMU Guildhall (DICE, Las Vegas)",
+      "project": "Galactic Arms Race",
       "icon": "medal"
     },
     {
-      "title": "AI Battle — 2nd place overall",
-      "year": "",
-      "project": "AI competition",
-      "icon": "medal"
+      "title": "SMU Guildhall Scholarship",
+      "year": "2010",
+      "project": "Galactic Arms Race · $50,000 scholarship announced by SMU, May 25, 2010",
+      "icon": "paper"
     }
   ],
   "experience": [
@@ -915,7 +920,7 @@
       "company": "Wicked Fox Games",
       "role": "Senior / Lead Programmer",
       "where": "Remote",
-      "years": "May 2024 – Jan 2026"
+      "years": "May 2024 – Jan 2026 (part-time, about 3 hrs/week, from Jan 2025)"
     },
     {
       "company": "Studio Wildcard",
@@ -963,15 +968,16 @@
       "C",
       "Python",
       "Lua",
-      "ActionScript",
+      "ActionScript 3",
       "Blueprint",
-      "Java"
+      "UnrealScript",
+      "Java",
+      "JavaScript"
     ],
     "Engines": [
       "Unity (incl. ECS)",
-      "Unreal 4/5 (incl. GAS)",
+      "Unreal 5 and 4 (also UDK, UEFN)",
       "Proprietary C++ engines",
-      "UDK",
       "XNA",
       "Torque"
     ],
@@ -983,18 +989,30 @@
       "Tools & pipelines",
       "VR",
       "Agentic coding & AI"
+    ],
+    "Infrastructure": [
+      "AWS backend in Python (game-data DB wrapper, matchmaking, live ops, Photon Quantum webhooks, analytics)",
+      "UBA build scripts (I use and build on them; I didn't write the UBA builder itself)",
+      "CI on JanssEngine"
+    ],
+    "AI tools": [
+      "Cursor and Claude Code daily",
+      "GitHub Copilot",
+      "ChatGPT"
     ]
   },
   "talks": [
-    "UCF — Galactic Arms Race: NEAT (AI) and making games with it",
-    "GR Dev Night — Game development (sold out)",
+    "All of these talks were given in person. There are no public recordings.",
+    "GR Dev Night, Grand Rapids — Game development (sold out)",
+    "KVCC — Game industry primer",
     "MSU — How to transition from education to industry",
     "WMU — So you want to make games?",
-    "KVCC — Game industry primer"
+    "UCF — Galactic Arms Race: NEAT and making games with it"
   ],
   "about": [
     "I'm a game programmer who loves the parts players feel: tight controls, juicy feedback, rock-solid multiplayer, and frame times that never hitch. I've led Skyrim VR from conception to launch, led Starfield's StarMap, and today I own Voidwood's deterministic rollback simulation at Santa Barbara Games.",
     "Lately I've been building agentic AI workflows where coding agents drive in-game sub-agents to test and verify their own work. To me, reading code and understanding exactly what it does at a low level now matters more than typing it.",
+    "I work in Cursor and Claude Code every day, and I also use GitHub Copilot and ChatGPT. I've given talks in person at GR Dev Night in Grand Rapids (sold out), and at KVCC, MSU, WMU, and UCF.",
     "Off the clock I'm a competitive gamer (8th of ~80,000 in GameStop's Super Smash Bros. Brawl national grand finals; Evolve Top 100 Goliath), a game jam regular, and happiest on a river in a canoe."
   ],
   "gaming": [
