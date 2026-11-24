@@ -129,7 +129,8 @@ Bugs per LOC starts at **0.38**, then `× 0.82` per Unit Tests rank (max 5) and 
 
 ### Bugs: spawn, split, merge
 
-- Nothing spawns until you opt in **and** click empty space (or later idle/QA/debt sources kick in).
+- Nothing spawns until you opt in. After that, a **starter trickle** covers visitors who miss the "click empty space" hint: until Derick is hired, one tier-1 bug wanders in every 5–7s (`TRICKLE_GAP` 5 + up to 2s jitter, first one ~2.5s after opting in), never more than **3** bugs on the board (`TRICKLE_MAX`). LOC stays at 0 until you write some. Clicks, idle drafting, QA and debt work as before.
+- **Scrolling writes code.** Once opted in, scrolling the site (wheel, trackpad, or touch) writes 1 LOC per ~18% of a screen scrolled (min 110px), through the same slow automatic-debt path as idle code. It's rate-limited to **2 LOC/s** (burst 4), capped at **80 LOC per page view**, ignores jumps over 1.5 screens (anchors, restores), and does nothing in Play Space, while paused or shelved, or on the SHIPPED card. The listener is passive and does no layout reads beyond `scrollY`. Jiggling the wheel for 3s nets about 6 LOC.
 - A click-hatch picks a tier: chance of tier 3 is `min(0.5, 0.1 + loc/3000)`; otherwise 70% tier 2 / 30% tier 1.
 - **Cap:** 8 live bugs on coarse pointers or viewports under 700px, otherwise 15. Overflow goes to a **backlog** and drains back in when there is room (never during a post-kill quiet window).
 - **Split:** a non-targeted, non-boss tier 2 or 3 becomes two kids of `tier - 1` if `live + 2 ≤ cap`. The kids are created immediately (so lasers can keep chewing). Their pop-in scale is still sequenced through the hatch gate (~180–350ms apart), but live bugs are **always drawn** — even while `appearIn > 0` and even at quality 0 — at a minimum 55% scale so a hitch cannot leave lasers firing at invisible targets.
@@ -147,7 +148,7 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 
 **Hire Derick → Hire Agent → Unit Tests → Profiler → Collision Editor → CI Pipeline → QA → Rapid Prototype → Agentic Workflow (requires 5 agents) → Movement Tuning → Multiplayer Sync → Sub-Agent Workflow → Rollback Netcode → Auto Rollback → Ship.**
 
-`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“pulses arrive faster. After Sub-Agent Workflow, bombs also launch and fly faster.”) and Multiplayer Sync (“one pulse chains to several agents”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
+`nextUnlock()` still returns `agentic` after Rapid Prototype so Movement Tuning and Multiplayer Sync cannot skip ahead, but the shop row itself stays hidden until you own **5 agents**. Movement Tuning (“Pulses reach escorts ~38% faster. With Sub-Agent Workflow, bombs launch 23% faster and top out 17% faster.”) and Multiplayer Sync (“Pulses come 50% more often, and each one buffs up to 3 escorts instead of 1.”) are intentionally **after** Agentic Workflow, because that is the upgrade that makes agents leave their turrets and that starts Derick’s pulses. An upgrade never appears if it would affect something you do not have yet.
 
 ### Upgrades
 
@@ -155,11 +156,11 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 | --- | --- | --- | --- | --- |
 | **Hire Derick** | 25 | once | Shop opens (5 squashes) | One roaming DJ (larger green orb) with a thin green laser |
 | **Hire Agent** | `40 × 1.32^agents` | stackable | After Derick; stays buyable | Static turret; 2s to kill a small bug (HP 2 → 1 DPS) |
-| **Unit Tests** | `55 × 1.95^tests` | 5 | After first agent | Fewer bugs per LOC (`× 0.82` each rank) |
-| **Profiler** | 80 | once | After first Unit Tests rank | Some bugs hatch visibly; agent range **+22**; Derick kill time `× 0.92`; Derick range **+36** |
-| **Collision Editor** | 120 | once | After Profiler | Agent lasers pierce to a second bug (55% DPS) |
+| **Unit Tests** | `55 × 1.95^tests` | 5 | After first agent | 18% fewer bugs per LOC each rank (`× 0.82`; 63% fewer at 5/5) |
+| **Profiler** | 80 | once | After first Unit Tests rank | Derick kill time `× 0.92` (kills 8% faster, +9% damage/s); Derick range **+36px**; agent range **+22px**; 55% of click-hatched bugs hatch as a visible egg (1.2s) first; shows range rings |
+| **Collision Editor** | 120 | once | After Profiler | Agent lasers pierce: a second bug within 90% of range takes 55% damage |
 | **CI Pipeline** | 180 | once | After Collision Editor | Derick kill time `× 0.82` and damage `× 1.1`; agent damage `× 1.08`; bugs per LOC `× 0.85`; QA reveal rate `× 1.6` |
-| **QA** | 150 | once | After CI | Reveals more bugs; paints targets on the largest (see QA below) |
+| **QA** | 150 | once | After CI | Reveals hidden bugs (~1 every 1.8s, ~1.1s with CI); marks the 2 largest (bosses too): they die without splitting and pay +25% commits (see QA below) |
 | **Rapid Prototype** | 200 | once | After QA | All shop prices `× 0.78` |
 | **Agentic Workflow** | 300 | once | After Rapid Prototype **and 5 hired agents** | Derick gathers escorts into a ring and pulses them: each pulse buffs an escort’s laser with Derick’s full combat DPS for **5 seconds** (escorts never become missiles or bombs); also amplifies Derick (kill time `× 0.9`, range **+28**) and Derick’s idle drafting (**+0.60** LOC/s) |
 | **Movement Tuning** | 100 | once | After Agentic Workflow | Pulses fly from Derick to an escort faster (`dt × 11` instead of `dt × 8`). After Sub-Agent Workflow, bombs also launch and fly faster: start/top speeds gain **+50 / +90**. Escorts stay in the ring and never chase. |
@@ -168,6 +169,10 @@ Only the **next** gated unlock is shown (Hire Agent stays listed after the first
 | **Rollback Netcode** | 400 | once | After Sub-Agent Workflow | ⟲ button clears the board; **30s** cooldown |
 | **Auto Rollback** | 800 | once | After Rollback | Rollback fires by itself when live bugs + backlog ≥ **8** |
 | **Ship vN.0** | — (finale) | repeatable each prestige | Shown once Rollback is owned and LOC ≥ 45% of the goal; clickable at the goal with ≤ 3 live+backlog bugs | See **Ship finale and prestige** below. Goal is `round(1100 × 1.075^prestige)` (was `round(1600 × (prestige+1)^1.55 × 1.08^prestige)`). Prestige 0…7: **1100, 1183, 1271, 1367, 1469, 1579, 1698, 1825** (old: 1600, 5060, 10245, 17282, 26377, 37790, 51828, 68846). |
+
+In-game descriptions state these numbers directly. CI Pipeline reads "Derick's laser & bombs hit ~34% harder · agent lasers +8% · 15% fewer bugs per LOC · QA spots bugs 60% faster" (`1/0.82 × 1.1 ≈ 1.34`; bomb damage and radius scale with Derick's combat DPS).
+
+When a new upgrade or unlock appears, the shop list glides it into view (`revealNewShopItem`) and flashes it once. It scrolls only the HUD list, never the page, never moves focus, waits if you scrolled the list in the last 1.5s, and jumps instead of gliding under `prefers-reduced-motion` (the flash becomes a static outline).
 
 The shop will not charge you for a hidden upgrade (the buy handler ignores anything `show()` would hide).
 
@@ -253,12 +258,15 @@ Clicking **Ship vN.0** (once you have the LOC goal and ≤ 3 bugs, the *launch* 
 - **Release-day chaos stays on.** Ship drops, boss drops, and ambient hatching all keep their normal rates during the fight, held or not.
 - **No softlock: fixing bugs ships the release.** Every bug squashed during the fight chips the nearest hardpoint by `SHIP_CHIP` (0.22%) of the ship's max HP: ×1 tier 1, ×1.5 tier 2, ×2 tier 3, ×6 boss. A thin cyan streak shows it. Progress is tied to kills, so a small squad buried in bugs still moves the bar. As hardpoints fall the ship drops bugs more slowly (`7 / liveNodes`), so the board can be cleared at the end. On a phone-sized 4-agent squad, the old targeting rules plus "no shipping with bugs" never finished.
 - **Downed hardpoints fight back.** When a non-final hardpoint goes down (`nodeDownSpawns`):
-  - A boss labeled **Regression** crawls out of the node. It sheds **3–5 bugs over its life** (rolled per Regression): with *k* kids, one pops out each time its HP crosses (k−1)/k, …, 1/k, and the last on death. A one-shot from full HP still drops all *k*. It's a regular boss for everything else: a live bug for the no-ship hold, picked before hardpoints by lasers, Derick and bombs, and worth a ×6 chip when squashed.
-  - A **swarm** streams in from offscreen on one side (left, right or bottom; never the top, where the ship is). It is 3 bugs on phones / narrow screens, 4 under 1300px, 5 on desktop, plus `0.25 × agents` (+1 with sub-agents), capped at base + 3. Swarm bugs march to a point in the middle band (~2.4× speed, no wall bounce until inside, 3.5s timeout), then wander normally.
+  - A boss labeled **Regression** crawls out of the node. It sheds **3–5 bugs over its life** (rolled per Regression): with *k* kids, one pops out each time its HP crosses (k−1)/k, …, 1/k, and the last on death. A one-shot from full HP still drops all *k*.
+  - A **swarm** pours in from the **top** of the screen (over the ship) at 560px/s (~1s to land, vs 62px/s for a walking tier-1), 35ms apart, then wanders normally. It is 3 bugs on phones / narrow screens, 4 under 1300px, 5 on desktop, plus `0.25 × agents` (+1 with sub-agents), capped at base + 3.
+  - **The ship is shielded until the Regression, its kids and the swarm are all gone** (`shipShielded`). Nothing can target or damage it: lasers, Derick and bombs skip the nodes, missiles skip them in the blast, hand clinks do nothing, and units drop a node they were aiming at. During the shield, lasers pick the Regression swarm first, and Derick and bombs rank it above other bugs. A pulsing red ring sits around the hull and the bar reads "Shielded · clear the Regression swarm (N left)".
+  - **Patch:** squash chips earned while shielded are banked instead of dropped, then land as one **PATCHED** hit (`× PATCH_BONUS` 1.5) on the hardpoint nearest Derick the moment the shield drops. That keeps the release moving without damaging the ship during the swarm, so a 4-agent phone squad still finishes.
   - The final hardpoint ships the release instead: no Regression, no swarm.
   - These spawns get extra room above the normal cap (`fightCap` = cap + 5 on phones, + 8 on desktop, so 13 / 23) so they show up instead of going to backlog; overflow merges also use that limit during the fight. Ship drops still use the normal cap.
+  - All bugs, bosses included, draw **on top of** the ship.
 - The upgrade button reads "Need X LOC & ≤3 bugs to launch", then "Launch the release … every bug must be squashed to ship". During the fight it is disabled and reads "In progress: squash N live bugs, then the hardpoints". `shipPending.liveBugs` records live bugs at the moment of shipping, which is always 0.
-- `tests/test-ship-bugs.mjs` covers bug-first targeting, the squad leaving formation, laser and bomb holds, the bar copy, instant ship on the last squash, spawns continuing (held or not), Regression drops / shedding / targeting, the offscreen swarm (size, entry, phone sizing, cap), and full fights (10 agents, 6 + subs, phone 4 agents) that ship with 0 live bugs and no softlock.
+- `tests/test-ship-bugs.mjs` covers bug-first targeting, the squad leaving formation, laser and bomb holds, the bar copy, instant ship on the last squash, spawns continuing (held or not), Regression drops / shedding / targeting, the swarm (from the top, fast entry, size, phone sizing, cap), the shield (no targeting or damage, banked patch), bugs drawn over the ship, and full fights (10 agents, 6 + subs, phone 4 agents) that ship with 0 live bugs and no softlock.
 
 
 - A giant ship enters from the top at full play-area width, with a warning banner, screen shake, and a named HP bar at the bottom center (`Ship v1.0`, then `v2.0`, …).
@@ -329,7 +337,7 @@ These are the explicit asks the implementation is meant to honor:
 
 1. Players opt in (Play Bug Hunt); the game does not start itself.
 2. Progress is remembered if they leave and come back.
-3. No bugs on screen until they click empty space.
+3. No bugs before opting in. After opting in, a gentle trickle (≤ 3 bugs) shows up even at 0 LOC, and scrolling the page writes code, so visitors who miss the hint still get something to squash.
 4. Clicks write dim hacker-typer background code.
 5. The first unlock is **Hire Derick**.
 6. QA reveals bugs and paints targets on the largest; targeted bugs are destroyed instead of breaking into smaller ones. QA does not auto-squash.
