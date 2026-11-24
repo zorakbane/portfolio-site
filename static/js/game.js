@@ -2093,7 +2093,7 @@
       if (S.agents) bits.push(`${S.agents} agent${S.agents === 1 ? '' : 's'}`);
       if (commandMode()) bits.push('CMD');
       if (heartbeatActive()) bits.push('♥ Heartbeat');
-      bits.push(shipBossLive() ? `Release fight · ${liveBugCount()} live bugs` : `Ship ${fmt(shipGoal())} LOC ≤3 bugs`);
+      { const nb = liveBugCount(); bits.push(shipBossLive() ? `Release fight · ${nb} live bug${nb === 1 ? '' : 's'}` : `Ship ${fmt(shipGoal())} LOC ≤3 bugs`); }
       el.tip.textContent = bits.join(' · ');
     }
     if (!S.open && !force) return;

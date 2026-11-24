@@ -24,6 +24,9 @@ async function fresh(view) {
   await page.evaluate(() => {
     const g = window.__bugHunt, S = g.S;
     window.__setup = (agents = 6, sub = 0) => {
+      // Tear down any fight / SHIPPED card left by the previous test.
+      if (g.shipBoss) g.winFinale();
+      g.hideShippedFanfare(); S.shipPending = null;
       S.optedIn = true; S.paused = false;
       Object.assign(S, { derick: 1, agents, agentic: 1, profiler: 1, ci: 1, movement: 1, sync: 1, collision: 1, qa: 1, rapid: 1, rollback: 1, autoRb: 0, subagent: sub, ships: 0, prestige: 0, loc: 2000, commits: 0 });
       g.bugs.splice(0); S.backlog = 0; S.debt = 0; g.clearHatchQ(); g.setQuality(0);
@@ -168,19 +171,21 @@ const shipNow = await page.evaluate(() => {
 ok('knocking out every hardpoint with a bug alive leaves exactly one held node', shipNow.alive && shipNow.liveNodes === 1 && !shipNow.pending, JSON.stringify(shipNow));
 
 // ---------- copy ----------
-const copy = await page.evaluate(() => {
+await page.evaluate(() => {
   const g = window.__bugHunt, S = g.S;
-  g.confirmShip && S.shipPending && g.dismissShip();
-  if (g.shipBoss) { g.liveShipNodes().forEach(n => { n.hp = 0; n._dead = true; }); }
-  S.shipPending = null;
   window.__setup(6);
-  S.open = true; S.shop = true;
-  const b = g.spawnBug(innerWidth * 0.5, innerHeight - 80, { force: true, tier: 1, src: 'test' }); b.hatching = false;
-  g.step(1 / 30); window.__bugHunt.econ && 0;
-  document.dispatchEvent(new Event('visibilitychange'));
-  return { tip: document.querySelector('#bh-hud') ? document.querySelector('#bh-hud').textContent : '' };
+  g.optIn(); S.open = true; S.shop = true; S.paused = false;
+  const b = g.spawnBug(innerWidth * 0.5, innerHeight - 80, { force: true, tier: 3, src: 'test' }); b.hatching = false; b.hp = b.maxHp = 1e9;
 });
-ok('HUD says the release fight is in progress with live bugs to squash', /In progress: squash 1 live bug/.test(copy.tip) || /Release fight · 1 live bugs/.test(copy.tip), copy.tip.slice(0, 300));
+await wait(900); // let the real econ tick render the HUD
+const copy = await page.evaluate(() => {
+  const hud = document.querySelector('.bh-hud');
+  const ship = hud && hud.querySelector('[data-act=ship]');
+  const out = { tip: hud ? hud.textContent : '', shipText: ship ? ship.textContent : '', disabled: !!(ship && ship.disabled) };
+  window.__bugHunt.pauseGame();
+  return out;
+});
+ok('upgrade button is disabled mid-fight and says to squash the live bugs first', copy.disabled && /In progress: squash \d+ live bugs?, then the hardpoints/.test(copy.shipText), JSON.stringify(copy).slice(0, 400));
 
 // ---------- mobile: S26-sized fight ----------
 const mp = await fresh({ width: 412, height: 915, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
