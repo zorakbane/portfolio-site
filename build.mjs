@@ -62,7 +62,7 @@ const NAV = [
   ['#work', 'Work'], ['#earlier', 'Earlier'], ['#lab', 'Lab'], ['#awards', 'Awards'], ['#about', 'About'], ['#contact', 'Contact'],
 ];
 
-function layout({ title, desc, body, bodyClass = '', canonical = '', home = false }) {
+function layout({ title, desc, body, bodyClass = '', canonical = '', home = false, head = '' }) {
   const nav = NAV.map(([h, l]) => `<a href="${home ? h : u('') + h}">${l}</a>`).join('');
   return `<!doctype html>
 <html lang="en">
@@ -79,6 +79,8 @@ function layout({ title, desc, body, bodyClass = '', canonical = '', home = fals
 ${canonical ? `<meta property="og:url" content="${esc(canonical)}">
 <link rel="canonical" href="${esc(canonical)}">` : ''}
 <link rel="icon" href="${u('favicon.svg')}" type="image/svg+xml">
+<link rel="alternate" type="text/markdown" href="${u('resume.md')}" title="Resume (plain text)">
+${head}
 <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
 <style>${CSS}</style>
 <script>document.documentElement.classList.add('js')</script>
@@ -96,6 +98,7 @@ ${body}
 </main>
 <footer class="foot">
   <p>© ${new Date().getFullYear()} Derick Janssen · Built by hand, fast on purpose. <a href="mailto:${esc(S.email)}">${esc(S.email)}</a></p>
+  <p class="foot-alt"><a href="${u('resume.md')}">Plain-text resume</a> · <a href="${u('llms.txt')}">llms.txt</a></p>
 </footer>
 <div class="wipe" aria-hidden="true"></div>
 <template id="bh-wordmark-outline">${JANSSEN_OUTLINE}</template>
@@ -111,6 +114,7 @@ function featuredCard(p, i) {
     <div class="card-body">
       <p class="card-kicker">${esc(p.studio)} · ${esc(p.role)}</p>
       <h3 class="card-title">${esc(p.title)}</h3>
+      ${p.teamShort ? `<p class="card-team"><span aria-hidden="true">▣</span> ${esc(p.teamShort)}</p>` : ''}
       <p class="card-sum">${esc(p.summary)}</p>
       <ul class="chips">${(p.tags || []).slice(0, 4).map(t => `<li>${esc(t)}</li>`).join('')}</ul>
       <span class="card-cta">View mission <span aria-hidden="true">→</span></span>
@@ -127,12 +131,13 @@ function smallCard(p, i) {
       <h3 class="card-title">${esc(p.title)}</h3>
       <p class="card-sum">${esc(p.summary)}</p>
       ${p.awards ? `<ul class="chips gold">${p.awards.slice(0, 2).map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
-      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : (p.url ? `<span class="card-cta">${esc(p.linkLabel || 'Open')} <span aria-hidden="true">↗</span></span>` : '')}
+      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : (p.url ? `<span class="card-cta">${esc(p.linkLabel || 'Open')} <span aria-hidden="true">${p.internal ? '→' : '↗'}</span></span>` : '')}
       ${todos(p.todo)}
     </div>`;
-  const cardHref = hasPage(p) ? href(p) : (p.url || '');
+  const local = hasPage(p) || p.internal;
+  const cardHref = hasPage(p) ? href(p) : p.internal ? u(p.url) : (p.url || '');
   const cardInner = cardHref
-    ? `<a class="card-link" href="${esc(cardHref)}"${hasPage(p) ? '' : ' target="_blank" rel="noopener"'}">${inner}</a>`
+    ? `<a class="card-link" href="${esc(cardHref)}"${local ? '' : ' target="_blank" rel="noopener"'}>${inner}</a>`
     : `<div class="card-link">${inner}</div>`;
   return `<article class="card small reveal" style="--accent:${p.accent};--i:${i % 6}">${cardInner}</article>`;
 }
@@ -216,13 +221,13 @@ function home() {
     </div>
   </div>
 </section>`;
-  return layout({ title: `${S.name} | ${S.title}`, desc: S.tagline, body, bodyClass: 'home', canonical: S.url + '/', home: true });
+  return layout({ title: `${S.name} | ${S.title}`, desc: S.tagline, body, bodyClass: 'home', canonical: S.url + '/', home: true, head: personJsonLd() });
 }
 
 function projectPage(p, idx, list) {
   const prev = list[(idx - 1 + list.length) % list.length];
   const next = list[(idx + 1) % list.length];
-  const meta = [['Studio', p.studio], ['Role', p.role], ['When', p.years], ['Tech', p.engine], ['Status', p.status]].filter(([, v]) => v);
+  const meta = [['Studio', p.studio], ['Role', p.role], ['Team', p.team], ['When', p.years], ['Tech', p.engine], ['Status', p.status]].filter(([, v]) => v);
   const gallery = (p.gallery || []).filter(k => IMG[k]);
   const body = `
 <article class="proj" style="--accent:${p.accent}">
@@ -239,7 +244,7 @@ function projectPage(p, idx, list) {
     <aside class="proj-meta reveal">
       <dl>${meta.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
       ${p.tags ? `<ul class="chips">${p.tags.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
-      ${p.links && p.links.length ? `<ul class="links">${p.links.map(l => `<li><a href="${esc(l.url)}" rel="noopener">${esc(l.label)} ↗</a></li>`).join('')}</ul>` : ''}
+      ${p.links && p.links.length ? `<ul class="links">${p.links.map(l => l.internal ? `<li><a href="${esc(u(l.url))}">${esc(l.label)} →</a></li>` : `<li><a href="${esc(l.url)}" rel="noopener">${esc(l.label)} ↗</a></li>`).join('')}</ul>` : ''}
     </aside>
     <div class="proj-main">
       ${p.youtube ? `<div class="reveal">${yt(p.youtube, p.youtubeTitle)}</div>` : ''}
@@ -255,6 +260,116 @@ function projectPage(p, idx, list) {
   </nav>
 </article>`;
   return layout({ title: `${p.title} | ${S.name}`, desc: p.summary, body, bodyClass: 'project', canonical: `${S.url}/projects/${p.slug}/` });
+}
+
+// ---- machine-readable layer (mirrors the visible content; never hidden text) ----
+const ORIGIN = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
+const AT_ROOT = BASE === '/' || BASE === '';
+// Absolute on the real domain; root-relative on a sub-path preview build.
+const abs = p => (AT_ROOT ? ORIGIN + '/' + p.replace(/^\//, '') : u(p));
+const jsonLd = o => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
+
+function personJsonLd() {
+  return jsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: S.name,
+    url: ORIGIN + '/',
+    email: 'mailto:' + S.email,
+    jobTitle: 'Principal Engineer',
+    worksFor: { '@type': 'Organization', name: 'Santa Barbara Games' },
+    description: S.tagline,
+    address: { '@type': 'PostalAddress', addressRegion: 'FL', addressCountry: 'US' },
+    alumniOf: data.education.map(e => ({ '@type': 'CollegeOrUniversity', name: e.school })),
+    knowsAbout: [...new Set(Object.values(data.skills).flat())],
+    award: data.awards.map(a => `${a.title}${a.year ? ' ' + a.year : ''} (${a.project})`),
+    sameAs: S.links.filter(l => /^https?:/.test(l.url || '')).map(l => l.url),
+    subjectOf: { '@type': 'DigitalDocument', name: 'Resume (plain text)', encodingFormat: 'text/markdown', url: abs('resume.md') },
+  });
+}
+
+function agenticDiagram(A) {
+  // Plain HTML/CSS flow: readable by screen readers and agents, reflows on phones.
+  const steps = A.flow.map((f, i) => `<li class="ag-step${i === 1 ? ' ag-gate' : ''}" style="--i:${i}"><span class="ag-n">${i + 1}</span><b>${esc(f.k)}</b><span>${esc(f.t)}</span></li>`).join('');
+  return `<figure class="ag-flow reveal" aria-labelledby="ag-flow-cap">
+  <ol class="ag-steps">${steps}</ol>
+  <figcaption id="ag-flow-cap">How a teammate's request becomes a reviewed pull request.</figcaption>
+</figure>`;
+}
+
+function agenticPage() {
+  const A = data.agentic;
+  const sec = (o, extra = '') => `<section class="reveal"><h2>${esc(o.h)}</h2>${o.p.map(t => `<p>${esc(t)}</p>`).join('')}${extra}</section>`;
+  const src = A.fewer.source ? `<p class="ag-src">Source: <a href="${esc(A.fewer.source.url)}" rel="noopener">${esc(A.fewer.source.label)} ↗</a></p>` : '';
+  const body = `
+<article class="proj ag" style="--accent:#a78bfa">
+  <header class="proj-hero">
+    <div class="wrap proj-hero-inner">
+      <a class="back" href="${u('')}#lab">← Back to all work</a>
+      <p class="kicker">Santa Barbara Games · Voidwood</p>
+      <h1 class="proj-title">${esc(A.title)}</h1>
+      <p class="proj-sum">${esc(A.lede)}</p>
+    </div>
+  </header>
+  <div class="wrap ag-body">
+    <section class="reveal"><h2>The workflow</h2>${agenticDiagram(A)}</section>
+    ${sec(A.rules)}
+    ${sec(A.fewer, src)}
+    <p class="reveal"><a class="btn" href="${href(projects.find(p => p.slug === 'voidwood'))}">Voidwood project page →</a></p>
+  </div>
+</article>`;
+  return layout({ title: `${A.title} | ${S.name}`, desc: A.lede, body, bodyClass: 'project', canonical: `${S.url}/agentic-ai/` });
+}
+
+function resumeMd() {
+  const L = [];
+  const feat = group('featured');
+  L.push(`# ${S.name}`, '', `${S.title} · Santa Barbara Games`, '');
+  L.push(`This is the plain-text version of the resume at ${ORIGIN}/. The designed PDF is ${abs('resume.pdf')}.`, '');
+  L.push(`- Email: ${S.email}`, `- Location: ${S.location}`);
+  S.links.filter(l => l.label !== 'Email' && l.url).forEach(l => L.push(`- ${l.label}: ${l.url}`));
+  L.push('', '## Summary', '', S.tagline, '', ...data.about.map(p => p + '\n'));
+  L.push('## Highlights', '', ...S.stats.map(s => `- ${s.value}: ${s.label}`), '');
+  L.push('## Experience', '');
+  data.experience.forEach(e => L.push(`- **${e.company}**, ${e.role} (${e.where}), ${e.years}`));
+  L.push('', '## Selected projects', '');
+  const proj = p => {
+    L.push(`### ${p.title}, ${p.studio}`, '');
+    L.push([p.role, p.team, p.years, p.engine].filter(Boolean).join(' · '), '', p.summary, '');
+    (p.bullets || []).forEach(b => L.push(`- ${b}`));
+    if (p.awards) L.push(`- Awards: ${p.awards.join('; ')}`);
+    L.push('');
+  };
+  feat.forEach(proj);
+  const A = data.agentic;
+  L.push(`### ${A.title}`, '', A.lede, '', ...A.flow.map((f, i) => `${i + 1}. **${f.k}**: ${f.t}`), '', ...A.rules.p, '', ...A.fewer.p, '');
+  if (A.fewer.source) L.push(`Source for the V Rising figure: ${A.fewer.source.label}, ${A.fewer.source.url}`, '');
+  L.push(`More: ${abs('agentic-ai/')}`, '');
+  L.push('### Earlier games', '', ...group('earlier').map(p => `- **${p.title}** (${p.studio}${p.role ? ', ' + p.role : ''}): ${p.summary}`), '');
+  L.push('## Skills', '', ...Object.entries(data.skills).map(([k, v]) => `- ${k}: ${v.join(', ')}`), '');
+  L.push('## Awards', '', ...data.awards.map(a => `- ${a.title}${a.year ? ' (' + a.year + ')' : ''}, ${a.project}`), '');
+  L.push('## Education', '', ...data.education.map(e => `- **${e.school}**, ${e.degree}, ${e.years}. ${e.note}`), '');
+  L.push('## Talks', '', ...data.talks.map(t => `- ${t}`), '');
+  return L.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function llmsTxt() {
+  const paged = projects.filter(hasPage);
+  return [
+    `# ${S.name}`, '',
+    `> ${S.title} at Santa Barbara Games. ${S.tagline}`, '',
+    'The human-facing site and the PDF resume are the primary sources. The files below carry the same facts in plain text.', '',
+    '## Resume', '',
+    `- [Resume (Markdown)](${abs('resume.md')}): experience, team sizes, projects, skills, education`,
+    `- [Resume (PDF)](${abs('resume.pdf')}): the designed resume`,
+    `- [Portfolio home](${abs('')}): featured work, awards, contact`, '',
+    '## Pages', '',
+    `- [Agentic AI workflows](${abs('agentic-ai/')}): ${data.agentic.lede}`,
+    ...paged.map(p => `- [${p.title}](${abs(`projects/${p.slug}/`)}): ${p.summary}`), '',
+    '## Contact', '',
+    `- Email: ${S.email}`,
+    ...S.links.filter(l => l.label !== 'Email' && l.url).map(l => `- ${l.label}: ${l.url}`), '',
+  ].join('\n');
 }
 
 // ---- write ----
@@ -276,12 +391,16 @@ paged.forEach((p, i) => {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'index.html'), projectPage(p, i, paged));
 });
+fs.mkdirSync(path.join(OUT, 'agentic-ai'), { recursive: true });
+fs.writeFileSync(path.join(OUT, 'agentic-ai', 'index.html'), agenticPage());
+fs.writeFileSync(path.join(OUT, 'resume.md'), resumeMd());
+fs.writeFileSync(path.join(OUT, 'llms.txt'), llmsTxt());
 fs.writeFileSync(path.join(OUT, '404.html'), layout({ title: `404 | ${S.name}`, desc: 'Page not found', body: `<section class="sec wrap center"><h1 class="proj-title">404</h1><p>This page desynced. Rolling back…</p><p><a class="btn primary" href="${u('')}">Respawn at home</a></p></section>` }));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 const origin = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
 const atRoot = BASE === '/' || BASE === '';
 if (atRoot) {
-  const sitemapUrls = [origin + '/', ...paged.map(p => `${origin}/projects/${p.slug}/`)];
+  const sitemapUrls = [origin + '/', origin + '/agentic-ai/', ...paged.map(p => `${origin}/projects/${p.slug}/`)];
   fs.writeFileSync(path.join(OUT, 'sitemap.xml'),
     '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -291,4 +410,4 @@ if (atRoot) {
 fs.writeFileSync(path.join(OUT, 'robots.txt'), atRoot
   ? `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`
   : `User-agent: *\nDisallow: /\n`);
-console.log(`Built ${1 + paged.length + 1} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);
+console.log(`Built ${1 + paged.length + 2} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);

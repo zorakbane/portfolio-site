@@ -2,7 +2,7 @@
   "site": {
     "name": "Derick Janssen",
     "title": "Principal Engineer · Game Programmer",
-    "tagline": "An award-winning gameplay programmer who is passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
+    "tagline": "An award-winning gameplay programmer who has led teams of up to 12 engineers. Passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
     "url": "https://derickjanssen.com",
     "email": "zorakbane@yahoo.com",
     "location": "Based in the Greater Tampa Bay area · open to remote (hybrid/relocation for the right fit)",
@@ -60,10 +60,13 @@
       "bullets": [
         "Owner of the deterministic multiplayer rollback netcode simulation in ECS.",
         "Built a V-Rising-size world with a mean simulation time of ~1.5 ms.",
+        "Foundation work: optimized, multithreaded finite-state machines that cut how many ECS systems the game needs. Voidwood runs on about 40 systems.",
         "Kept a performant build with no crashes or desyncs at each milestone.",
-        "Created many tools for team productivity.",
-        "Built agentic AI workflows: a human asks a coding agent for a change, and the coding agent issues commands to in-game sub-agents that run in the game, verify the results, and do their own testing.",
-        "Created agentic AI workflows so non-coders on the team can build and iterate."
+        "Principal Engineer in a 12-person studio, reporting to the CEO.",
+        "My agentic AI workflow lets 10 non-engineers ship pull requests. I run their process and review their PRs through it.",
+        "Everyone at the studio except the CFO and the community manager uses my tools.",
+        "Agent project rules keep coding agents from creating new systems by default.",
+        "Built agentic AI workflows: a human asks a coding agent for a change, and the coding agent issues commands to in-game sub-agents that run in the game, verify the results, and do their own testing."
       ],
       "tags": [
         "Rollback netcode",
@@ -83,12 +86,19 @@
         {
           "label": "voidwood.com",
           "url": "https://voidwood.com"
+        },
+        {
+          "label": "How the agentic workflow works",
+          "url": "/agentic-ai/",
+          "internal": true
         }
       ],
       "niceToHave": [
         "Personal screenshots / GIFs (rollback debug view, agent test loop)",
         "Short write-up of the agentic verification loop"
-      ]
+      ],
+      "team": "12-person studio · reports to the CEO",
+      "teamShort": "12-person studio · reports to the CEO"
     },
     {
       "slug": "rise-of-elements",
@@ -104,6 +114,7 @@
       "cardImage": "rise-header",
       "summary": "A PvP match-3 puzzle-battler with a PvE story mode — a faithful recreation of Force of Elements. I worked on nearly every part of the game except backend AWS server scaling.",
       "bullets": [
+        "Led 3 engineers on a team of 20.",
         "Client/server game logic.",
         "UI.",
         "Added a cvar system that pulls from an online config.",
@@ -125,7 +136,9 @@
           "label": "Steam",
           "url": "https://store.steampowered.com/app/3170850"
         }
-      ]
+      ],
+      "team": "Team of 20 · led 3 engineers",
+      "teamShort": "Led 3 engineers · team of 20"
     },
     {
       "slug": "ark-survival-ascended",
@@ -176,6 +189,7 @@
       "summary": "Feature lead for the StarMap. I later worked on Ship Building, Localization, Optimizations, and Outposts.",
       "bullets": [
         "Lead for the StarMap feature.",
+        "Six direct reports, including a junior UI artist and a junior producer whom I mentored hands-on.",
         "Later worked on Ship Building, Localization, Optimizations, and Outposts."
       ],
       "tags": [
@@ -199,7 +213,9 @@
       ],
       "niceToHave": [
         "StarMap screenshots or a short clip (from the 'origin' pptx in Drive?)"
-      ]
+      ],
+      "team": "6 direct reports, incl. a junior UI artist and a junior producer I mentored",
+      "teamShort": "6 direct reports"
     },
     {
       "slug": "fallout-76",
@@ -250,6 +266,7 @@
       "summary": "I spearheaded Skyrim VR from conception until launch, on both PSVR and Vive.",
       "bullets": [
         "Spearheaded the project from conception until launch.",
+        "Led a team of 12 engineers, all direct reports.",
         "Worked on pretty much every feature of the game except the zoomed-out map mode and the tutorial.",
         "Shipped on both PSVR and Vive."
       ],
@@ -274,7 +291,9 @@
       ],
       "niceToHave": [
         "VR systems highlights (the 'Skyrim VR - Systems' slides in Drive)"
-      ]
+      ],
+      "team": "12 engineers, all direct reports",
+      "teamShort": "Led 12 engineers"
     },
     {
       "slug": "fallout-4-vr",
@@ -559,7 +578,7 @@
       "engine": "Coding agents · in-game sub-agents",
       "accent": "#a78bfa",
       "image": "",
-      "summary": "A human asks a coding agent for a change. The coding agent then commands sub-agents inside the running game to exercise it, verify the results, and do their own testing. I also built workflows that let non-coders ship changes.",
+      "summary": "My workflow lets 10 non-engineers at Santa Barbara Games ship pull requests. Coding agents follow project rules that stop them from creating new systems by default, and in-game sub-agents test and verify each change.",
       "tags": [
         "Agentic coding",
         "Verification",
@@ -569,7 +588,10 @@
       "glyph": "AI⇄",
       "niceToHave": [
         "Diagram or short clip"
-      ]
+      ],
+      "url": "/agentic-ai/",
+      "internal": true,
+      "linkLabel": "How it works"
     },
     {
       "slug": "janssengine",
@@ -978,5 +1000,50 @@
     "Strife — Gold League, top 10% (2014/15)",
     "League of Legends — Season 1 Silver medal, top 10% ranked",
     "Left 4 Dead — Alienware Arena, 6-1 season (2010)"
-  ]
+  ],
+  "agentic": {
+    "title": "Agentic AI workflows",
+    "lede": "At Santa Barbara Games, my agentic workflow lets 10 non-engineers ship pull requests. Everyone at the 12-person studio except the CFO and the community manager uses my tools.",
+    "flow": [
+      {
+        "k": "Teammate",
+        "t": "A teammate who isn't an engineer asks for a change in plain language."
+      },
+      {
+        "k": "Coding agent + project rules",
+        "t": "The coding agent works inside project rules: extend the existing systems and don't create new ones by default."
+      },
+      {
+        "k": "In-game sub-agents",
+        "t": "The coding agent commands sub-agents inside the running game. They exercise the change, verify the results, and do their own testing."
+      },
+      {
+        "k": "Pull request",
+        "t": "The change arrives as a PR, routed through the same workflow."
+      },
+      {
+        "k": "My review",
+        "t": "I review their PRs and manage their process through the workflow."
+      }
+    ],
+    "rules": {
+      "h": "Rules that stop agents from building new systems",
+      "p": [
+        "Left alone, most coding agents want to create a whole new system for every request, which bloats an ECS codebase fast.",
+        "Our agent project rules make reuse the default: a request extends the existing systems, and a new system is never the agent's first move."
+      ]
+    },
+    "fewer": {
+      "h": "Fewer systems, on purpose",
+      "p": [
+        "Much of my foundation work on Voidwood went into optimized, multithreaded finite-state machines. They handle work that would otherwise be spread across more ECS systems, so the game needs fewer of them.",
+        "Voidwood runs on about 40 ECS systems, with survival gameplay similar to V Rising. For scale, Unity's case study on V Rising cites 1,600 ECS systems. They're different games with different scopes, so it isn't a like-for-like count, but it shows how much a strong shared foundation removes.",
+        "The same world simulates in a mean of about 1.5 ms per tick."
+      ],
+      "source": {
+        "label": "Unity: “V Rising: Behind the vampire realm built on 1,600 ECS systems” (Dec 9, 2024)",
+        "url": "https://unity.com/resources/stunlock-studios-v-rising"
+      }
+    }
+  }
 }
