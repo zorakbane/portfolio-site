@@ -350,7 +350,7 @@
   const shipBar = d.createElement('div');
   shipBar.id = 'bh-shipbar';
   shipBar.hidden = true;
-  shipBar.innerHTML = '<div class="bh-shipname"></div><div class="bh-shiptrack"><i></i></div><div class="bh-shiphp"></div>';
+  shipBar.innerHTML = '<div class="bh-shipname"></div><div class="bh-shiptrack"><i></i></div><div class="bh-shiphp"></div><div class="bh-shipblock" hidden></div>';
   const shipWarn = d.createElement('div');
   shipWarn.id = 'bh-shipwarn';
   shipWarn.hidden = true;
@@ -925,6 +925,8 @@
     if (!S.shop && S.squashed >= 5) openShop();
     mergeIfOver();
     retargetQA();
+    chipShip(b);
+    completeHeldShip();
     kick(); dirty = true;
   }
 
@@ -935,6 +937,7 @@
       b.hp -= dps * dt;
       b.flash = Math.max(b.flash || 0, 0.55);
       if (attacker) { attacker.beam = 1; attacker.aimX = b.x; attacker.aimY = b.y; }
+      if (holdLastNode(b)) return;
       syncShipHp();
       if (b.hp <= 0) destroyShipNode(b);
       return;
@@ -1005,7 +1008,8 @@
       : 0;
     return dDps + one * n * 0.55 + pulseRate * missileDamage() * 0.85;
   }
-  function finaleMaxHp() { return Math.max(500, finaleDpsEstimate() * 106); }
+  const FINALE_HP_SECS = 135; // seconds of estimated squad DPS (was 106 before bugs-first + squash chips); ~90s for 10 agents
+  function finaleMaxHp() { return Math.max(500, finaleDpsEstimate() * FINALE_HP_SECS); }
   function shipName() { return `Ship v${(S.prestige || 0) + 1}.0`; }
   function syncShipBar(force) {
     const on = !!(shipBoss && shipBoss.hp > 0);
@@ -1020,6 +1024,13 @@
     if (name) name.textContent = shipBoss.name || shipName();
     if (fill) fill.style.transform = `scaleX(${pct})`;
     if (hp) hp.textContent = `${Math.max(0, Math.ceil(shipBoss.hp))} / ${Math.ceil(shipBoss.maxHp)}`;
+    const block = shipBar.querySelector('.bh-shipblock');
+    const nb = liveBugCount();
+    if (block) {
+      block.hidden = !nb;
+      if (nb) block.textContent = shipBoss.held ? `Squash ${nb} live bug${nb === 1 ? '' : 's'} to ship` : `${nb} live bug${nb === 1 ? '' : 's'} · squash them to ship`;
+    }
+    shipBar.classList.toggle('held', !!(shipBoss.held && nb));
     if (!hud.hidden) {
       const box = hud.getBoundingClientRect();
       const raise = Math.max(0, (W.innerHeight || Hd) - box.top) + 10;
@@ -1124,6 +1135,55 @@
     return clamp(ny + range * 0.45, 70, Math.max(71, Hd - 24));
   }
   function shipBossLive() { return !!(shipBoss && shipBoss.hp > 0 && liveShipNodes().length); }
+  // ---- "No shipping with live bugs" ----
+  // Every regular bug on the board (hatching ones too) blocks the release. While any is alive, units hunt bugs first,
+  // and the last hardpoint holds just above zero so the ship can't go down until the board is clear. Spawns keep
+  // coming (release-day chaos, by design); the ship completes the instant the board hits zero once it's held.
+  function liveBugCount() { let n = 0; for (const b of bugs) if (b && !b.ship && !b.shipNode) n++; return n; }
+  function huntableBug(b) { return !!(b && !b.hatching && !b.ship && !b.shipNode); }
+  function anyHuntableBug() { for (const b of bugs) if (huntableBug(b)) return true; return false; }
+  function shipHoldHp() { return shipBoss ? Math.max(1, shipBoss.maxHp * 0.01) : 1; }
+  // Called after a hardpoint takes damage. Returns true when it was the last node and live bugs held it up.
+  function holdLastNode(n) {
+    if (!n || !n.shipNode || n.hp > 0 || !shipBoss) return false;
+    if (!liveBugCount()) return false;
+    for (const o of shipBoss.nodes) if (o !== n && o.hp > 0 && !o._dead) return false;
+    n.hp = Math.min(n.maxHp, shipHoldHp());
+    if (!shipBoss.held) {
+      shipBoss.held = true;
+      showShipWarn('Squash live bugs to ship');
+      log('Release blocked: squash the live bugs to ship.');
+    }
+    syncShipHp();
+    syncShipBar(true);
+    return true;
+  }
+  // Fixing release-day bugs ships the release: every bug squashed during the fight chips the nearest hardpoint by a
+  // share of the ship's max HP. Progress is tied to kills, so a squad that's busy with the chaos still moves the bar
+  // (and as hardpoints fall the ship drops bugs more slowly), which is what rules out a softlock without slowing spawns.
+  const SHIP_CHIP = 0.0022; // share of ship max HP per tier-1 squash
+  function chipShip(b) {
+    if (!b || !shipBoss || shipBoss.hp <= 0 || shipBoss.enter < 1) return 0;
+    const n = nearestShipNode(b.x, b.y);
+    if (!n) return 0;
+    const w = isBoss(b) ? 6 : b.tier >= 3 ? 2 : b.tier === 2 ? 1.5 : 1;
+    const dmg = shipBoss.maxHp * SHIP_CHIP * w;
+    n.hp -= dmg;
+    n.flash = Math.max(n.flash || 0, 0.7);
+    if (quality >= 1) addLaser(b.x, b.y, n.x, n.y, { wide: 0.5, life: 0.12, color: '#3de0ff' });
+    if (!holdLastNode(n)) {
+      syncShipHp();
+      if (n.hp <= 0) destroyShipNode(n);
+    }
+    return dmg;
+  }
+  // Held ship + empty board = shipped, right now (no waiting for a laser to find the last node between spawns).
+  function completeHeldShip() {
+    if (!shipBoss || !shipBoss.held || liveBugCount()) return false;
+    const last = liveShipNodes()[0];
+    if (last) destroyShipNode(last); else winFinale();
+    return true;
+  }
   function canReachShip(x, y, range) {
     return !!(shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) <= range);
   }
@@ -1147,6 +1207,9 @@
     // laser the moment they were in range, leaving bugs sitting next to agents.
     const swarm = nearestBug(x, y, range, b => !isBoss(b) && !b.ship && !b.shipNode);
     if (swarm) return swarm;
+    // Live bugs (bosses included) come before the release ship: you don't ship with bugs on the board.
+    const bug = nearestBug(x, y, range, huntableBug);
+    if (bug) return bug;
     if (canReachShip(x, y, range)) {
       // Only nodes this unit can actually reach; focus still spreads across the reachable ones.
       const n = pickShipNode(x, y, { uncovered: true, range }) || pickShipNode(x, y, { range });
@@ -1505,6 +1568,7 @@
       ttk,
       loc: S.loc,
       squashed: S.squashed,
+      liveBugs: liveBugCount(), // always 0 now: you can't ship with live bugs (tests read this)
       at: Date.now()
     };
     if (!RM) {
@@ -1542,6 +1606,7 @@
     if (!live.length) return;
     shipBoss.spawnAcc += dt;
     shipBoss.bossSpawn += dt;
+    if (completeHeldShip()) return;
     const spawnWait = 0.55 * (SHIP_NODES / live.length);
     if (shipBoss.spawnAcc >= spawnWait && bugs.length < cap()) {
       shipBoss.spawnAcc = 0;
@@ -2028,7 +2093,7 @@
       if (S.agents) bits.push(`${S.agents} agent${S.agents === 1 ? '' : 's'}`);
       if (commandMode()) bits.push('CMD');
       if (heartbeatActive()) bits.push('♥ Heartbeat');
-      bits.push(`Ship ${fmt(shipGoal())} LOC ≤3 bugs`);
+      { const nb = liveBugCount(); bits.push(shipBossLive() ? `Release fight · ${nb} live bug${nb === 1 ? '' : 's'}` : `Ship ${fmt(shipGoal())} LOC ≤3 bugs`); }
       el.tip.textContent = bits.join(' · ');
     }
     if (!S.open && !force) return;
@@ -2047,8 +2112,13 @@
         html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="reopen-ship"><span>${nextShipLabel()}</span><small>Open the SHIPPED card to confirm prestige.</small><em>🏆</em></button>`;
       } else {
         const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
-        if (S.rollback && S.loc >= shipGoal() * 0.45) {
-          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & bombs only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
+        const fighting = shipBossLive();
+        if (S.rollback && (fighting || S.loc >= shipGoal() * 0.45)) {
+          const nb = liveBugCount();
+          const note = fighting
+            ? (nb ? `In progress: squash ${nb} live bug${nb === 1 ? '' : 's'}, then the hardpoints.` : 'In progress: take down the hardpoints.')
+            : ok ? 'Launch the release. Lasers & bombs only; every bug must be squashed to ship.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs to launch.`;
+          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok && !fighting ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${note}</small><em>🏆 ${S.prestige || 0}</em></button>`;
         }
       }
     }
@@ -2096,6 +2166,7 @@
       if (preyDist(derickEnt.x, derickEnt.y, b) < preyDist(derickEnt.x, derickEnt.y, best)) best = b;
     };
     for (const b of bugs) consider(b);
+    if (best) return best; // any live bug outranks the ship
     for (const n of liveShipNodes()) consider(n);
     return best;
   }
@@ -2187,9 +2258,9 @@
   function targetHasCover(t) { return !t || pendingOn(t) >= t.hp - 1e-6; }
   function pickLaunchTarget() {
     let best = null;
-    const score = b => (b.ship ? 100 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
+    const score = b => (b.boss ? 10 : 0) + (b.tier || 0);
     const consider = b => {
-      if (!b || b.hatching || (b.ship && b.hp <= 0)) return;
+      if (!huntableBug(b)) return;
       if (targetHasCover(b)) return;
       if (!best) { best = b; return; }
       const ds = score(b) - score(best);
@@ -2200,6 +2271,8 @@
     for (const b of bugs) consider(b);
     const fromX = derickEnt ? derickEnt.x : 0;
     const fromY = derickEnt ? derickEnt.y : 0;
+    // Live bugs first; bombs only go to the ship once the board is clear.
+    if (best) return best;
     // Sub-agent bombs go for hardpoints near the squad, not the far end of the ship.
     const reach = shipBombReach();
     const node = pickShipNode(fromX, fromY, { uncovered: true, range: reach }) || pickShipNode(fromX, fromY, { range: reach });
@@ -2331,6 +2404,7 @@
         b.a = bang;
         b.boost = isBoss(b) ? 1.8 : 3.4;
       }
+      if (b.shipNode && holdLastNode(b)) continue;
       if (b.hp <= 0) {
         if (b.shipNode) {
           destroyShipNode(b);
@@ -2381,7 +2455,9 @@
       let t = a.chaseRoot && preyAlive(a.chaseRoot) ? a.chaseRoot : null;
       if (!t || t.hatching) {
         releaseReserve(a);
-        t = nearestBug(a.x, a.y, 320, b => !targetHasCover(b));
+        t = nearestBug(a.x, a.y, 320, b => huntableBug(b) && !targetHasCover(b));
+        if (!t) t = nearestBug(a.x, a.y, 320, huntableBug);
+        if (!t) t = nearestBug(a.x, a.y, 320, b => !targetHasCover(b));
         if (!t) t = nearestBug(a.x, a.y, 320, b => true);
         a.chaseRoot = t;
         a.target = t;
@@ -2693,7 +2769,8 @@
     if (S.agentic && derickEnt) escortPhase += dt * 0.45;
     const range = agentRange();
     const ringN = escortCount();
-    const shipOn = shipBossLive();
+    // Ship formation only once the board is clear; while bugs live, the squad hunts them with Derick.
+    const shipOn = shipBossLive() && !anyHuntableBug();
     let escortI = 0;
     for (const a of agents) {
       a.beam = Math.max(0, a.beam - dt * 4);
@@ -3391,7 +3468,7 @@
     kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
-    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
+    syncShipNodePositions, syncShipHp, destroyShipNode, liveBugCount, anyHuntableBug, holdLastNode, shipHoldHp, canAutoSpawn, completeHeldShip, chipShip, SHIP_CHIP, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
     KEY_LOC, KEY_MIN_GAP_MS, KEY_HOT_MS, typeKey, inPlaySpace,
