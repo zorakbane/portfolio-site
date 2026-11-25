@@ -116,7 +116,12 @@ const paused = await G(() => { const g = window.__bugHunt, S = g.S; g.pauseGame(
 ok('a paused game earns nothing while away', paused.gained === 0, JSON.stringify(paused));
 
 // ---------- no credit or bugs before opt-in ----------
-await G(() => { localStorage.clear(); });
+// Sleep first so pagehide/save on reload cannot write the previous opted-in session back over a clear.
+await G(() => {
+  window.__setHidden(true);
+  window.__bugHunt.sleep();
+  localStorage.clear();
+});
 await page.reload({ waitUntil: 'networkidle0' }); await boot();
 const pre = await G(() => {
   const g = window.__bugHunt, S = g.S;
@@ -134,6 +139,8 @@ ok('before opt-in: passive rates are zero', !pre.optedIn && pre.rates.locPerSec 
 ok('before opt-in: fast-forward and tab wake award no LOC/commits and spawn no bugs', !pre.ff && pre.loc === 0 && pre.commits === 0 && pre.bugs === 0 && !pre.away && pre.card === false, JSON.stringify(pre));
 
 await G(() => {
+  window.__setHidden(true);
+  window.__bugHunt.sleep();
   const stamp = Date.now() - 7200e3;
   localStorage.setItem('dj-bughunt-v3', JSON.stringify({ v: 3, optedIn: false, paused: false, loc: 0, commits: 0, lastActive: stamp, t: stamp }));
 });

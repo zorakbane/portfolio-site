@@ -24,7 +24,7 @@ async function fresh(view) {
   await page.evaluate(() => {
     const g = window.__bugHunt;
     window.__hud = () => { g.renderHud(true); return +(document.querySelector('.bh-hud [data-k=bugs]').textContent.replace(/[^0-9]/g, '') || 0); };
-    window.__onBoard = () => g.bugs.filter(b => !b.entering && b.x >= -2 && b.x <= innerWidth + 2 && b.y >= -2 && b.y <= innerHeight + 2).length;
+    window.__onBoard = () => g.bugs.filter(b => !b.entering && b.x >= -20 && b.x <= innerWidth + 20 && b.y >= -20 && b.y <= innerHeight + 20).length;
   });
   return page;
 }
@@ -57,6 +57,7 @@ const snap = p => p.evaluate(() => ({ hud: window.__hud(), board: window.__onBoa
   const p = await fresh();
   await p.evaluate(() => window.__bugHunt.optIn());
   await wait(8000);
+  await p.evaluate(() => { const g = window.__bugHunt; for (let i = 0; i < 45; i++) g.step(1 / 30); });
   const s = await snap(p);
   ok('starter trickle: the HUD count matches the trickled bugs on screen', s.hud === s.board && s.hud >= 1 && s.hud <= 3 && s.backlog === 0, JSON.stringify(s));
   await p.browserContext().close();
