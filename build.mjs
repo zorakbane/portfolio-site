@@ -26,6 +26,7 @@ const S = data.site;
 const JANSSEN_OUTLINE = `<svg class="ht-outline" viewBox="0 0 593 98" preserveAspectRatio="xMinYMid meet" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round" d="M37.33 90.18Q23.25 90.18 15.63 83.41Q8 76.64 8 64.07V59.08H29.7V64.5Q29.7 68.91 31.69 71.11Q33.67 73.31 37.33 73.31Q40.98 73.31 42.91 71.11Q44.85 68.91 44.85 64.4V9.07H66.22V63.97Q66.22 76.59 58.73 83.38Q51.24 90.18 37.33 90.18ZM81.85 89.1 107.79 9.07H137.44L164.35 89.1H139.75L135.13 73.74H110.53L106.13 89.1ZM130.3 57.52Q127.4 47.69 124.82 37.06Q123.58 31.9 122.4 26.8Q121.27 31.9 120.2 37.06Q117.94 47.69 115.15 57.52ZM179.98 89.1V9.07H203.61L222.68 40.5Q225.15 44.58 227.3 48.66Q229.44 52.74 231.49 57.63Q232.34 59.83 233.26 62.3Q233.15 60.74 233.04 59.03Q232.61 53.33 232.29 47.77Q231.97 42.21 231.97 38.4V9.07H254.31V89.1H230.68L212.9 59.88Q209.89 54.89 207.61 50.57Q205.33 46.24 203.23 41.41Q202.21 39.15 201.08 36.52Q201.25 38.99 201.46 41.46Q201.84 47.05 202.08 51.83Q202.32 56.61 202.32 59.88V89.1ZM305.17 90.07Q294.75 90.07 286.99 86.98Q279.23 83.89 274.93 77.45Q270.64 71 270.58 60.96H291.21Q291.42 64.61 293.06 67.14Q294.7 69.66 297.68 70.95Q300.66 72.24 304.85 72.24Q308.34 72.24 310.71 71.38Q313.07 70.52 314.28 68.99Q315.49 67.46 315.49 65.47Q315.49 63.64 314.33 62.27Q313.18 60.91 310.54 59.78Q307.91 58.65 303.46 57.74L295.4 56.02Q284.82 53.76 278.72 48.31Q272.62 42.86 272.62 33.46Q272.62 25.83 276.76 20.11Q280.9 14.39 288.17 11.2Q295.45 8 304.96 8Q314.68 8 321.74 11.25Q328.81 14.5 332.65 20.38Q336.49 26.26 336.54 34.1H315.7Q315.43 30.18 312.83 28.01Q310.22 25.83 304.96 25.83Q301.63 25.83 299.48 26.61Q297.33 27.39 296.31 28.79Q295.29 30.18 295.29 31.96Q295.29 33.83 296.39 35.26Q297.49 36.68 299.88 37.73Q302.27 38.78 306.03 39.58L312.59 40.98Q319.19 42.38 323.95 44.68Q328.7 46.99 331.73 50.08Q334.77 53.17 336.19 57.04Q337.62 60.91 337.62 65.47Q337.62 73.37 333.72 78.87Q329.83 84.38 322.58 87.22Q315.33 90.07 305.17 90.07ZM386.44 90.07Q376.02 90.07 368.25 86.98Q360.49 83.89 356.2 77.45Q351.9 71 351.85 60.96H372.47Q372.69 64.61 374.32 67.14Q375.96 69.66 378.94 70.95Q381.92 72.24 386.11 72.24Q389.6 72.24 391.97 71.38Q394.33 70.52 395.54 68.99Q396.75 67.46 396.75 65.47Q396.75 63.64 395.59 62.27Q394.44 60.91 391.81 59.78Q389.17 58.65 384.72 57.74L376.66 56.02Q366.08 53.76 359.98 48.31Q353.89 42.86 353.89 33.46Q353.89 25.83 358.02 20.11Q362.16 14.39 369.44 11.2Q376.71 8 386.22 8Q395.94 8 403.01 11.25Q410.07 14.5 413.91 20.38Q417.75 26.26 417.8 34.1H396.96Q396.69 30.18 394.09 28.01Q391.48 25.83 386.22 25.83Q382.89 25.83 380.74 26.61Q378.59 27.39 377.57 28.79Q376.55 30.18 376.55 31.96Q376.55 33.83 377.65 35.26Q378.75 36.68 381.15 37.73Q383.54 38.78 387.29 39.58L393.85 40.98Q400.45 42.38 405.21 44.68Q409.96 46.99 413 50.08Q416.03 53.17 417.45 57.04Q418.88 60.91 418.88 65.47Q418.88 73.37 414.98 78.87Q411.09 84.38 403.84 87.22Q396.59 90.07 386.44 90.07ZM435.15 89.1V9.07H492.83V26.58H456.85V40.12H489.83V57.2H456.85V71.59H492.62V89.1ZM510.56 89.1V9.07H534.19L553.26 40.5Q555.73 44.58 557.88 48.66Q560.02 52.74 562.06 57.63Q562.92 59.83 563.84 62.3Q563.73 60.74 563.62 59.03Q563.19 53.33 562.87 47.77Q562.55 42.21 562.55 38.4V9.07H584.89V89.1H561.26L543.48 59.88Q540.47 54.89 538.19 50.57Q535.91 46.24 533.81 41.41Q532.79 39.15 531.66 36.52Q531.83 38.99 532.04 41.46Q532.42 47.05 532.66 51.83Q532.9 56.61 532.9 59.88V89.1Z"/></svg>`;
 const esc = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const u = p => BASE + p.replace(/^\//, '');
+const linkUrls = s => s.replace(/https:\/\/[^\s<>"']+/g, raw => { const url = raw.replace(/[).,;:]+$/, ''); return `<a href="${url}" target="_blank" rel="noopener">${url}</a>${raw.slice(url.length)}`; });
 const resumeDownload = (cls) =>
   `<a class="${cls}" href="${u('resume.pdf')}" download="Derick-Janssen-Resume.pdf">Download resume</a>`;
 const isTodo = s => typeof s === 'string' && /^TODO\b/.test(s);
@@ -62,7 +63,7 @@ const NAV = [
   ['#work', 'Work'], ['#earlier', 'Earlier'], ['#lab', 'Lab'], ['#awards', 'Awards'], ['#about', 'About'], ['#contact', 'Contact'],
 ];
 
-function layout({ title, desc, body, bodyClass = '', canonical = '', home = false }) {
+function layout({ title, desc, body, bodyClass = '', canonical = '', home = false, head = '' }) {
   const nav = NAV.map(([h, l]) => `<a href="${home ? h : u('') + h}">${l}</a>`).join('');
   return `<!doctype html>
 <html lang="en">
@@ -79,6 +80,8 @@ function layout({ title, desc, body, bodyClass = '', canonical = '', home = fals
 ${canonical ? `<meta property="og:url" content="${esc(canonical)}">
 <link rel="canonical" href="${esc(canonical)}">` : ''}
 <link rel="icon" href="${u('favicon.svg')}" type="image/svg+xml">
+<link rel="alternate" type="text/markdown" href="${u('resume.md')}" title="Resume (plain text)">
+${head}
 <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
 <style>${CSS}</style>
 <script>document.documentElement.classList.add('js')</script>
@@ -96,6 +99,7 @@ ${body}
 </main>
 <footer class="foot">
   <p>© ${new Date().getFullYear()} Derick Janssen · Built by hand, fast on purpose. <a href="mailto:${esc(S.email)}">${esc(S.email)}</a></p>
+  <p class="foot-alt"><a href="${u('resume.md')}">Plain-text resume</a> · <a href="${u('llms.txt')}">llms.txt</a></p>
 </footer>
 <div class="wipe" aria-hidden="true"></div>
 <template id="bh-wordmark-outline">${JANSSEN_OUTLINE}</template>
@@ -111,6 +115,7 @@ function featuredCard(p, i) {
     <div class="card-body">
       <p class="card-kicker">${esc(p.studio)} · ${esc(p.role)}</p>
       <h3 class="card-title">${esc(p.title)}</h3>
+      ${p.teamShort ? `<p class="card-team"><span aria-hidden="true">▣</span> ${esc(p.teamShort)}</p>` : ''}
       <p class="card-sum">${esc(p.summary)}</p>
       <ul class="chips">${(p.tags || []).slice(0, 4).map(t => `<li>${esc(t)}</li>`).join('')}</ul>
       <span class="card-cta">View mission <span aria-hidden="true">→</span></span>
@@ -127,12 +132,13 @@ function smallCard(p, i) {
       <h3 class="card-title">${esc(p.title)}</h3>
       <p class="card-sum">${esc(p.summary)}</p>
       ${p.awards ? `<ul class="chips gold">${p.awards.slice(0, 2).map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
-      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : (p.url ? `<span class="card-cta">${esc(p.linkLabel || 'Open')} <span aria-hidden="true">↗</span></span>` : '')}
+      ${hasPage(p) ? `<span class="card-cta">Details <span aria-hidden="true">→</span></span>` : (p.url ? `<span class="card-cta">${esc(p.linkLabel || 'Open')} <span aria-hidden="true">${p.internal ? '→' : '↗'}</span></span>` : '')}
       ${todos(p.todo)}
     </div>`;
-  const cardHref = hasPage(p) ? href(p) : (p.url || '');
+  const local = hasPage(p) || p.internal;
+  const cardHref = hasPage(p) ? href(p) : p.internal ? u(p.url) : (p.url || '');
   const cardInner = cardHref
-    ? `<a class="card-link" href="${esc(cardHref)}"${hasPage(p) ? '' : ' target="_blank" rel="noopener"'}">${inner}</a>`
+    ? `<a class="card-link" href="${esc(cardHref)}"${local ? '' : ' target="_blank" rel="noopener"'}>${inner}</a>`
     : `<div class="card-link">${inner}</div>`;
   return `<article class="card small reveal" style="--accent:${p.accent};--i:${i % 6}">${cardInner}</article>`;
 }
@@ -160,7 +166,15 @@ function home() {
       <a class="btn primary" href="#work">See the work</a>
       <a class="btn" href="#contact">Get in touch</a>
     </div>
-    <ul class="stats">${S.stats.map((s, i) => `<li class="stat reveal" style="--i:${i}"><b>${esc(s.value)}</b><span>${esc(s.label)}</span></li>`).join('')}</ul>
+    <ul class="stats">${S.stats.map((s, i) => {
+      const inner = `<b>${esc(s.value)}</b><span>${esc(s.label)}</span>`;
+      const href = s.href || '';
+      const local = href.startsWith('#') || !/^https?:/i.test(href);
+      const dest = href.startsWith('#') || href.startsWith('/') ? href : (href ? u(href) : '');
+      return dest
+        ? `<li class="reveal" style="--i:${i}"><a class="stat" href="${esc(dest)}"${local ? '' : ' target="_blank" rel="noopener'}>${inner}</a></li>`
+        : `<li class="stat reveal" style="--i:${i}">${inner}</li>`;
+    }).join('')}</ul>
   </div>
 </section>
 
@@ -183,7 +197,7 @@ function home() {
 
 <section id="awards" class="sec wrap" aria-labelledby="awards-h">
   <header class="sec-head reveal"><p class="sec-num">04</p><h2 id="awards-h">Achievements unlocked</h2></header>
-  <ul class="awards">${data.awards.map((a, i) => `<li class="award reveal" style="--i:${i % 8}"><span class="award-ico">${icon(a.icon)}</span><div><b>${esc(a.title)}</b><span>${esc(a.project)}${a.year ? ' · ' + esc(a.year) : ''}</span></div></li>`).join('')}</ul>
+  <ul class="awards">${data.awards.map((a, i) => { const title = a.url ? `<a href="${esc(a.url)}"${/^https?:/i.test(a.url) ? ' target="_blank" rel="noopener"' : ''}>${esc(a.title)}</a>` : esc(a.title); return `<li class="award reveal" style="--i:${i % 8}"><span class="award-ico">${icon(a.icon)}</span><div><b>${title}</b><span>${esc(a.project)}${a.year ? ' · ' + esc(a.year) : ''}</span></div></li>`; }).join('')}</ul>
 </section>
 
 <section id="about" class="sec wrap" aria-labelledby="about-h">
@@ -216,13 +230,13 @@ function home() {
     </div>
   </div>
 </section>`;
-  return layout({ title: `${S.name} | ${S.title}`, desc: S.tagline, body, bodyClass: 'home', canonical: S.url + '/', home: true });
+  return layout({ title: `${S.name} | ${S.title}`, desc: S.tagline, body, bodyClass: 'home', canonical: S.url + '/', home: true, head: personJsonLd() });
 }
 
 function projectPage(p, idx, list) {
   const prev = list[(idx - 1 + list.length) % list.length];
   const next = list[(idx + 1) % list.length];
-  const meta = [['Studio', p.studio], ['Role', p.role], ['When', p.years], ['Tech', p.engine], ['Status', p.status]].filter(([, v]) => v);
+  const meta = [['Studio', p.studio], ['Role', p.role], ['Team', p.team], ['When', p.years], ['Tech', p.engine], ['Status', p.status]].filter(([, v]) => v);
   const gallery = (p.gallery || []).filter(k => IMG[k]);
   const body = `
 <article class="proj" style="--accent:${p.accent}">
@@ -239,11 +253,11 @@ function projectPage(p, idx, list) {
     <aside class="proj-meta reveal">
       <dl>${meta.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
       ${p.tags ? `<ul class="chips">${p.tags.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
-      ${p.links && p.links.length ? `<ul class="links">${p.links.map(l => `<li><a href="${esc(l.url)}" rel="noopener">${esc(l.label)} ↗</a></li>`).join('')}</ul>` : ''}
+      ${p.links && p.links.length ? `<ul class="links">${p.links.map(l => l.internal ? `<li><a href="${esc(u(l.url))}">${esc(l.label)} →</a></li>` : `<li><a href="${esc(l.url)}" rel="noopener">${esc(l.label)} ↗</a></li>`).join('')}</ul>` : ''}
     </aside>
     <div class="proj-main">
       ${p.youtube ? `<div class="reveal">${yt(p.youtube, p.youtubeTitle)}</div>` : ''}
-      ${p.bullets && p.bullets.length ? `<section class="reveal"><h2>What I did</h2><ul class="bullets">${p.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul></section>` : ''}
+      ${p.bullets && p.bullets.length ? `<section class="reveal"><h2>What I did</h2><ul class="bullets">${p.bullets.map(b => `<li>${linkUrls(esc(b))}</li>`).join('')}</ul></section>` : ''}
       ${p.awards ? `<section class="reveal"><h2>Awards</h2><ul class="awards mini">${p.awards.map(a => `<li class="award"><span class="award-ico">${icon('trophy')}</span><div><b>${esc(a)}</b></div></li>`).join('')}</ul></section>` : ''}
       ${gallery.length ? `<section class="reveal"><h2>Gallery</h2><div class="gallery">${gallery.map(k => img(k, { sizes: '(min-width: 900px) 420px, 92vw', alt: `${p.title} screenshot` })).join('')}</div></section>` : ''}
       ${todos(p.todo)}
@@ -255,6 +269,116 @@ function projectPage(p, idx, list) {
   </nav>
 </article>`;
   return layout({ title: `${p.title} | ${S.name}`, desc: p.summary, body, bodyClass: 'project', canonical: `${S.url}/projects/${p.slug}/` });
+}
+
+// ---- machine-readable layer (mirrors the visible content; never hidden text) ----
+const ORIGIN = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
+const AT_ROOT = BASE === '/' || BASE === '';
+// Absolute on the real domain; root-relative on a sub-path preview build.
+const abs = p => (AT_ROOT ? ORIGIN + '/' + p.replace(/^\//, '') : u(p));
+const jsonLd = o => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
+
+function personJsonLd() {
+  return jsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: S.name,
+    url: ORIGIN + '/',
+    email: 'mailto:' + S.email,
+    jobTitle: 'Principal Engineer',
+    worksFor: { '@type': 'Organization', name: 'Santa Barbara Games' },
+    description: S.tagline,
+    address: { '@type': 'PostalAddress', addressRegion: 'FL', addressCountry: 'US' },
+    alumniOf: data.education.map(e => ({ '@type': 'CollegeOrUniversity', name: e.school })),
+    knowsAbout: [...new Set(Object.values(data.skills).flat())],
+    award: data.awards.map(a => `${a.title}${a.year ? ' ' + a.year : ''} (${a.project})`),
+    sameAs: S.links.filter(l => /^https?:/.test(l.url || '')).map(l => l.url),
+    subjectOf: { '@type': 'DigitalDocument', name: 'Resume (plain text)', encodingFormat: 'text/markdown', url: abs('resume.md') },
+  });
+}
+
+function agenticDiagram(A) {
+  // Plain HTML/CSS flow: readable by screen readers and agents, reflows on phones.
+  const steps = A.flow.map((f, i) => `<li class="ag-step${i === 1 ? ' ag-gate' : ''}" style="--i:${i}"><span class="ag-n">${i + 1}</span><b>${esc(f.k)}</b><span>${esc(f.t)}</span></li>`).join('');
+  return `<figure class="ag-flow reveal" aria-labelledby="ag-flow-cap">
+  <ol class="ag-steps">${steps}</ol>
+  <figcaption id="ag-flow-cap">How a teammate's request becomes a reviewed pull request.</figcaption>
+</figure>`;
+}
+
+function agenticPage() {
+  const A = data.agentic;
+  const sec = (o, extra = '') => `<section class="reveal"><h2>${esc(o.h)}</h2>${o.p.map(t => `<p>${esc(t)}</p>`).join('')}${extra}</section>`;
+  const src = A.fewer.source ? `<p class="ag-src">Source: <a href="${esc(A.fewer.source.url)}" rel="noopener">${esc(A.fewer.source.label)} ↗</a></p>` : '';
+  const body = `
+<article class="proj ag" style="--accent:#a78bfa">
+  <header class="proj-hero">
+    <div class="wrap proj-hero-inner">
+      <a class="back" href="${u('')}#lab">← Back to all work</a>
+      <p class="kicker">Santa Barbara Games · Voidwood</p>
+      <h1 class="proj-title">${esc(A.title)}</h1>
+      <p class="proj-sum">${esc(A.lede)}</p>
+    </div>
+  </header>
+  <div class="wrap ag-body">
+    <section class="reveal"><h2>The workflow</h2>${agenticDiagram(A)}</section>
+    ${sec(A.rules)}
+    ${sec(A.fewer, src)}
+    <p class="reveal"><a class="btn" href="${href(projects.find(p => p.slug === 'voidwood'))}">Voidwood project page →</a></p>
+  </div>
+</article>`;
+  return layout({ title: `${A.title} | ${S.name}`, desc: A.lede, body, bodyClass: 'project', canonical: `${S.url}/agentic-ai/` });
+}
+
+function resumeMd() {
+  const L = [];
+  const feat = group('featured');
+  L.push(`# ${S.name}`, '', `${S.title} · Santa Barbara Games`, '');
+  L.push(`This is the plain-text version of the resume at ${ORIGIN}/. The designed PDF is ${abs('resume.pdf')}.`, '');
+  L.push(`- Email: ${S.email}`, `- Location: ${S.location}`);
+  S.links.filter(l => l.label !== 'Email' && l.url).forEach(l => L.push(`- ${l.label}: ${l.url}`));
+  L.push('', '## Summary', '', S.tagline, '', ...data.about.map(p => p + '\n'));
+  L.push('## Highlights', '', ...S.stats.map(s => `- ${s.value}: ${s.label}`), '');
+  L.push('## Experience', '');
+  data.experience.forEach(e => L.push(`- **${e.company}**, ${e.role} (${e.where}), ${e.years}`));
+  L.push('', '## Selected projects', '');
+  const proj = p => {
+    L.push(`### ${p.title}, ${p.studio}`, '');
+    L.push([p.role, p.team, p.years, p.engine].filter(Boolean).join(' · '), '', p.summary, '');
+    (p.bullets || []).forEach(b => L.push(`- ${b}`));
+    if (p.awards) L.push(`- Awards: ${p.awards.join('; ')}`);
+    L.push('');
+  };
+  feat.forEach(proj);
+  const A = data.agentic;
+  L.push(`### ${A.title}`, '', A.lede, '', ...A.flow.map((f, i) => `${i + 1}. **${f.k}**: ${f.t}`), '', ...A.rules.p, '', ...A.fewer.p, '');
+  if (A.fewer.source) L.push(`Source for the V Rising figure: ${A.fewer.source.label}, ${A.fewer.source.url}`, '');
+  L.push(`More: ${abs('agentic-ai/')}`, '');
+  L.push('### Earlier games', '', ...group('earlier').map(p => `- **${p.title}** (${p.studio}${p.role ? ', ' + p.role : ''}): ${p.summary}`), '');
+  L.push('## Skills', '', ...Object.entries(data.skills).map(([k, v]) => `- ${k}: ${v.join(', ')}`), '');
+  L.push('## Awards', '', ...data.awards.map(a => `- ${a.title}${a.year ? ' (' + a.year + ')' : ''}, ${a.project}${a.url ? ' — ' + a.url : ''}`), '');
+  L.push('## Education', '', ...data.education.map(e => `- **${e.school}**, ${e.degree}, ${e.years}. ${e.note}`), '');
+  L.push('## Talks', '', ...data.talks.map(t => `- ${t}`), '');
+  return L.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function llmsTxt() {
+  const paged = projects.filter(hasPage);
+  return [
+    `# ${S.name}`, '',
+    `> ${S.title} at Santa Barbara Games. ${S.tagline}`, '',
+    'The human-facing site and the PDF resume are the primary sources. The files below carry the same facts in plain text.', '',
+    '## Resume', '',
+    `- [Resume (Markdown)](${abs('resume.md')}): experience, team sizes, projects, skills, education`,
+    `- [Resume (PDF)](${abs('resume.pdf')}): the designed resume`,
+    `- [Portfolio home](${abs('')}): featured work, awards, contact`, '',
+    '## Pages', '',
+    `- [Agentic AI workflows](${abs('agentic-ai/')}): ${data.agentic.lede}`,
+    ...paged.map(p => `- [${p.title}](${abs(`projects/${p.slug}/`)}): ${p.summary}`), '',
+    '## Contact', '',
+    `- Email: ${S.email}`,
+    ...S.links.filter(l => l.label !== 'Email' && l.url).map(l => `- ${l.label}: ${l.url}`), '',
+  ].join('\n');
 }
 
 // ---- write ----
@@ -276,12 +400,16 @@ paged.forEach((p, i) => {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'index.html'), projectPage(p, i, paged));
 });
+fs.mkdirSync(path.join(OUT, 'agentic-ai'), { recursive: true });
+fs.writeFileSync(path.join(OUT, 'agentic-ai', 'index.html'), agenticPage());
+fs.writeFileSync(path.join(OUT, 'resume.md'), resumeMd());
+fs.writeFileSync(path.join(OUT, 'llms.txt'), llmsTxt());
 fs.writeFileSync(path.join(OUT, '404.html'), layout({ title: `404 | ${S.name}`, desc: 'Page not found', body: `<section class="sec wrap center"><h1 class="proj-title">404</h1><p>This page desynced. Rolling back…</p><p><a class="btn primary" href="${u('')}">Respawn at home</a></p></section>` }));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 const origin = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
 const atRoot = BASE === '/' || BASE === '';
 if (atRoot) {
-  const sitemapUrls = [origin + '/', ...paged.map(p => `${origin}/projects/${p.slug}/`)];
+  const sitemapUrls = [origin + '/', origin + '/agentic-ai/', ...paged.map(p => `${origin}/projects/${p.slug}/`)];
   fs.writeFileSync(path.join(OUT, 'sitemap.xml'),
     '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -291,4 +419,4 @@ if (atRoot) {
 fs.writeFileSync(path.join(OUT, 'robots.txt'), atRoot
   ? `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`
   : `User-agent: *\nDisallow: /\n`);
-console.log(`Built ${1 + paged.length + 1} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);
+console.log(`Built ${1 + paged.length + 2} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);

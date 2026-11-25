@@ -145,6 +145,30 @@
     addEventListener('pageshow', ev => { if (ev.persisted) d.body.classList.remove('leaving'); });
   }
 
+  // Same-page hashes (hero badges, nav, CTAs): smooth-scroll, accounting for the sticky top bar.
+  // Native jump can look like a no-op under the bar; this also respects reduced motion.
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const scrollToId = (hash) => {
+    if (!hash || hash === '#') return false;
+    let id = hash.slice(1);
+    try { id = decodeURIComponent(id); } catch {}
+    const el = d.getElementById(id);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    return true;
+  };
+  d.addEventListener('click', e => {
+    if (e.defaultPrevented || e.button) return;
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    const url = new URL(a.href, location.href);
+    if (url.origin !== location.origin || url.pathname !== location.pathname || !url.hash) return;
+    if (scrollToId(url.hash)) {
+      e.preventDefault();
+      if (history.replaceState) history.replaceState(null, '', url.hash);
+    }
+  });
+
   // Lazy-load the game after the page is idle (keeps first paint fast)
   const loadGame = () => { const s = d.createElement('script'); s.src = GAME_SRC; s.async = true; d.body.appendChild(s); };
   const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1200));

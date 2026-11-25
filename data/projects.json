@@ -2,7 +2,7 @@
   "site": {
     "name": "Derick Janssen",
     "title": "Principal Engineer · Game Programmer",
-    "tagline": "An award-winning gameplay programmer who is passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
+    "tagline": "An award-winning gameplay programmer who has led teams of up to 12 engineers. Passionate about gameplay, feel, tools, performance, and multiplayer. Excels at rapid prototyping and communication.",
     "url": "https://derickjanssen.com",
     "email": "zorakbane@yahoo.com",
     "location": "Based in the Greater Tampa Bay area · open to remote (hybrid/relocation for the right fit)",
@@ -27,19 +27,23 @@
     "stats": [
       {
         "value": "~1.5 ms",
-        "label": "mean sim time, V-Rising-size world (Voidwood rollback ECS)"
+        "label": "mean sim time, V-Rising-size world (Voidwood rollback ECS)",
+        "href": "projects/voidwood/"
       },
       {
         "value": "+25%",
-        "label": "server performance in my first week (ARK: Survival Ascended)"
+        "label": "server performance in my first week (ARK: Survival Ascended)",
+        "href": "projects/ark-survival-ascended/"
       },
       {
         "value": "2× GOTY",
-        "label": "Skyrim VR (Steam VR GOTY 2018) · Starfield (Xbox GOTY 2023)"
+        "label": "Skyrim VR (Steam VR GOTY 2018) · Starfield (Xbox GOTY 2023)",
+        "href": "#awards"
       },
       {
-        "value": "Best Paper",
-        "label": "IEEE CIG 2009 — Galactic Arms Race (NEAT / CPPN)"
+        "value": "IGC Finalist",
+        "label": "Indie Game Challenge 2010 · SMU Guildhall scholarship (Galactic Arms Race)",
+        "href": "projects/galactic-arms-race/"
       }
     ]
   },
@@ -60,10 +64,14 @@
       "bullets": [
         "Owner of the deterministic multiplayer rollback netcode simulation in ECS.",
         "Built a V-Rising-size world with a mean simulation time of ~1.5 ms.",
+        "Foundation work: optimized, multithreaded finite-state machines absorb work that would otherwise be many separate ECS systems, so Voidwood runs on about 40 — for scale, Unity's V Rising case study cites 1,600 (different scopes; https://unity.com/resources/stunlock-studios-v-rising). Agents default to creating new systems, so I enforce project rules against that sprawl.",
         "Kept a performant build with no crashes or desyncs at each milestone.",
-        "Created many tools for team productivity.",
-        "Built agentic AI workflows: a human asks a coding agent for a change, and the coding agent issues commands to in-game sub-agents that run in the game, verify the results, and do their own testing.",
-        "Created agentic AI workflows so non-coders on the team can build and iterate."
+        "I use and build on Voidwood's AWS backend in Python: a game-data wrapper over the AWS database service, matchmaking, live ops, Photon Quantum webhooks, analytics, and build scripts that hook into Unreal Build Accelerator (UBA). I didn't write the UBA builder itself. The backend isn't public.",
+        "Principal Engineer in a 12-person studio, reporting to the CEO.",
+        "My agentic AI workflow lets 10 non-engineers ship pull requests. I run their process and review their PRs through it.",
+        "Everyone at the studio except the CFO and the community manager uses my tools.",
+        "Agent project rules keep coding agents from creating new systems by default.",
+        "Built agentic AI workflows: a human asks a coding agent for a change, and the coding agent issues commands to in-game sub-agents that run in the game, verify the results, and do their own testing."
       ],
       "tags": [
         "Rollback netcode",
@@ -71,7 +79,9 @@
         "Unity ECS",
         "Performance",
         "Agentic AI",
-        "Tools"
+        "Tools",
+        "Python",
+        "AWS"
       ],
       "youtube": "Zm2sxH-uLa4",
       "youtubeTitle": "Voidwood — Official Playtest Trailer",
@@ -83,12 +93,18 @@
         {
           "label": "voidwood.com",
           "url": "https://voidwood.com"
+        },
+        {
+          "label": "How the agentic workflow works",
+          "url": "/agentic-ai/",
+          "internal": true
         }
       ],
       "niceToHave": [
-        "Personal screenshots / GIFs (rollback debug view, agent test loop)",
-        "Short write-up of the agentic verification loop"
-      ]
+        "Personal screenshots / GIFs (rollback debug view, agent test loop)"
+      ],
+      "team": "12-person studio · reports to the CEO",
+      "teamShort": "12-person studio · reports to the CEO"
     },
     {
       "slug": "rise-of-elements",
@@ -96,7 +112,7 @@
       "title": "Rise of Elements",
       "studio": "Wicked Fox Games",
       "role": "Senior / Lead Programmer",
-      "years": "May 2024 – Jan 2026",
+      "years": "May 2024 – Jan 2026 (part-time, about 3 hrs/week, from Jan 2025)",
       "engine": "Unity · C#",
       "status": "Coming soon",
       "accent": "#f59e0b",
@@ -104,6 +120,7 @@
       "cardImage": "rise-header",
       "summary": "A PvP match-3 puzzle-battler with a PvE story mode — a faithful recreation of Force of Elements. I worked on nearly every part of the game except backend AWS server scaling.",
       "bullets": [
+        "Led 3 engineers on a team of 20.",
         "Client/server game logic.",
         "UI.",
         "Added a cvar system that pulls from an online config.",
@@ -125,7 +142,9 @@
           "label": "Steam",
           "url": "https://store.steampowered.com/app/3170850"
         }
-      ]
+      ],
+      "team": "Team of 20 · led 3 engineers",
+      "teamShort": "Led 3 engineers · team of 20"
     },
     {
       "slug": "ark-survival-ascended",
@@ -176,6 +195,8 @@
       "summary": "Feature lead for the StarMap. I later worked on Ship Building, Localization, Optimizations, and Outposts.",
       "bullets": [
         "Lead for the StarMap feature.",
+        "Moved over from Skyrim VR after its launch, and kept mentoring the VR team.",
+        "Six direct reports, including a junior UI artist and a junior producer whom I mentored hands-on.",
         "Later worked on Ship Building, Localization, Optimizations, and Outposts."
       ],
       "tags": [
@@ -199,7 +220,9 @@
       ],
       "niceToHave": [
         "StarMap screenshots or a short clip (from the 'origin' pptx in Drive?)"
-      ]
+      ],
+      "team": "6 direct reports, incl. a junior UI artist and a junior producer I mentored",
+      "teamShort": "6 direct reports"
     },
     {
       "slug": "fallout-76",
@@ -241,7 +264,7 @@
       "title": "Skyrim VR",
       "studio": "Bethesda Game Studios",
       "role": "Lead Programmer",
-      "years": "Released 2017",
+      "years": "Dec 2016 – Nov 2017",
       "engine": "Proprietary C++ engine",
       "status": "Steam VR GOTY & Golden Joystick 2018",
       "accent": "#e2e8f0",
@@ -249,14 +272,19 @@
       "cardImage": "skyrimvr-header",
       "summary": "I spearheaded Skyrim VR from conception until launch, on both PSVR and Vive.",
       "bullets": [
-        "Spearheaded the project from conception until launch.",
-        "Worked on pretty much every feature of the game except the zoomed-out map mode and the tutorial.",
-        "Shipped on both PSVR and Vive."
+        "Spearheaded the project from conception until launch (Dec 2016 – Nov 2017, PSVR launch).",
+        "Led a team of 12 engineers, all direct reports.",
+        "Touched or led every feature of the game except map mode.",
+        "Did all of the Havok gameplay physics on Skyrim VR and Fallout 4 VR: wand-based weapon mapping for melee and projectile weapons, VR gestures, Doom VR-style lerp teleport movement, and player collision and bounds that keep players in the world across multiple movement techniques, with a snapback based on a Vitruvian Man golden-ratio body calculation.",
+        "Team result: Sony asked us to port our PSVR stability changes back to the original Skyrim release after Skyrim VR showed 5% fewer crashes.",
+        "Shipped on both PSVR and Vive.",
+        "After launch, moved to lead Starfield's StarMap while continuing to mentor the VR team."
       ],
       "tags": [
         "VR",
         "Project lead",
         "Gameplay",
+        "Havok physics",
         "PSVR",
         "Vive"
       ],
@@ -274,7 +302,9 @@
       ],
       "niceToHave": [
         "VR systems highlights (the 'Skyrim VR - Systems' slides in Drive)"
-      ]
+      ],
+      "team": "12 engineers, all direct reports",
+      "teamShort": "Led 12 engineers"
     },
     {
       "slug": "fallout-4-vr",
@@ -290,6 +320,7 @@
       "cardImage": "fo4vr-header",
       "summary": "I built VR melee, polished teleporting and movement, created the Workshop mode in VR, and many new UI elements in AS3.",
       "bullets": [
+        "Did all of the Havok gameplay physics (shared with Skyrim VR): wand-based melee and projectile weapon mapping, gestures, lerp teleport movement, and player collision and bounds.",
         "Created VR melee.",
         "Polished teleporting and movement.",
         "Created the Workshop mode in VR.",
@@ -298,6 +329,7 @@
       "tags": [
         "VR",
         "Melee",
+        "Havok physics",
         "Locomotion",
         "Workshop",
         "UI"
@@ -519,36 +551,48 @@
       "slug": "galactic-arms-race",
       "group": "earlier",
       "title": "Galactic Arms Race",
-      "studio": "2-person project · UCF thesis",
+      "studio": "Evolutionary Games · Erin Hastings's research game (UCF)",
       "role": "Programmer",
-      "years": "",
+      "years": "Jul 2008 – May 2010",
       "engine": "XNA · C#",
       "accent": "#a78bfa",
       "image": "gar",
-      "summary": "A multiplayer Diablo-esque looter shooter whose weapons are evolved by neural networks while you play. Also the thesis game for cgNEAT (content generation with AI).",
+      "summary": "I contributed client and server code, game design and Steam integration to Erin Hastings's research game on evolved procedural content (cgNEAT neural-network weapons). It's a 32-player online space shooter.",
       "bullets": [
-        "CPPNs (compositional pattern-producing networks) generate the weapon patterns.",
-        "Fitness rises with each shot fired from a weapon and falls when another weapon is used, so the gene pool evolves toward what players actually like.",
-        "The gene pool is drawn from every weapon on the current server.",
-        "GOFAI for player drone interactions.",
-        "32-player online multiplayer using Lidgren networking.",
-        "Steam integration: achievements via Steamworks and cloud save/load."
+        "Contributed client and server code, game design and Steam integration to Erin Hastings's research game at UCF. I didn't write the papers; the authors are Erin J. Hastings, Ratan K. Guha and Kenneth O. Stanley.",
+        "Weapons are evolved while you play with cgNEAT (content generation with neuroevolution). CPPNs generate the weapon patterns, and fitness comes from what players actually fire.",
+        "32-player online multiplayer using Lidgren networking, plus Steam achievements and cloud saves.",
+        "Credited on the official GAR team page (client and server programming, game design, sound effects, Steam integration) and named in the papers' acknowledgments (as \"Derrick Janssen\").",
+        "Indie Game Challenge 2010 finalist team. The same work came with a $50,000 scholarship to SMU Guildhall (SMU announcement, May 25, 2010)."
       ],
       "tags": [
         "Neuroevolution",
-        "NEAT / CPPN",
+        "cgNEAT",
         "Procedural content",
-        "Multiplayer"
+        "Multiplayer",
+        "XNA"
       ],
       "awards": [
-        "Best Paper — IEEE CIG 2009",
-        "Best AI in an Independent Game (Editor's Choice)",
-        "Indie Game Challenge Finalist",
-        "Full scholarship to SMU Guildhall"
+        "Indie Game Challenge 2010 Finalist",
+        "SMU Guildhall scholarship",
+        "Editor's Pick — Best AI in an Independent Game (AIGameDev.com, 2009)"
       ],
       "youtube": "MOKNoZSAGGQ",
       "youtubeTitle": "Galactic Arms Race (GAR) Informational Video",
-      "links": []
+      "links": [
+        {
+          "label": "GAR team page",
+          "url": "http://galacticarmsrace.blogspot.com/p/developers.html"
+        },
+        {
+          "label": "SMU Guildhall scholarship announcement",
+          "url": "https://www.smu.edu/news/archives/2010/guildhall-scholarship-winner-25may2010"
+        },
+        {
+          "label": "2009 AIGameDev.com Awards (archived)",
+          "url": "https://web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/"
+        }
+      ]
     },
     {
       "slug": "agentic-workflows",
@@ -559,7 +603,7 @@
       "engine": "Coding agents · in-game sub-agents",
       "accent": "#a78bfa",
       "image": "",
-      "summary": "A human asks a coding agent for a change. The coding agent then commands sub-agents inside the running game to exercise it, verify the results, and do their own testing. I also built workflows that let non-coders ship changes.",
+      "summary": "My workflow lets 10 non-engineers at Santa Barbara Games ship pull requests. Coding agents follow project rules that stop them from creating new systems by default, and in-game sub-agents test and verify each change.",
       "tags": [
         "Agentic coding",
         "Verification",
@@ -567,9 +611,9 @@
       ],
       "noPage": true,
       "glyph": "AI⇄",
-      "niceToHave": [
-        "Diagram or short clip"
-      ]
+      "url": "/agentic-ai/",
+      "internal": true,
+      "linkLabel": "How it works"
     },
     {
       "slug": "janssengine",
@@ -588,13 +632,16 @@
         "Collada loading and a custom 3ds Max exporter (Dj3d) with animation and skinning.",
         "DLL plugin loader with live reload, threaded background loading, hierarchical clocks and profiling.",
         "Data-driven, classless game object loader using XML and named properties.",
-        "Memory manager, string pool, intrusive smart pointers, fixed-point math, and a computational geometry library."
+        "Memory manager, string pool, intrusive smart pointers, fixed-point math, and a computational geometry library.",
+        "Swept-sphere-to-triangle collision, spring physics, and car physics on height-map terrain.",
+        "Set up continuous integration for the engine."
       ],
       "tags": [
         "C++",
         "Rendering",
         "Engine architecture",
-        "Lua"
+        "Lua",
+        "CI"
       ],
       "gallery": [
         "engine-lod",
@@ -627,13 +674,13 @@
     {
       "slug": "ai-battle",
       "group": "lab",
-      "title": "AI Battle — 2nd place",
-      "studio": "AI competition",
+      "title": "AI Battle — 2nd place overall",
+      "studio": "School AI competition",
       "role": "Solo",
       "engine": "Agent AI",
       "accent": "#84cc16",
       "image": "aibattle",
-      "summary": "A battle for food and survival between programmed AIs. My cockroach-like agents build and share a light map and try to move toward darkness. Walls, enemies, and dirt emit light, and found food emits darkness toward the nearest unit. Took 2nd place overall.",
+      "summary": "A battle for food and survival between programmed AIs. Each student's AI was a DLL; a master program enforced time and memory limits on each one and ran matches deterministically (the project screenshot is that deterministic result). My cockroach-like agents build and share a light map and try to move toward darkness. Walls, enemies, and dirt emit light, and found food emits darkness toward the nearest unit. Took 2nd place overall.",
       "tags": [
         "Multi-agent",
         "Emergent behavior"
@@ -855,27 +902,27 @@
       "icon": "star"
     },
     {
-      "title": "Best Paper — IEEE CIG",
+      "title": "Editor's Pick — Best AI in an Independent Game",
       "year": "2009",
-      "project": "Galactic Arms Race",
-      "icon": "paper"
+      "project": "Galactic Arms Race · AIGameDev.com Awards",
+      "icon": "star",
+      "url": "https://web.archive.org/web/20100317005917/http://aigamedev.com/open/editorial/2009-awards-results/"
     },
     {
-      "title": "Best AI in an Independent Game (Editor's Choice)",
-      "year": "",
-      "project": "Galactic Arms Race",
-      "icon": "brain"
-    },
-    {
-      "title": "Indie Games Challenge Finalist",
+      "title": "Indie Game Challenge Finalist",
       "year": "2010",
-      "project": "Galactic Arms Race · full scholarship to SMU Guildhall (DICE, Las Vegas)",
+      "project": "Galactic Arms Race",
       "icon": "medal"
     },
     {
-      "title": "AI Battle — 2nd place overall",
-      "year": "",
-      "project": "AI competition",
+      "title": "SMU Guildhall Scholarship",
+      "year": "2010",
+      "project": "Galactic Arms Race · $50,000 scholarship announced by SMU, May 25, 2010",
+      "icon": "paper"
+    },
+    {
+      "title": "AI Battle (school AI competition): 2nd place overall",
+      "project": "Student AI DLLs under time and memory limits",
       "icon": "medal"
     }
   ],
@@ -890,7 +937,7 @@
       "company": "Wicked Fox Games",
       "role": "Senior / Lead Programmer",
       "where": "Remote",
-      "years": "May 2024 – Jan 2026"
+      "years": "May 2024 – Jan 2026 (part-time, about 3 hrs/week, from Jan 2025)"
     },
     {
       "company": "Studio Wildcard",
@@ -938,37 +985,51 @@
       "C",
       "Python",
       "Lua",
-      "ActionScript",
+      "ActionScript 3",
       "Blueprint",
-      "Java"
+      "UnrealScript",
+      "Java",
+      "JavaScript"
     ],
     "Engines": [
       "Unity (incl. ECS)",
-      "Unreal 4/5 (incl. GAS)",
+      "Unreal 5 and 4 (also UDK, UEFN)",
       "Proprietary C++ engines",
-      "UDK",
       "XNA",
       "Torque"
     ],
     "Focus": [
       "Deterministic rollback netcode",
       "Gameplay & game feel",
+      "Gameplay physics (Havok)",
       "Performance & optimization",
       "Tools & pipelines",
       "VR",
       "Agentic coding & AI"
+    ],
+    "Infrastructure": [
+      "AWS backend in Python (game-data DB wrapper, matchmaking, live ops, Photon Quantum webhooks, analytics)",
+      "UBA build scripts (I use and build on them; I didn't write the UBA builder itself)",
+      "CI on JanssEngine"
+    ],
+    "AI tools": [
+      "Cursor and Claude Code daily",
+      "GitHub Copilot",
+      "ChatGPT"
     ]
   },
   "talks": [
-    "UCF — Galactic Arms Race: NEAT (AI) and making games with it",
-    "GR Dev Night — Game development (sold out)",
+    "All of these talks were given in person. There are no public recordings.",
+    "GR Dev Night, Grand Rapids — Game development (sold out)",
+    "KVCC — Game industry primer",
     "MSU — How to transition from education to industry",
     "WMU — So you want to make games?",
-    "KVCC — Game industry primer"
+    "UCF — Galactic Arms Race: NEAT and making games with it"
   ],
   "about": [
     "I'm a game programmer who loves the parts players feel: tight controls, juicy feedback, rock-solid multiplayer, and frame times that never hitch. I've led Skyrim VR from conception to launch, led Starfield's StarMap, and today I own Voidwood's deterministic rollback simulation at Santa Barbara Games.",
     "Lately I've been building agentic AI workflows where coding agents drive in-game sub-agents to test and verify their own work. To me, reading code and understanding exactly what it does at a low level now matters more than typing it.",
+    "I work in Cursor and Claude Code every day, and I also use GitHub Copilot and ChatGPT. I've given talks in person at GR Dev Night in Grand Rapids (sold out), and at KVCC, MSU, WMU, and UCF.",
     "Off the clock I'm a competitive gamer (8th of ~80,000 in GameStop's Super Smash Bros. Brawl national grand finals; Evolve Top 100 Goliath), a game jam regular, and happiest on a river in a canoe."
   ],
   "gaming": [
@@ -978,5 +1039,50 @@
     "Strife — Gold League, top 10% (2014/15)",
     "League of Legends — Season 1 Silver medal, top 10% ranked",
     "Left 4 Dead — Alienware Arena, 6-1 season (2010)"
-  ]
+  ],
+  "agentic": {
+    "title": "Agentic AI workflows",
+    "lede": "At Santa Barbara Games, my agentic workflow lets 10 non-engineers ship pull requests. Everyone at the 12-person studio except the CFO and the community manager uses my tools.",
+    "flow": [
+      {
+        "k": "Teammate",
+        "t": "A teammate who isn't an engineer asks for a change in plain language."
+      },
+      {
+        "k": "Coding agent + project rules",
+        "t": "The coding agent works inside project rules: extend the existing systems and don't create new ones by default."
+      },
+      {
+        "k": "In-game sub-agents",
+        "t": "The coding agent commands sub-agents inside the running game. They exercise the change, verify the results, and do their own testing."
+      },
+      {
+        "k": "Pull request",
+        "t": "The change arrives as a PR, routed through the same workflow."
+      },
+      {
+        "k": "My review",
+        "t": "I review their PRs and manage their process through the workflow."
+      }
+    ],
+    "rules": {
+      "h": "Rules that stop agents from building new systems",
+      "p": [
+        "Left alone, most coding agents want to create a whole new system for every request, which bloats an ECS codebase fast.",
+        "Our agent project rules make reuse the default: a request extends the existing systems, and a new system is never the agent's first move."
+      ]
+    },
+    "fewer": {
+      "h": "Fewer systems, on purpose",
+      "p": [
+        "Much of my foundation work on Voidwood went into optimized, multithreaded finite-state machines. They handle work that would otherwise be spread across more ECS systems, so the game needs fewer of them.",
+        "Voidwood runs on about 40 ECS systems, with survival gameplay similar to V Rising. For scale, Unity's case study on V Rising cites 1,600 ECS systems. They're different games with different scopes, so it isn't a like-for-like count, but it shows how much a strong shared foundation removes.",
+        "The same world simulates in a mean of about 1.5 ms per tick."
+      ],
+      "source": {
+        "label": "Unity: “V Rising: Behind the vampire realm built on 1,600 ECS systems” (Dec 9, 2024)",
+        "url": "https://unity.com/resources/stunlock-studios-v-rising"
+      }
+    }
+  }
 }
