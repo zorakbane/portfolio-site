@@ -380,6 +380,14 @@ body.bh-play #bh-ready,body.bh-play .bh-hud{z-index:70}
 #bh-shipbar .bh-shiptrack{height:8px;border-radius:99px;background:#1a1a2a;overflow:hidden;border:1px solid #2a2a3c}
 #bh-shipbar .bh-shiptrack i{display:block;height:100%;width:100%;transform-origin:0 50%;background:linear-gradient(90deg,var(--green),#3de0ff);transform:scaleX(1)}
 #bh-shipbar .bh-shiphp{margin-top:.3rem;color:var(--muted);font-size:.68rem;letter-spacing:.06em}
+#bh-shipbar .bh-shipblock{margin-top:.35rem;color:#ffb142;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase}
+#bh-shipbar .bh-shipblock[hidden]{display:none}
+#bh-shipbar.held{border-color:#ffb142}
+#bh-shipbar.held .bh-shiptrack i{background:linear-gradient(90deg,#ffb142,#ff5a5a)}
+#bh-shipbar.held .bh-shipblock{color:#ffd166}
+#bh-shipbar.shielded{border-color:#ff5a5a}
+#bh-shipbar.shielded .bh-shiptrack i{background:linear-gradient(90deg,#ff5a5a,#a06bff);opacity:.7}
+#bh-shipbar.shielded .bh-shipblock{color:#ff8a8a}
 body.bh-play #bh-shipbar{z-index:55}
 #bh-shipwarn{position:fixed;left:50%;top:10%;transform:translateX(-50%);z-index:58;pointer-events:none;padding:.7rem 1.15rem;border:2px solid #ff5a5a;border-radius:12px;background:rgba(22,8,10,.94);color:#ff8a8a;font:900 .9rem/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 0 1px #ff5a5a33,0 16px 40px -10px #ff5a5aaa}
 #bh-shipwarn[hidden]{display:none!important}
@@ -414,6 +422,9 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
   #bh-shipped.in .bh-shipped-card{animation:none}
 }
 #bh-shipped.rm .bh-shipped-card{animation:none}
+.bh-item.bh-new{animation:bhNew 1.4s ease-out 1}
+@keyframes bhNew{0%{box-shadow:0 0 0 2px #39ff88,0 0 18px -2px #39ff88}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.bh-item.bh-new{animation:none;outline:2px solid #39ff88;outline-offset:-2px}}
 
 /* team size line on featured cards */
 .card-team{font:600 .74rem/1.3 var(--mono);color:var(--muted);margin:-.15rem 0 .5rem;letter-spacing:.02em}
@@ -444,3 +455,4 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
   .ag-step:not(:last-child)::after{top:auto;bottom:-1.25rem;right:auto;left:1.7rem;width:2px;height:1rem}
   .ag-step:not(:last-child)::before{top:auto;bottom:-1.4rem;right:auto;left:calc(1.7rem - 4px);border:5px solid transparent;border-top:7px solid var(--accent);border-bottom:0}
 }
+

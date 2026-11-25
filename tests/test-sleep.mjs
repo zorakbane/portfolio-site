@@ -115,6 +115,50 @@ ok('dismiss hides the card', await G(() => document.getElementById('bh-away').hi
 const paused = await G(() => { const g = window.__bugHunt, S = g.S; g.pauseGame(); window.__setHidden(true); S.lastActive = Date.now() - 600e3; const l0 = S.loc; window.__setHidden(false); const r = { gained: S.loc - l0 }; S.paused = false; g.optIn(); return r; });
 ok('a paused game earns nothing while away', paused.gained === 0, JSON.stringify(paused));
 
+// ---------- no credit or bugs before opt-in ----------
+// Sleep first so pagehide/save on reload cannot write the previous opted-in session back over a clear.
+await G(() => {
+  window.__setHidden(true);
+  window.__bugHunt.sleep();
+  localStorage.clear();
+});
+await page.reload({ waitUntil: 'networkidle0' }); await boot();
+const pre = await G(() => {
+  const g = window.__bugHunt, S = g.S;
+  S.lastActive = Date.now() - 3600e3;
+  const ff = g.fastForward();
+  window.__setHidden(true);
+  S.lastActive = Date.now() - 1800e3;
+  window.__setHidden(false);
+  return {
+    optedIn: S.optedIn, loc: S.loc, commits: S.commits, bugs: g.bugs.length,
+    ff, away: g.lastAway, card: !document.getElementById('bh-away').hidden, rates: g.passiveRates(),
+  };
+});
+ok('before opt-in: passive rates are zero', !pre.optedIn && pre.rates.locPerSec === 0 && pre.rates.commitsPerSec === 0, JSON.stringify(pre.rates));
+ok('before opt-in: fast-forward and tab wake award no LOC/commits and spawn no bugs', !pre.ff && pre.loc === 0 && pre.commits === 0 && pre.bugs === 0 && !pre.away && pre.card === false, JSON.stringify(pre));
+
+await G(() => {
+  window.__setHidden(true);
+  window.__bugHunt.sleep();
+  const stamp = Date.now() - 7200e3;
+  localStorage.setItem('dj-bughunt-v3', JSON.stringify({ v: 3, optedIn: false, paused: false, loc: 0, commits: 0, lastActive: stamp, t: stamp }));
+});
+await page.reload({ waitUntil: 'networkidle0' }); await boot();
+const preReload = await G(() => {
+  const g = window.__bugHunt, S = g.S;
+  return { optedIn: S.optedIn, loc: S.loc, commits: S.commits, bugs: g.bugs.length, away: g.lastAway, card: !document.getElementById('bh-away').hidden };
+});
+ok('reload before opt-in: no offline LOC or bugs', !preReload.optedIn && preReload.loc === 0 && preReload.commits === 0 && preReload.bugs === 0 && !preReload.away && !preReload.card, JSON.stringify(preReload));
+
+const afterPlay = await G(() => {
+  const g = window.__bugHunt, S = g.S;
+  S.lastActive = Date.now() - 3600e3;
+  g.optIn();
+  return { loc: S.loc, commits: S.commits, bugs: g.bugs.length, away: g.lastAway };
+});
+ok('opting in after a long wait does not credit the time before Play', afterPlay.loc === 0 && afterPlay.commits === 0 && afterPlay.bugs === 0 && !afterPlay.away, JSON.stringify(afterPlay));
+
 // ---------- reload path ----------
 await setupRun(); await wait(300);
 const saved = await G(() => { const g = window.__bugHunt, S = g.S; dispatchEvent(new Event('bh-save')); const raw = JSON.parse(localStorage.getItem('dj-bughunt-v3')); return { hasLastActive: typeof raw.lastActive === 'number' && Math.abs(raw.lastActive - Date.now()) < 3000, rate: g.passiveRates() }; });

@@ -148,6 +148,16 @@
   const KEY_LOC = 3;
   const KEY_MIN_GAP_MS = 90;
   const KEY_HOT_MS = 1400; // typed characters stay lit this long after the last key
+  // Starter trickle: visitors who miss the "click empty space" hint still get something to squash. Until Derick is
+  // hired, one tier-1 bug wanders in every ~5–7s (first after ~2.5s), never more than TRICKLE_MAX on the board.
+  const TRICKLE_GAP = 5;
+  const TRICKLE_JITTER = 2;
+  const TRICKLE_MAX = 3;
+  // Scrolling the page writes code too (no click needed): 1 LOC per ~18% of a screen scrolled, rate-limited to
+  // SCROLL_LOC_RATE LOC/s (burst SCROLL_BURST) and SCROLL_PAGE_MAX LOC per page view, so jiggling the wheel can't farm.
+  const SCROLL_LOC_RATE = 2;
+  const SCROLL_BURST = 4;
+  const SCROLL_PAGE_MAX = 80;
   // Fast-forward (sleep / reload): only the passive economy is credited, never combat, bosses or purchases.
   const FF_MIN_S = 2;          // ignore gaps shorter than this (tab flicks, reload jitter)
   const FF_CAP_S = 24 * 3600;  // at most 24h of offline progress
@@ -284,14 +294,14 @@
   const ITEMS = [
     { id: 'derick', name: 'HIRE DERICK', desc: () => 'One engineer. Thin laser. Roams and squashes.', once: true, show: () => nextUnlock() === 'derick' },
     { id: 'agent', name: 'HIRE AGENT', desc: () => S.subagent ? `Escort · orbiting sub-agent bomber. (${S.agents})` : S.agentic ? `Escort · fires from Derick's ring. (${S.agents})` : `Static turret · 2s small kills. (${S.agents})`, show: () => S.derick && (S.agents < 1 ? nextUnlock() === 'agent' : true) },
-    { id: 'tests', name: 'UNIT TESTS', desc: () => `Fewer bugs per LOC. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'ci', 'qa'].includes(nextUnlock())) },
-    { id: 'profiler', name: 'PROFILER', desc: () => 'Some bugs hatch visibly · agent range +22 · Derick fires a bit faster and farther.', once: true, show: () => nextUnlock() === 'profiler' },
-    { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce to a second bug.', once: true, show: () => nextUnlock() === 'collision' },
-    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Pulses arrive faster. After Sub-Agent Workflow, bombs also launch and fly faster.', once: true, show: () => nextUnlock() === 'movement' },
-    { id: 'ci', name: 'CI PIPELINE', desc: () => 'Faster lasers · fewer bugs pre-merge.', once: true, show: () => nextUnlock() === 'ci' },
-    { id: 'qa', name: 'QA', desc: () => 'Reveals more bugs & marks the largest (incl. bosses) to die without splitting.', once: true, show: () => nextUnlock() === 'qa' },
+    { id: 'tests', name: 'UNIT TESTS', desc: () => `Each rank: 18% fewer bugs per LOC${S.tests ? ` (now ${Math.round((1 - Math.pow(0.82, S.tests)) * 100)}% fewer)` : ''}. (${S.tests}/5)`, max: 5, show: () => nextUnlock() === 'tests' || (S.tests >= 1 && S.tests < 5 && ['profiler', 'collision', 'ci', 'qa'].includes(nextUnlock())) },
+    { id: 'profiler', name: 'PROFILER', desc: () => "Derick's laser kills 8% faster (+9% damage/s) and reaches +36px farther · agent range +22px · 55% of clicked bugs hatch as eggs you can see first · shows range rings.", once: true, show: () => nextUnlock() === 'profiler' },
+    { id: 'collision', name: 'COLLISION EDITOR', desc: () => 'Agent lasers pierce: a second bug within 90% of range takes 55% damage.', once: true, show: () => nextUnlock() === 'collision' },
+    { id: 'movement', name: 'MOVEMENT TUNING', desc: () => 'Pulses reach escorts ~38% faster. With Sub-Agent Workflow, bombs launch 23% faster and top out 17% faster.', once: true, show: () => nextUnlock() === 'movement' },
+    { id: 'ci', name: 'CI PIPELINE', desc: () => "Derick's laser & bombs hit ~34% harder · agent lasers +8% · 15% fewer bugs per LOC · QA spots bugs 60% faster.", once: true, show: () => nextUnlock() === 'ci' },
+    { id: 'qa', name: 'QA', desc: () => `Reveals hidden bugs (~1 every ${S.ci ? '1.1' : '1.8'}s) and marks the 2 largest (bosses too): marked bugs die without splitting and pay +25% commits.`, once: true, show: () => nextUnlock() === 'qa' },
     { id: 'rapid', name: 'RAPID PROTOTYPE', desc: () => 'Tool builds cost ~22% less.', once: true, show: () => nextUnlock() === 'rapid' },
-    { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'One pulse chains to several agents.', once: true, show: () => nextUnlock() === 'sync' },
+    { id: 'sync', name: 'MULTIPLAYER SYNC', desc: () => 'Pulses come 50% more often, and each one buffs up to 3 escorts instead of 1.', once: true, show: () => nextUnlock() === 'sync' },
     { id: 'agentic', name: 'AGENTIC WORKFLOW', desc: () => 'Derick gathers escorts into a ring and pulses them — each pulse buffs an escort laser with his full power for 5s. Escorts never become missiles.', once: true, show: () => nextUnlock() === 'agentic' && S.agents >= 5 },
     { id: 'subagent', name: 'SUB-AGENT WORKFLOW', desc: () => 'Each escort grows a sub-agent bomber. Only subs fly out as bombs; escorts stay in the ring.', once: true, show: () => nextUnlock() === 'subagent' },
     { id: 'rollback', name: 'ROLLBACK NETCODE', desc: () => '⟲ Clears the screen. 30s cooldown.', once: true, show: () => nextUnlock() === 'rollback' },
@@ -362,7 +372,7 @@
   const shipBar = d.createElement('div');
   shipBar.id = 'bh-shipbar';
   shipBar.hidden = true;
-  shipBar.innerHTML = '<div class="bh-shipname"></div><div class="bh-shiptrack"><i></i></div><div class="bh-shiphp"></div>';
+  shipBar.innerHTML = '<div class="bh-shipname"></div><div class="bh-shiptrack"><i></i></div><div class="bh-shiphp"></div><div class="bh-shipblock" hidden></div>';
   const shipWarn = d.createElement('div');
   shipWarn.id = 'bh-shipwarn';
   shipWarn.hidden = true;
@@ -396,6 +406,7 @@
     reopen: $('[data-act=reopen-ship]'),
     log: $('.bh-log'), tip: $('.bh-tip'), shop: $('.bh-shop')
   };
+  { const body = hud.querySelector('.bh-body'); if (body) for (const ev of ['wheel', 'touchmove', 'pointerdown']) body.addEventListener(ev, () => { shopUserScrollAt = now(); }, { passive: true }); }
 
   let Wd = 0, Hd = 0, DPR = 1;
   const CORPUS_MOD = CORPUS.length * 4;
@@ -573,6 +584,11 @@
     return src[Math.floor(Math.random() * src.length)];
   }
   const cap = () => (COARSE || Wd < 700 ? 8 : 15);
+  // Extra room for node-burst / swarm bugs during the release fight, so a swarm actually shows up instead of
+  // silently going to backlog (or merging into tier-3s). Kept small on phones.
+  const SWARM_ROOM = () => (COARSE || Wd < 700 ? 5 : 8);
+  const fightCap = () => cap() + SWARM_ROOM();
+  const SWARM_SPEED = 560; // px/s for swarm bugs pouring in (normal tier-1 walk is 62)
   function isBoss(b) { return !!(b && (b.boss || b.tier >= 4)); }
   function hasBossDamage() { return !!(S.derick || S.agents > 0); }
   function canSpawnBoss(opts) {
@@ -612,7 +628,8 @@
   }
   function canAutoSpawn() { return !S.shipPending && now() >= spawnQuietUntil; }
   function mergeIfOver() {
-    while (bugs.length > cap() && bugs.length >= 2) {
+    const lim = shipBoss && shipBoss.hp > 0 ? fightCap() : cap();
+    while (bugs.length > lim && bugs.length >= 2) {
       let bi = 0, bj = 1, bd = 1e15;
       for (let i = 0; i < bugs.length; i++) {
         if (isBoss(bugs[i])) continue;
@@ -623,6 +640,7 @@
         }
       }
       const a = bugs[bi], b = bugs[bj];
+      if (!a || !b || a === b || isBoss(a) || isBoss(b)) break;
       a.tier = Math.min(3, Math.max(a.tier, b.tier));
       a.hp = Math.min(HP[a.tier] || a.hp, a.hp + (b.hp || 0) * 0.5);
       a.maxHp = HP[a.tier] || a.maxHp;
@@ -680,7 +698,13 @@
       return null;
     }
     if (!opts.force && !opts.fromClick && !canAutoSpawn()) { S.backlog++; return null; }
-    if (bugs.length >= cap()) { S.backlog++; return null; }
+    if (bugs.length >= (opts.swarm ? fightCap() : cap())) {
+      // Click-hatches, forced bursts (Regression / swarm) and ship drops that don't fit are skipped, not
+      // queued. Queuing them made the HUD's "BUGS" count climb into the dozens on a clear screen (each
+      // missed click or overflow spawn added a ghost), and a fat backlog can block the ≤3 launch gate.
+      if (!opts.force && !opts.fromClick && !opts.swarm) S.backlog++;
+      return null;
+    }
     let tier = opts.tier;
     if (!tier) {
       if (opts.boss) tier = 4;
@@ -771,11 +795,13 @@
     const capP = partCap();
     for (let i = 0; i < n; i++) {
       if (partN >= capP) break;
-      const a = Math.random() * Math.PI * 2, v = spd * (0.35 + Math.random());
+      const inward = spd < 0;
+      const a = Math.random() * Math.PI * 2, v = Math.abs(spd) * (0.35 + Math.random());
       let p = parts[partN];
       if (!p) { p = {}; parts[partN] = p; }
-      p.x = x; p.y = y;
-      p.vx = Math.cos(a) * v; p.vy = Math.sin(a) * v - 80;
+      const r0 = inward ? 22 + Math.random() * 22 : 0;
+      p.x = x + Math.cos(a) * r0; p.y = y + Math.sin(a) * r0;
+      p.vx = Math.cos(a) * v * (inward ? -1 : 1); p.vy = Math.sin(a) * v * (inward ? -1 : 1) - (inward ? 0 : 80);
       p.life = life; p.max = life;
       p.r = 1.5 + Math.random() * 2.5;
       p.hue = hue + (Math.random() - .5) * 30;
@@ -937,16 +963,20 @@
     if (!S.shop && S.squashed >= 5) openShop();
     mergeIfOver();
     retargetQA();
+    chipShip(b);
+    completeHeldShip();
     kick(); dirty = true;
   }
 
   function damageBug(b, dps, dt, attacker) {
     if (!b || b.hatching) return;
+    if ((b.ship || b.shipNode) && shipShielded()) return;
     if (b.shipNode) {
       if (b.hp <= 0) return;
       b.hp -= dps * dt;
       b.flash = Math.max(b.flash || 0, 0.55);
       if (attacker) { attacker.beam = 1; attacker.aimX = b.x; attacker.aimY = b.y; }
+      if (holdLastNode(b)) return;
       syncShipHp();
       if (b.hp <= 0) destroyShipNode(b);
       return;
@@ -956,13 +986,11 @@
       if (n) { damageBug(n, dps, dt, attacker); return; }
       return;
     }
-    b.hp -= dps * dt;
-    b.flash = Math.max(b.flash, 0.35);
     if (attacker) {
       attacker.beam = 1;
       attacker.aimX = b.x; attacker.aimY = b.y;
     }
-    if (b.hp <= 0) {
+    if (hurtBug(b, dps * dt)) {
       const qaBoss = isBoss(b) && b.targeted;
       squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
     }
@@ -971,8 +999,14 @@
     const ang = Math.atan2(b.y - y, b.x - x);
     b.a = ang; b.boost = 3.6; b.flash = 1; b.sq = 0.7;
     // negligible chip that can never finish the boss / a ship node
-    if (b.ship && !b.shipNode) {
+    if (b.regShield) {
+      b.flash = 1;
+      if (quality >= 1) gain(b.x, b.y - 20, 'phased', '#a0a0b8');
+      log('The Regression is invincible until its Regressed spawn is squashed.');
+    } else if (b.ship && !b.shipNode) {
       /* hull clink is visual only — HP lives on the nodes */
+    } else if (b.shipNode && shipShielded()) {
+      /* shielded during a Regression swarm */
     } else if (b.hp > 1) {
       b.hp = Math.max(1, b.hp - 0.05);
       if (b.shipNode) syncShipHp();
@@ -997,7 +1031,7 @@
     let n = bugs.length + S.backlog, gainC = 0;
     bugs.forEach(b => { gainC += b.boss ? 8 : b.tier; ghosts.push({ x: b.x, y: b.y, tx: b.ox, ty: b.oy, r: R[b.tier], hue: HUE[Math.min(3, b.tier)], t: 0 }); });
     gainC = Math.round((gainC + S.backlog) * 0.5 * mult());
-    S.commits += gainC; S.squashed += n; S.backlog = 0; bugs = [];
+    S.commits += gainC; S.squashed += n; S.backlog = 0; bugs = []; hatchQ.length = 0; S.debt = 0; appearGate = 0; hatches.length = 0;
     for (const a of agents) {
       a.chasing = false; a.missile = false; a.missilePhase = null;
       a.target = null; a.chaseRoot = null; a.vx = 0; a.vy = 0; a.trail = [];
@@ -1017,7 +1051,8 @@
       : 0;
     return dDps + one * n * 0.55 + pulseRate * missileDamage() * 0.85;
   }
-  function finaleMaxHp() { return Math.max(500, finaleDpsEstimate() * 106); }
+  const FINALE_HP_SECS = 135; // seconds of estimated squad DPS (was 106 before bugs-first + squash chips); ~90s for 10 agents
+  function finaleMaxHp() { return Math.max(500, finaleDpsEstimate() * FINALE_HP_SECS); }
   function shipName() { return `Ship v${(S.prestige || 0) + 1}.0`; }
   function syncShipBar(force) {
     const on = !!(shipBoss && shipBoss.hp > 0);
@@ -1032,6 +1067,16 @@
     if (name) name.textContent = shipBoss.name || shipName();
     if (fill) fill.style.transform = `scaleX(${pct})`;
     if (hp) hp.textContent = `${Math.max(0, Math.ceil(shipBoss.hp))} / ${Math.ceil(shipBoss.maxHp)}`;
+    const block = shipBar.querySelector('.bh-shipblock');
+    const nb = liveBugCount();
+    if (block) {
+      block.hidden = !nb;
+      const nd = nodeDropCount();
+      if (nd) block.textContent = `Shielded · clear the Regression swarm (${nd} left)`;
+      else if (nb) block.textContent = shipBoss.held ? `Squash ${nb} live bug${nb === 1 ? '' : 's'} to ship` : `${nb} live bug${nb === 1 ? '' : 's'} · squash them to ship`;
+    }
+    shipBar.classList.toggle('held', !!(shipBoss.held && nb));
+    shipBar.classList.toggle('shielded', !!nodeDropCount());
     if (!hud.hidden) {
       const box = hud.getBoundingClientRect();
       const raise = Math.max(0, (W.innerHeight || Hd) - box.top) + 10;
@@ -1099,8 +1144,176 @@
     }
     gain(n.x, n.y - 16, 'DOWN', '#3de0ff');
     syncShipHp();
-    if (!liveShipNodes().length) winFinale();
+    if (!liveShipNodes().length) { winFinale(); return; }
+    nodeDownSpawns(n);
   }
+  // A hardpoint going down drops a 'Regression' boss out of the node and calls in a swarm from offscreen
+  // (release-day chaos). As it's chipped down it spawns a visible sub-boss ("Regressed"), teleports, and
+  // stays invincible until that sub is squashed — 2–3 times over its life — then it can be finished.
+  function regressionKids() { return (COARSE || Wd < 700) ? 2 : (2 + (Math.random() < 0.55 ? 1 : 0)); }
+  const REGRESSION_HP = 36;
+  const REGRESSED_HP = 14;
+  function swarmSize() {
+    const base = (COARSE || Wd < 700) ? 3 : Wd < 1300 ? 4 : 5;
+    return clamp(Math.round(base + (S.agents || 0) * 0.25 + (S.subagent ? 1 : 0)), base, base + 3);
+  }
+  function spawnRegression(x, y) {
+    const b = spawnBug(x, y, { force: true, swarm: true, boss: true, tier: 4, name: 'Regression', src: 'regression' });
+    if (!b) return null;
+    b.hatching = false; b.appearIn = 0;
+    b.regression = true; b.nodeDrop = true; b.regKids = regressionKids(); b.regShed = 0; b.regSubs = [];
+    b.hp = b.maxHp = REGRESSION_HP;
+    b.a = Math.PI / 2 + (Math.random() - .5) * 0.8; b.boost = 2.2; b.pop = 0.5; b.flash = 1; b.sq = 1;
+    return b;
+  }
+  function spawnRegressed(parent) {
+    if (!parent) return null;
+    const a = Math.random() * Math.PI * 2;
+    const c = spawnBug(parent.x + Math.cos(a) * 16, parent.y + Math.sin(a) * 16, { force: true, swarm: true, boss: true, tier: 4, name: 'Regressed', src: 'regression-kid' });
+    if (!c) return null;
+    c.hatching = false; c.appearIn = 0; c.nodeDrop = true; c.regressed = true; c.parentReg = parent;
+    c.hp = c.maxHp = REGRESSED_HP;
+    c.a = a; c.boost = 2.6; c.pop = 0.3; c.flash = 1; c.sq = 1.2;
+    parent.regSubs = parent.regSubs || [];
+    parent.regSubs.push(c);
+    return c;
+  }
+  // Next HP floor at which a sub-boss spawns. k spawns split the bar into k+1 equal phases;
+  // the last phase (below maxHp/(k+1)) is a straight fight to the death, no spawn on death.
+  function regressionThresh(b) {
+    if (!b || !b.regression || b.regShed >= b.regKids) return 0;
+    return b.maxHp * (b.regKids - b.regShed) / (b.regKids + 1);
+  }
+  function pruneRegSubs(b) {
+    if (!b || !b.regSubs) return 0;
+    for (let i = b.regSubs.length - 1; i >= 0; i--) {
+      const c = b.regSubs[i];
+      if (!c || c.hp <= 0 || bugs.indexOf(c) < 0) b.regSubs.splice(i, 1);
+    }
+    return b.regSubs.length;
+  }
+  function dropTargetsOf(t) {
+    if (!t) return;
+    if (derickEnt && (derickEnt.target === t || derickEnt.chaseRoot === t)) { derickEnt.target = null; derickEnt.chaseRoot = null; }
+    for (const a of agents) {
+      if (a.target === t) a.target = null;
+      if (a.chaseRoot === t) a.chaseRoot = null;
+      if (a.missileTarget === t) a.missileTarget = pickLaunchTarget() || a.missileTarget;
+      if (a.sub) {
+        if (a.sub.target === t) a.sub.target = null;
+        if (a.sub.chaseRoot === t) a.sub.chaseRoot = null;
+        if (a.sub.missileTarget === t) a.sub.missileTarget = pickLaunchTarget() || a.sub.missileTarget;
+      }
+    }
+  }
+  // A spot on the board, clear of the ship and the edges, preferably away from `from`.
+  function regressionWarpPoint(from) {
+    const shipBottom = (shipBoss && shipBoss.hp > 0)
+      ? (shipBoss.y + (shipBoss.h || 100) * 0.55 + 56)
+      : 80;
+    const x0 = Wd * 0.16, x1 = Wd * 0.84;
+    const y0 = Math.max(Hd * 0.28, shipBottom), y1 = Hd * 0.86;
+    let bx = (x0 + x1) / 2, by = (y0 + y1) / 2, best = -1;
+    for (let i = 0; i < 8; i++) {
+      const x = x0 + Math.random() * (x1 - x0), y = y0 + Math.random() * (y1 - y0);
+      const dFrom = from ? Math.hypot(x - from.x, y - from.y) : 200;
+      const dShip = shipBoss ? Math.hypot(x - shipBoss.x, y - (shipBoss.y + (shipBoss.h || 0) * 0.5)) : 400;
+      const score = Math.min(dFrom, dShip * 0.8);
+      if (score > best) { best = score; bx = x; by = y; }
+    }
+    return [bx, by];
+  }
+  // Juice is pooled (burst / lasers / flashes / shields) and skipped under reduced motion aside from the move itself.
+  function regressionWarp(b) {
+    if (!b) return;
+    const ox = b.x, oy = b.y;
+    const [nx, ny] = regressionWarpPoint(b);
+    if (!RM) {
+      burst(ox, oy, 8, quality >= 3 ? 14 : quality >= 2 ? 9 : 5, -240, 0.45);
+      boomFlash(ox, oy, 0.7);
+      addLaser(ox, oy, nx, ny, { wide: 2.4, life: 0.28, color: 'rgba(255,90,90,.9)' });
+      const steps = quality >= 3 ? 6 : quality >= 2 ? 4 : 2;
+      for (let i = 1; i <= steps; i++) {
+        const t = i / (steps + 1);
+        burst(ox + (nx - ox) * t, oy + (ny - oy) * t, 8, 2, 50, 0.28);
+      }
+      punch(3.2);
+    }
+    b.x = nx; b.y = ny; b.ox = nx; b.oy = ny;
+    b.pop = 0.2; b.popRate = 14; b.sq = 1.55; b.flash = 1; b.boost = 0;
+    if (!RM) {
+      boomFlash(nx, ny, 0.95);
+      shields.push({ x: nx, y: ny, r: 26, life: 0.5, max: 0.5 });
+      if (shields.length > 10) shields.shift();
+    }
+    b.regShield = true;
+    dropTargetsOf(b);
+    retargetQA();
+  }
+  function startRegressionPhase(b) {
+    if (!b || !b.regression) return null;
+    const kid = spawnRegressed(b);
+    b.regShed = (b.regShed || 0) + 1;
+    regressionWarp(b);
+    if (kid) {
+      log('Regression dropped a Regressed bug and phased out.');
+      showShipWarn('Regression is invincible — squash the Regressed spawn');
+      gain(kid.x, kid.y - 22, 'REGRESSED', '#ff5a5a');
+    } else {
+      // No room for the sub: don't leave the parent invincible with nothing to shoot.
+      b.regShield = false;
+    }
+    return kid;
+  }
+  // Shared damage path so lasers and bombs both honor the invincible window and the HP thresholds
+  // (a one-shot from full HP stops at the next threshold instead of skipping the whole dance).
+  function hurtBug(b, dmg) {
+    if (!b || b.hatching || b.ship || b.shipNode) return false;
+    if (b.regShield) { b.flash = Math.max(b.flash || 0, 0.6); return false; }
+    if (b.regression && b.regShed < b.regKids) {
+      const next = regressionThresh(b);
+      if (b.hp > next && b.hp - dmg <= next) {
+        b.hp = next;
+        b.flash = 1;
+        startRegressionPhase(b);
+        return false;
+      }
+    }
+    b.hp -= dmg;
+    b.flash = Math.max(b.flash || 0, 0.35);
+    return b.hp <= 0;
+  }
+  function tickRegression(b) {
+    if (!b || !b.regression) return;
+    if (!b.regShield) return;
+    if (pruneRegSubs(b) === 0) {
+      b.regShield = false;
+      b.flash = 1; b.sq = Math.max(b.sq || 0, 0.9);
+      if (quality >= 1) gain(b.x, b.y - 22, 'VULNERABLE', '#ffd166');
+    }
+  }
+  function nodeDownSpawns(n) {
+    if (!shipBoss || !n) return { regression: null, swarm: 0 };
+    let swarm = 0;
+    const regression = spawnRegression(n.x, n.y + 18);
+    if (regression) log('A Regression crawled out of the downed hardpoint.');
+    // Swarm: pours in fast from the TOP of the screen (over the ship) and spreads into the middle band.
+    const ns = swarmSize();
+    for (let i = 0; i < ns; i++) {
+      const x = Wd * (0.06 + Math.random() * 0.88), y = -40 - Math.random() * 60;
+      const b = spawnBug(x, y, { force: true, swarm: true, tier: Math.random() < 0.3 ? 2 : 1, src: 'swarm' });
+      if (!b) break;
+      b.hatching = false; b.nodeDrop = true;
+      b.appearIn = i * 0.035;
+      b.entering = true; b.enterT = 2;
+      b.ex = clamp(x + (Math.random() - .5) * Wd * 0.3, Wd * 0.1, Wd * 0.9); b.ey = Hd * (0.38 + Math.random() * 0.42);
+      b.pop = 1;
+      swarm++;
+    }
+    if (swarm || regression) showShipWarn(`⚠ Regression swarm · ship shielded until it's cleared`);
+    return { regression, swarm };
+  }
+
   function nodeFocus(n) {
     if (!n) return 0;
     let c = (n._pending || 0) / Math.max(1, n.hp || 1);
@@ -1136,6 +1349,80 @@
     return clamp(ny + range * 0.45, 70, Math.max(71, Hd - 24));
   }
   function shipBossLive() { return !!(shipBoss && shipBoss.hp > 0 && liveShipNodes().length); }
+  // ---- "No shipping with live bugs" ----
+  // Every regular bug on the board (hatching ones too) blocks the release. While any is alive, units hunt bugs first,
+  // and the last hardpoint holds just above zero so the ship can't go down until the board is clear. Spawns keep
+  // coming (release-day chaos, by design); the ship completes the instant the board hits zero once it's held.
+  function liveBugCount() { let n = 0; for (const b of bugs) if (b && !b.ship && !b.shipNode) n++; return n; }
+  function huntableBug(b) { return !!(b && !b.hatching && !b.ship && !b.shipNode && !b.regShield); }
+  function anyHuntableBug() { for (const b of bugs) if (huntableBug(b)) return true; return false; }
+  // Regression swarm shield: while the Regression, its kids, or the swarm from a downed hardpoint are alive, the ship
+  // can't be targeted or damaged at all (no lasers, bombs, clinks or squash chips). Clear them and the shield drops.
+  function nodeDropCount() { let n = 0; for (const b of bugs) if (b && b.nodeDrop) n++; return n; }
+  function shipShielded() { if (!shipBoss) return false; for (const b of bugs) if (b && b.nodeDrop) return true; return false; }
+  function shipHoldHp() { return shipBoss ? Math.max(1, shipBoss.maxHp * 0.01) : 1; }
+  // Called after a hardpoint takes damage. Returns true when it was the last node and live bugs held it up.
+  function holdLastNode(n) {
+    if (!n || !n.shipNode || n.hp > 0 || !shipBoss) return false;
+    if (!liveBugCount()) return false;
+    for (const o of shipBoss.nodes) if (o !== n && o.hp > 0 && !o._dead) return false;
+    n.hp = Math.min(n.maxHp, shipHoldHp());
+    if (!shipBoss.held) {
+      shipBoss.held = true;
+      showShipWarn('Squash live bugs to ship');
+      log('Release blocked: squash the live bugs to ship.');
+    }
+    syncShipHp();
+    syncShipBar(true);
+    return true;
+  }
+  // Fixing release-day bugs ships the release: every bug squashed during the fight chips the nearest hardpoint by a
+  // share of the ship's max HP. Progress is tied to kills, so a squad that's busy with the chaos still moves the bar
+  // (and as hardpoints fall the ship drops bugs more slowly), which is what rules out a softlock without slowing spawns.
+  const SHIP_CHIP = 0.0025; // share of ship max HP per tier-1 squash
+  function chipShip(b) {
+    if (!b || !shipBoss || shipBoss.hp <= 0 || shipBoss.enter < 1) return 0;
+    const w = isBoss(b) ? 6 : b.tier >= 3 ? 2 : b.tier === 2 ? 1.5 : 1;
+    const dmg = shipBoss.maxHp * SHIP_CHIP * w;
+    // Shielded (Regression swarm up): nothing touches the ship. The fixes are banked as a patch instead, released
+    // in one hit (× PATCH_BONUS) when the swarm is cleared, so squashing the swarm still moves the release forward.
+    if (shipShielded()) { shipBoss.chipBank = (shipBoss.chipBank || 0) + dmg; return 0; }
+    const n = nearestShipNode(b.x, b.y);
+    if (!n) return 0;
+    n.hp -= dmg;
+    n.flash = Math.max(n.flash || 0, 0.7);
+    if (quality >= 1) addLaser(b.x, b.y, n.x, n.y, { wide: 0.5, life: 0.12, color: '#3de0ff' });
+    if (!holdLastNode(n)) {
+      syncShipHp();
+      if (n.hp <= 0) destroyShipNode(n);
+    }
+    return dmg;
+  }
+  const PATCH_BONUS = 2.0;
+  function releasePatch() {
+    if (!shipBoss) return 0;
+    const bank = (shipBoss.chipBank || 0) * PATCH_BONUS;
+    shipBoss.chipBank = 0;
+    shipBoss.patches = (shipBoss.patches || 0) + 1;
+    const live = liveShipNodes();
+    if (!bank || !live.length) return 0;
+    const n = derickEnt ? nearestShipNode(derickEnt.x, derickEnt.y) : live[0];
+    if (!n) return 0;
+    n.hp -= bank;
+    n.flash = 1;
+    gain(n.x, n.y + 26, 'PATCHED', '#3de0ff');
+    if (quality >= 1) for (const o of live) if (o !== n) addLaser(o.x, o.y + 6, n.x, n.y, { wide: 0.6, life: 0.2, color: '#3de0ff' });
+    log(`Regression fixed: the patch hits ${shipBoss.name}.`);
+    if (!holdLastNode(n)) { syncShipHp(); if (n.hp <= 0) destroyShipNode(n); }
+    return bank;
+  }
+  // Held ship + empty board = shipped, right now (no waiting for a laser to find the last node between spawns).
+  function completeHeldShip() {
+    if (!shipBoss || !shipBoss.held || liveBugCount()) return false;
+    const last = liveShipNodes()[0];
+    if (last) destroyShipNode(last); else winFinale();
+    return true;
+  }
   function canReachShip(x, y, range) {
     return !!(shipBoss && shipBoss.hp > 0 && preyDist(x, y, shipBoss) <= range);
   }
@@ -1157,9 +1444,14 @@
   function pickLaserTarget(x, y, range) {
     // Nearby trash always wins. Ship nodes and bosses were monopolizing every
     // laser the moment they were in range, leaving bugs sitting next to agents.
+    // A Regression swarm (the ship is shielded until it's gone) comes first.
+    if (shipShielded()) { const nd = nearestBug(x, y, range, x => x.nodeDrop && !x.entering && huntableBug(x)); if (nd) return nd; }
     const swarm = nearestBug(x, y, range, b => !isBoss(b) && !b.ship && !b.shipNode);
     if (swarm) return swarm;
-    if (canReachShip(x, y, range)) {
+    // Live bugs (bosses included) come before the release ship: you don't ship with bugs on the board.
+    const bug = nearestBug(x, y, range, huntableBug);
+    if (bug) return bug;
+    if (canReachShip(x, y, range) && !shipShielded()) {
       // Only nodes this unit can actually reach; focus still spreads across the reachable ones.
       const n = pickShipNode(x, y, { uncovered: true, range }) || pickShipNode(x, y, { range });
       if (n) return n;
@@ -1517,6 +1809,7 @@
       ttk,
       loc: S.loc,
       squashed: S.squashed,
+      liveBugs: liveBugCount(), // always 0 now: you can't ship with live bugs (tests read this)
       at: Date.now()
     };
     if (!RM) {
@@ -1554,6 +1847,12 @@
     if (!live.length) return;
     shipBoss.spawnAcc += dt;
     shipBoss.bossSpawn += dt;
+    const sh = shipShielded();
+    if (sh) shipBoss.shieldT = (shipBoss.shieldT || 0) + dt;
+    else if (shipBoss.wasShielded) releasePatch();
+    shipBoss.wasShielded = sh;
+    if (!shipBoss || shipBoss.hp <= 0 || !liveShipNodes().length) return;
+    if (completeHeldShip()) return;
     const spawnWait = 0.55 * (SHIP_NODES / live.length);
     if (shipBoss.spawnAcc >= spawnWait && bugs.length < cap()) {
       shipBoss.spawnAcc = 0;
@@ -1629,6 +1928,12 @@
     }
     const nameFont = `800 ${Math.max(14, Math.min(28, w * 0.035))}px ui-monospace, sans-serif`;
     drawCachedText(ctx, s.name, nameFont, '#ececf6', 0, h * 0.16, 'center');
+    if (shipShielded()) {
+      ctx.globalAlpha = 0.45 + Math.sin(now() / 160) * 0.2;
+      ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, 0, w * 0.53, h * 0.72, 0, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   }
   function pathHeart(ctx, x, y, s) {
@@ -2019,7 +2324,7 @@
     const titleB = hud.querySelector('.bh-title b');
     if (titleB) titleB.textContent = S.prestige ? `BUG HUNT v${S.prestige + 1}.0` : 'BUG HUNT';
     el.loc.textContent = fmt(S.loc);
-    el.bugs.textContent = fmt(bugs.length + S.backlog);
+    el.bugs.textContent = fmt(bugs.length); // on-board only; backlog is called out in the tip, not this number
     el.commits.textContent = fmt(S.commits);
     syncHbHud();
     el.rb.hidden = !S.rollback;
@@ -2040,7 +2345,7 @@
       if (S.agents) bits.push(`${S.agents} agent${S.agents === 1 ? '' : 's'}`);
       if (commandMode()) bits.push('CMD');
       if (heartbeatActive()) bits.push('♥ Heartbeat');
-      bits.push(`Ship ${fmt(shipGoal())} LOC ≤3 bugs`);
+      { const nb = liveBugCount(); bits.push(shipBossLive() ? `Release fight · ${nb} live bug${nb === 1 ? '' : 's'}` : `Ship ${fmt(shipGoal())} LOC ≤3 bugs`); }
       el.tip.textContent = bits.join(' · ');
     }
     if (!S.open && !force) return;
@@ -2059,19 +2364,50 @@
         html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="reopen-ship"><span>${nextShipLabel()}</span><small>Open the SHIPPED card to confirm prestige.</small><em>🏆</em></button>`;
       } else {
         const ok = S.loc >= shipGoal() && bugs.length + S.backlog <= 3;
-        if (S.rollback && S.loc >= shipGoal() * 0.45) {
-          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${ok ? 'No blockers. Lasers & bombs only.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs.`}</small><em>🏆 ${S.prestige || 0}</em></button>`;
+        const fighting = shipBossLive();
+        if (S.rollback && (fighting || S.loc >= shipGoal() * 0.45)) {
+          const nb = liveBugCount();
+          const note = fighting
+            ? shipShielded() ? `In progress: clear the Regression swarm (${nodeDropCount()} left). The ship is shielded.` : (nb ? `In progress: squash ${nb} live bug${nb === 1 ? '' : 's'}, then the hardpoints.` : 'In progress: take down the hardpoints.')
+            : ok ? 'Launch the release. Lasers & bombs only; every bug must be squashed to ship.' : `Need ${fmt(shipGoal())} LOC & ≤3 bugs to launch.`;
+          html += `<button class="bh-btn bh-item bh-ship" type="button" data-act="ship" ${ok && !fighting ? '' : 'disabled'}><span>Ship v${(S.prestige || 0) + 1}.0</span><small>${note}</small><em>🏆 ${S.prestige || 0}</em></button>`;
         }
       }
     }
-    if (html !== lastShop) { el.shop.innerHTML = html; lastShop = html; }
+    if (html !== lastShop) { el.shop.innerHTML = html; lastShop = html; revealNewShopItem(); }
+  }
+  // When a new upgrade / unlock shows up, glide the shop list so it's in view and flash it once. Never steals focus,
+  // never scrolls the page itself, waits if the player just scrolled the list, and jumps instead of gliding under
+  // prefers-reduced-motion.
+  const shopSeen = new Set();
+  let shopPrimed = false, shopUserScrollAt = -1e9, shopFocusN = 0;
+  function shopKey(btn) { return btn.dataset.buy || btn.dataset.act || ''; }
+  function revealNewShopItem() {
+    const btns = el.shop.querySelectorAll('.bh-item');
+    let fresh = null;
+    for (const btn of btns) {
+      const k = shopKey(btn);
+      if (!k || shopSeen.has(k)) continue;
+      shopSeen.add(k);
+      if (shopPrimed) fresh = btn; // the last new one wins (it's the newest unlock)
+    }
+    shopPrimed = true;
+    if (!fresh || !S.open) return;
+    fresh.classList.add('bh-new');
+    const body = el.shop.closest('.bh-body');
+    if (!body || now() - shopUserScrollAt < 1500) return;
+    const br = body.getBoundingClientRect(), fr = fresh.getBoundingClientRect();
+    if (fr.top >= br.top && fr.bottom <= br.bottom) return; // already visible
+    const top = body.scrollTop + (fr.top - br.top) - Math.max(0, (br.height - fr.height) / 2);
+    body.scrollTo({ top: Math.max(0, top), behavior: RM ? 'auto' : 'smooth' });
+    shopFocusN++;
   }
 
   // ---------- combat AI ----------
   function preyAlive(t) {
     if (!t) return false;
-    if (t.shipNode) return !!(shipBoss && t.hp > 0 && !t._dead);
-    if (t.ship) return !!(shipBoss && shipBoss === t && shipBoss.hp > 0);
+    if (t.shipNode) return !!(shipBoss && t.hp > 0 && !t._dead && !shipShielded());
+    if (t.ship) return !!(shipBoss && shipBoss === t && shipBoss.hp > 0 && !shipShielded());
     return bugs.includes(t);
   }
   function preyDist(x, y, t) {
@@ -2098,9 +2434,9 @@
   }
   function pickThreat() {
     let best = null;
-    const score = b => (b.ship ? 100 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
+    const score = b => (b.ship ? 100 : 0) + (b.nodeDrop ? 50 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
     const consider = b => {
-      if (!b || b.hatching || (b.ship && b.hp <= 0)) return;
+      if (!b || b.hatching || b.entering || b.regShield || (b.ship && b.hp <= 0)) return;
       if (!best) { best = b; return; }
       const ds = score(b) - score(best);
       if (ds > 0) { best = b; return; }
@@ -2108,6 +2444,8 @@
       if (preyDist(derickEnt.x, derickEnt.y, b) < preyDist(derickEnt.x, derickEnt.y, best)) best = b;
     };
     for (const b of bugs) consider(b);
+    if (best) return best; // any live bug outranks the ship
+    if (shipShielded()) return null;
     for (const n of liveShipNodes()) consider(n);
     return best;
   }
@@ -2199,9 +2537,9 @@
   function targetHasCover(t) { return !t || pendingOn(t) >= t.hp - 1e-6; }
   function pickLaunchTarget() {
     let best = null;
-    const score = b => (b.ship ? 100 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
+    const score = b => (b.nodeDrop ? 50 : 0) + (b.boss ? 10 : 0) + (b.tier || 0);
     const consider = b => {
-      if (!b || b.hatching || (b.ship && b.hp <= 0)) return;
+      if (!huntableBug(b) || b.entering) return;
       if (targetHasCover(b)) return;
       if (!best) { best = b; return; }
       const ds = score(b) - score(best);
@@ -2212,6 +2550,9 @@
     for (const b of bugs) consider(b);
     const fromX = derickEnt ? derickEnt.x : 0;
     const fromY = derickEnt ? derickEnt.y : 0;
+    // Live bugs first; bombs only go to the ship once the board is clear.
+    if (best) return best;
+    if (shipShielded()) return null;
     // Sub-agent bombs go for hardpoints near the squad, not the far end of the ship.
     const reach = shipBombReach();
     const node = pickShipNode(fromX, fromY, { uncovered: true, range: reach }) || pickShipNode(fromX, fromY, { range: reach });
@@ -2327,33 +2668,32 @@
     const rad = missileRadius();
     const base = missileDamage();
     const blast = bugs.slice();
-    for (const n of liveShipNodes()) blast.push(n);
+    if (!shipShielded()) for (const n of liveShipNodes()) blast.push(n);
     for (const b of blast) {
-      if (!b || b.hatching) continue;
+      if (!b || b.hatching || b.regShield) continue;
       const dist = preyDist(x, y, b);
       if (dist > rad) continue;
       const fall = 1 - (dist / rad) * 0.45;
       let dmg = base * fall;
       if (isBoss(b) && !b.ship) dmg = Math.min(dmg, b.maxHp * MISSILE_BOSS_FRAC);
-      b.hp -= dmg;
-      b.flash = 1;
-      b.sq = Math.max(b.sq || 0, 0.85);
-      if (!b.ship) {
-        const bang = Math.atan2(b.y - y, b.x - x) || 0;
-        b.a = bang;
-        b.boost = isBoss(b) ? 1.8 : 3.4;
+      if (b.ship || b.shipNode) {
+        b.hp -= dmg;
+        b.flash = 1;
+        b.sq = Math.max(b.sq || 0, 0.85);
+        if (b.shipNode && holdLastNode(b)) continue;
+        if (b.hp <= 0) {
+          if (b.shipNode) { destroyShipNode(b); if (!shipBoss) break; }
+          else winFinale();
+        } else if (b.shipNode) syncShipHp();
+        continue;
       }
-      if (b.hp <= 0) {
-        if (b.shipNode) {
-          destroyShipNode(b);
-          if (!shipBoss) break;
-        } else if (b.ship) winFinale();
-        else {
-          const qaBoss = isBoss(b) && b.targeted;
-          squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
-        }
-      } else if (b.shipNode) {
-        syncShipHp();
+      b.sq = Math.max(b.sq || 0, 0.85);
+      const bang = Math.atan2(b.y - y, b.x - x) || 0;
+      b.a = bang;
+      b.boost = isBoss(b) ? 1.8 : 3.4;
+      if (hurtBug(b, dmg)) {
+        const qaBoss = isBoss(b) && b.targeted;
+        squash(b, { auto: true, noSplit: !!b.targeted || qaBoss, qaBoss });
       }
     }
     if (!RM) {
@@ -2393,7 +2733,9 @@
       let t = a.chaseRoot && preyAlive(a.chaseRoot) ? a.chaseRoot : null;
       if (!t || t.hatching) {
         releaseReserve(a);
-        t = nearestBug(a.x, a.y, 320, b => !targetHasCover(b));
+        t = nearestBug(a.x, a.y, 320, b => huntableBug(b) && !targetHasCover(b));
+        if (!t) t = nearestBug(a.x, a.y, 320, huntableBug);
+        if (!t) t = nearestBug(a.x, a.y, 320, b => !targetHasCover(b));
         if (!t) t = nearestBug(a.x, a.y, 320, b => true);
         a.chaseRoot = t;
         a.target = t;
@@ -2627,8 +2969,40 @@
     }
     enqueueDebt('idle');
   }
+  let trickleAcc = TRICKLE_GAP - 2.5, trickleGap = TRICKLE_GAP;
+  function trickle(dt) {
+    if (S.derick || S.hidden || S.shelved || shipBoss || !canAutoSpawn()) return;
+    if (bugs.length + hatchQ.length >= TRICKLE_MAX) { trickleAcc = Math.min(trickleAcc, trickleGap - 1.5); return; }
+    trickleAcc += dt;
+    if (trickleAcc < trickleGap) return;
+    trickleAcc = 0; trickleGap = TRICKLE_GAP + Math.random() * TRICKLE_JITTER;
+    requestHatch({ src: 'trickle', tier: 1 });
+    kick();
+  }
+  let scrollLastY = W.scrollY || 0, scrollPx = 0, scrollTok = SCROLL_BURST, scrollTokAt = 0, scrollLocPage = 0;
+  const scrollPxPerLoc = () => Math.max(110, (W.innerHeight || 800) * 0.18);
+  function onPageScroll() {
+    const y = W.scrollY || 0, dy = Math.abs(y - scrollLastY);
+    scrollLastY = y;
+    if (!S.optedIn || S.paused || S.shelved || S.playSpace || S.shipPending || scrollLocPage >= SCROLL_PAGE_MAX) return;
+    if (dy > (W.innerHeight || 800) * 1.5) return; // anchor jumps / restores aren't reading
+    scrollPx += dy;
+    const per = scrollPxPerLoc();
+    if (scrollPx < per) return;
+    const t = now();
+    scrollTok = Math.min(SCROLL_BURST, scrollTok + Math.max(0, t - scrollTokAt) / 1000 * SCROLL_LOC_RATE);
+    scrollTokAt = t;
+    let n = 0;
+    while (scrollPx >= per && scrollTok >= 1 && scrollLocPage < SCROLL_PAGE_MAX) { scrollPx -= per; scrollTok -= 1; scrollLocPage++; n++; }
+    if (scrollPx > per) scrollPx = per; // no banking distance past the rate limit
+    if (!n) return;
+    addCode(n, null, null, false);
+    kick();
+  }
+  W.addEventListener('scroll', onPageScroll, { passive: true });
   function econ(dt) {
     if (!S.optedIn || S.paused) return;
+    trickle(dt);
     if (bossQuiet > 0) bossQuiet = Math.max(0, bossQuiet - dt);
     if (canAutoSpawn()) {
       while (S.backlog > 0 && bugs.length + hatchQ.length < cap()) {
@@ -2687,11 +3061,27 @@
         if (b.hatchT <= 0) { b.hatching = false; b.pop = 1; }
         continue;
       }
+      if (b.regression) tickRegression(b);
       b.ph += dt * (8 - Math.min(3, b.tier));
+      const m = R[Math.min(4, b.tier)];
+      if (b.entering) {
+        // Swarm bugs march in from offscreen toward their entry point, then join the normal wander.
+        b.enterT -= dt;
+        b.a = Math.atan2(b.ey - b.y, b.ex - b.x);
+        const esp = SWARM_SPEED * Math.max(0.7, Hd / 900); // a lot faster than walking: ~1s from the top edge
+        b.x += Math.cos(b.a) * esp * dt; b.y += Math.sin(b.a) * esp * dt;
+        const inside = b.x >= m && b.x <= Wd - m && b.y >= m + 56 && b.y <= Hd - m;
+        if ((inside && Math.hypot(b.ex - b.x, b.ey - b.y) < 40) || b.enterT <= 0) {
+          b.entering = false;
+          b.x = clamp(b.x, m, Wd - m); b.y = clamp(b.y, m + 56, Hd - m);
+        }
+        b.pop += (1 - b.pop) * Math.min(1, dt * 10);
+        b.sq *= Math.pow(0.002, dt); b.flash = Math.max(0, b.flash - dt * 6);
+        continue;
+      }
       b.turn += (Math.random() - .5) * dt * 6; b.turn *= 0.96; b.a += b.turn * dt * 3;
       const sp = SPEED[Math.min(4, b.tier)] * (b.boost || 1); if (b.boost) b.boost = Math.max(1, b.boost - dt * 6);
       b.x += Math.cos(b.a) * sp * dt; b.y += Math.sin(b.a) * sp * dt;
-      const m = R[Math.min(4, b.tier)];
       if (b.x < m) { b.x = m; b.a = Math.PI - b.a; } else if (b.x > Wd - m) { b.x = Wd - m; b.a = Math.PI - b.a; }
       if (b.y < m + 56) { b.y = m + 56; b.a = -b.a; } else if (b.y > Hd - m) { b.y = Hd - m; b.a = -b.a; }
       b.pop += (1 - b.pop) * Math.min(1, dt * (b.popRate || 10));
@@ -2705,7 +3095,8 @@
     if (S.agentic && derickEnt) escortPhase += dt * 0.45;
     const range = agentRange();
     const ringN = escortCount();
-    const shipOn = shipBossLive();
+    // Ship formation only once the board is clear; while bugs live, the squad hunts them with Derick.
+    const shipOn = shipBossLive() && !anyHuntableBug();
     let escortI = 0;
     for (const a of agents) {
       a.beam = Math.max(0, a.beam - dt * 4);
@@ -2822,7 +3213,7 @@
     const r = R[tier] * pop, w = Math.sin(b.ph) * 0.13;
     ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
     ctx.scale(1 + w + b.sq * .5, 1 - w - b.sq * .4);
-    const h = b.boss ? 8 : HUE[tier];
+    const h = b.regShield ? 0 : (b.boss ? 8 : HUE[tier]);
     if (b.hatching) {
       ctx.globalAlpha = 0.35 + b.flash * 0.4;
       ctx.strokeStyle = `hsla(${h},90%,60%,.9)`;
@@ -2833,7 +3224,8 @@
       ctx.restore();
       return;
     }
-    ctx.strokeStyle = `hsla(${h},90%,35%,.9)`; ctx.lineWidth = Math.max(1, r * .1); ctx.lineCap = 'round';
+    if (b.regShield) ctx.globalAlpha = 0.45 + Math.sin(now() / 90) * 0.25;
+    ctx.strokeStyle = b.regShield ? 'hsla(0,0%,70%,.85)' : `hsla(${h},90%,35%,.9)`; ctx.lineWidth = Math.max(1, r * .1); ctx.lineCap = 'round';
     for (let k = -1; k <= 1; k++) { const o = Math.sin(b.ph * 2 + k) * r * .25; ctx.beginPath(); ctx.moveTo(k * r * .45, -r * .6); ctx.lineTo(k * r * .45 + o, -r * 1.15); ctx.moveTo(k * r * .45, r * .6); ctx.lineTo(k * r * .45 - o, r * 1.15); ctx.stroke(); }
     ctx.fillStyle = b.flash > 0 ? '#fff' : `hsla(${h},95%,${b.boss ? 48 : 55}%,.93)`;
     ctx.beginPath(); ctx.ellipse(0, 0, r * (b.boss ? 1.25 : 1.15), r * (b.boss ? 1 : .85), 0, 0, Math.PI * 2); ctx.fill();
@@ -2851,7 +3243,13 @@
       // hp bar
       const bw = 36, pct = Math.max(0, b.hp / b.maxHp);
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * pop - 6, bw, 3);
-      ctx.fillStyle = '#ff5a5a'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * pop - 6, bw * pct, 3);
+      ctx.fillStyle = b.regShield ? '#a0a0b8' : '#ff5a5a'; ctx.fillRect(b.x - bw / 2, b.y - R[tier] * pop - 6, bw * pct, 3);
+      if (b.regShield) {
+        ctx.strokeStyle = 'rgba(200,200,220,' + (0.5 + Math.sin(now() / 90) * 0.35) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(b.x, b.y, R[tier] * pop * 1.65, 0, 7); ctx.stroke();
+        drawCachedText(ctx, 'INVINCIBLE', '700 8px ui-monospace, monospace', 'rgba(200,200,220,.95)', b.x, b.y - R[tier] * pop - 20, 'center');
+      }
       ctx.restore();
     }
     if (b.targeted) {
@@ -3160,8 +3558,8 @@
       }
     }
     ctx.globalAlpha = 1;
+    drawShip(); // bugs (bosses like Regression included) draw over the ship
     for (const b of bugs) drawBug(b);
-    drawShip();
     drawRangeRings();
     drawLasers();
     ctx.globalAlpha = 1;
@@ -3433,7 +3831,7 @@
 
   W.__bugHunt = {
     S, get bugs() { return bugs; }, get derick() { return derickEnt; }, get agents() { return agents; },
-    spawnBug, squash, addCode, rollback, ship, econ, optIn, pauseGame, quitGame,
+    spawnBug, squash, addCode, rollback, ship, econ, optIn, pauseGame, quitGame, renderHud: render, damageBug,
     isBoss, clink, cap, idleWrite, idleCodeRate, qaRevealPerSec, mergeIfOver,
     pickBossName, agentBuffed, agentCombatDps, derickCombatDps, derickCombatRange,
     derickScale, derickRadius, LASER_COLOR, commandMode, escortRadius, escortSlot, updateDerick,
@@ -3471,7 +3869,7 @@
     kick,
     derickDraftRate, derickHitRadius,
     SHIP_NODES, liveShipNodes, pickShipNode, pickLaserTarget, makeShipNodes,
-    syncShipNodePositions, syncShipHp, destroyShipNode, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
+    syncShipNodePositions, syncShipHp, destroyShipNode, liveBugCount, anyHuntableBug, huntableBug, holdLastNode, shipHoldHp, canAutoSpawn, completeHeldShip, chipShip, SHIP_CHIP, nodeDownSpawns, releasePatch, PATCH_BONUS, revealNewShopItem, hurtBug, tickRegression, startRegressionPhase, regressionWarp, regressionWarpPoint, spawnRegressed, regressionThresh, REGRESSION_HP, REGRESSED_HP, trickle, onPageScroll, TRICKLE_GAP, TRICKLE_MAX, SCROLL_LOC_RATE, SCROLL_PAGE_MAX, get scrollLocPage() { return scrollLocPage; }, get shopFocusN() { return shopFocusN; }, shipShielded, nodeDropCount, SWARM_SPEED, regressionKids, spawnRegression, swarmSize, fightCap, SWARM_ROOM, canReachShip, inLaserRange, shipEscortSlot, shipLineY, shipBombReach, rescaleWorld, resize,
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
     KEY_LOC, KEY_MIN_GAP_MS, KEY_HOT_MS, typeKey, inPlaySpace,
