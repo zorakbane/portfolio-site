@@ -88,11 +88,18 @@ p{margin:0 0 1em}
 .blink{animation:blink 1s steps(1) infinite;color:var(--pink)}
 @keyframes blink{50%{opacity:0}}
 .stats{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
-.stat{padding:1rem;border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);transition:transform .3s var(--spring),border-color .2s}
+.stat{display:block;padding:1rem;border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);color:inherit;text-decoration:none;cursor:pointer;transform:translateZ(0);transition:transform .3s var(--spring),border-color .2s,box-shadow .2s}
 .stat:hover{transform:translateY(-4px) rotate(-.6deg);border-color:var(--green)}
+.stat:active{transform:scale(.97,.94);border-color:var(--green);box-shadow:0 0 0 2px rgba(57,255,136,.55),0 10px 28px -10px var(--green);transition-duration:.07s}
+.stat:focus-visible{outline:2px solid var(--green);outline-offset:3px}
 .stat b{display:block;font:900 clamp(1.4rem,3vw,2rem)/1.05 var(--sans);color:var(--green);margin-bottom:.35rem}
 .stat span{font-size:.82rem;color:var(--muted);line-height:1.35;display:block}
 @media (max-width:860px){.stats{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:reduce){
+  .stat,.stat:hover,.stat:active{transition:border-color .15s,box-shadow .15s;transform:none}
+  .stat:active{box-shadow:0 0 0 2px var(--green)}
+}
+#work,#earlier,#lab,#awards,#about,#contact{scroll-margin-top:5.5rem}
 .js .ht-line{animation:slam .7s var(--spring) both}
 .js .ht-2{animation-delay:.12s}
 .js .hero-role,.js .hero-tag,.js .hero-cta{animation:rise .6s var(--snap) both}
@@ -407,3 +414,33 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
   #bh-shipped.in .bh-shipped-card{animation:none}
 }
 #bh-shipped.rm .bh-shipped-card{animation:none}
+
+/* team size line on featured cards */
+.card-team{font:600 .74rem/1.3 var(--mono);color:var(--muted);margin:-.15rem 0 .5rem;letter-spacing:.02em}
+.card-team span{color:var(--accent);margin-right:.2rem}
+/* machine-readable links: small, visible, ordinary */
+.foot-alt{margin:.5rem 0 0;font-size:.78rem;opacity:.8}
+
+/* Agentic AI workflows page */
+.ag-body{position:relative;z-index:2;display:grid;gap:2.2rem;padding-bottom:4rem}
+.ag-body h2{font:900 1.3rem/1 var(--sans);text-transform:uppercase;color:var(--accent);margin:0 0 .9rem}
+.ag-body p{max-width:68ch;color:var(--muted)}
+.ag-flow{margin:0}
+.ag-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:1.6rem}
+.ag-step{position:relative;display:grid;align-content:start;gap:.4rem;padding:1rem .9rem;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.ag-step b{font:800 .82rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.04em;color:#fff}
+.ag-step>span:last-child{font-size:.86rem;color:var(--muted);line-height:1.45}
+.ag-n{display:grid;place-items:center;width:1.7rem;height:1.7rem;border-radius:50%;font:800 .8rem/1 var(--mono);color:#07070d;background:var(--accent)}
+.ag-step:not(:last-child)::after{content:"";position:absolute;top:1.85rem;right:-1.35rem;width:1.1rem;height:2px;background:var(--accent);opacity:.7}
+.ag-step:not(:last-child)::before{content:"";position:absolute;top:calc(1.85rem - 4px);right:-1.4rem;border:5px solid transparent;border-left:7px solid var(--accent);border-right:0;opacity:.7}
+.ag-gate{border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 25%,transparent) inset}
+.ag-flow figcaption{margin-top:.8rem;font:600 .75rem/1.3 var(--mono);color:var(--muted)}
+.ag-src{font-size:.85rem}
+.ag-src a{color:var(--cyan)}
+@media (max-width:900px){
+  .ag-steps{grid-template-columns:1fr;gap:1.4rem}
+  .ag-step{grid-template-columns:auto 1fr;column-gap:.8rem}
+  .ag-step>span:last-child{grid-column:2}
+  .ag-step:not(:last-child)::after{top:auto;bottom:-1.25rem;right:auto;left:1.7rem;width:2px;height:1rem}
+  .ag-step:not(:last-child)::before{top:auto;bottom:-1.4rem;right:auto;left:calc(1.7rem - 4px);border:5px solid transparent;border-top:7px solid var(--accent);border-bottom:0}
+}
