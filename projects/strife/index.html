@@ -6,7 +6,7 @@
 <title>Strife | Derick Janssen</title>
 <meta name="description" content="A top-down &#39;second generation&#39; MOBA with a ground-up reduced-toxicity design. I worked closely with designers and built ways for them to achieve what they wanted.">
 <meta name="theme-color" content="#07070d">
-<meta name="asset-rev" content="css:05b60ce21c;js:dd315f2470;game:8f567dc479">
+<meta name="asset-rev" content="css:38c77857f2;js:dd315f2470;game:8b9c962da6">
 <meta property="og:title" content="Strife | Derick Janssen">
 <meta property="og:description" content="A top-down &#39;second generation&#39; MOBA with a ground-up reduced-toxicity design. I worked closely with designers and built ways for them to achieve what they wanted.">
 <meta property="og:type" content="website">
@@ -374,6 +374,18 @@ body.bh-play #bh-canvas{z-index:4}
 #bh-playmark .ht-outline{display:block;width:5.4em;max-width:100%;height:auto;aspect-ratio:593/98;overflow:hidden;color:var(--green);margin:.05em 0 0}
 #bh-promote{position:fixed;left:50%;top:16%;transform:translate(-50%,0);z-index:60;pointer-events:none;padding:.85rem 1.25rem;border:2px solid var(--green);border-radius:14px;background:rgba(8,16,12,.94);color:var(--green);font:900 .95rem/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;box-shadow:0 0 0 1px #39ff8833,0 16px 40px -10px #39ff88aa,inset 0 0 24px #39ff8814;text-align:center}
 #bh-promote[hidden]{display:none!important}
+/* Welcome-back fast-forward toast: under the header, out of the way, click-through except the ×; auto-fades */
+#bh-away{position:fixed;left:50%;top:calc(56px + .75rem);transform:translateX(-50%);z-index:59;pointer-events:none;display:grid;grid-template-columns:auto auto;align-items:center;column-gap:.6rem;row-gap:.15rem;max-width:min(92vw,460px);padding:.6rem .55rem .6rem 1rem;border:1.5px solid var(--cyan);border-radius:12px;background:rgba(8,12,18,.94);color:var(--text);font:700 .82rem/1.3 var(--mono);box-shadow:0 0 0 1px #3de0ff22,0 14px 36px -12px #3de0ff88,inset 0 0 20px #3de0ff10}
+#bh-away[hidden]{display:none!important}
+#bh-away .bh-away-k{grid-column:1;color:var(--cyan);font-weight:900;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase}
+#bh-away .bh-away-v{grid-column:1;color:var(--green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bh-away .bh-away-x{grid-column:2;grid-row:1/3;pointer-events:auto;appearance:none;border:0;background:transparent;color:var(--muted);font:700 1.1rem/1 var(--mono);width:1.9rem;height:1.9rem;border-radius:8px;cursor:pointer}
+#bh-away .bh-away-x:hover,#bh-away .bh-away-x:focus-visible{color:var(--text);background:#ffffff12}
+#bh-away.in{animation:awayIn .4s var(--spring) both,awayOut .6s ease 5.4s forwards}
+@keyframes awayIn{from{opacity:0;transform:translate(-50%,-10px) scale(.94)}}
+@keyframes awayOut{to{opacity:0;transform:translate(-50%,-6px)}}
+body.bh-play #bh-away{top:.75rem}
+@media (prefers-reduced-motion:reduce){#bh-away.in{animation:awayOut .3s ease 5.7s forwards}}
 #bh-promote.in{animation:promoteIn .45s var(--spring) both,promoteOut 3.4s ease 0s forwards}
 @keyframes promoteIn{from{opacity:0;transform:translate(-50%,-18px) scale(.86)}}
 @keyframes promoteOut{0%,70%{opacity:1}100%{opacity:0}}
@@ -386,6 +398,14 @@ body.bh-play #bh-ready,body.bh-play .bh-hud{z-index:70}
 #bh-shipbar .bh-shiptrack{height:8px;border-radius:99px;background:#1a1a2a;overflow:hidden;border:1px solid #2a2a3c}
 #bh-shipbar .bh-shiptrack i{display:block;height:100%;width:100%;transform-origin:0 50%;background:linear-gradient(90deg,var(--green),#3de0ff);transform:scaleX(1)}
 #bh-shipbar .bh-shiphp{margin-top:.3rem;color:var(--muted);font-size:.68rem;letter-spacing:.06em}
+#bh-shipbar .bh-shipblock{margin-top:.35rem;color:#ffb142;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase}
+#bh-shipbar .bh-shipblock[hidden]{display:none}
+#bh-shipbar.held{border-color:#ffb142}
+#bh-shipbar.held .bh-shiptrack i{background:linear-gradient(90deg,#ffb142,#ff5a5a)}
+#bh-shipbar.held .bh-shipblock{color:#ffd166}
+#bh-shipbar.shielded{border-color:#ff5a5a}
+#bh-shipbar.shielded .bh-shiptrack i{background:linear-gradient(90deg,#ff5a5a,#a06bff);opacity:.7}
+#bh-shipbar.shielded .bh-shipblock{color:#ff8a8a}
 body.bh-play #bh-shipbar{z-index:55}
 #bh-shipwarn{position:fixed;left:50%;top:10%;transform:translateX(-50%);z-index:58;pointer-events:none;padding:.7rem 1.15rem;border:2px solid #ff5a5a;border-radius:12px;background:rgba(22,8,10,.94);color:#ff8a8a;font:900 .9rem/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;box-shadow:0 0 0 1px #ff5a5a33,0 16px 40px -10px #ff5a5aaa}
 #bh-shipwarn[hidden]{display:none!important}
@@ -420,6 +440,9 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
   #bh-shipped.in .bh-shipped-card{animation:none}
 }
 #bh-shipped.rm .bh-shipped-card{animation:none}
+.bh-item.bh-new{animation:bhNew 1.4s ease-out 1}
+@keyframes bhNew{0%{box-shadow:0 0 0 2px #39ff88,0 0 18px -2px #39ff88}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.bh-item.bh-new{animation:none;outline:2px solid #39ff88;outline-offset:-2px}}
 
 /* team size line on featured cards */
 .card-team{font:600 .74rem/1.3 var(--mono);color:var(--muted);margin:-.15rem 0 .5rem;letter-spacing:.02em}
@@ -450,9 +473,10 @@ body.bh-celebrate #bh-shipbar{display:none!important;visibility:hidden!important
   .ag-step:not(:last-child)::after{top:auto;bottom:-1.25rem;right:auto;left:1.7rem;width:2px;height:1rem}
   .ag-step:not(:last-child)::before{top:auto;bottom:-1.4rem;right:auto;left:calc(1.7rem - 4px);border:5px solid transparent;border-top:7px solid var(--accent);border-bottom:0}
 }
+
 </style>
 <script>document.documentElement.classList.add('js')</script>
-<script src="/portfolio-site/js/main.js?v=dd315f2470" defer data-game="/portfolio-site/js/game.js?v=8f567dc479"></script>
+<script src="/portfolio-site/js/main.js?v=dd315f2470" defer data-game="/portfolio-site/js/game.js?v=8b9c962da6"></script>
 </head>
 <body class="project">
 <a class="skip" href="#main">Skip to content</a>
