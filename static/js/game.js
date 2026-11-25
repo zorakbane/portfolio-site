@@ -54,7 +54,8 @@
     clicks: 0, playSpace: false, playUnlocked: false,
     prestige: 0,
     shipPending: null,
-    shelved: false
+    shelved: false,
+    lastActive: 0
   };
   function migrateV2(v2) {
     const agents = Math.max(0, v2.ai | 0);
@@ -147,6 +148,10 @@
   const KEY_LOC = 3;
   const KEY_MIN_GAP_MS = 90;
   const KEY_HOT_MS = 1400; // typed characters stay lit this long after the last key
+  // Fast-forward (sleep / reload): only the passive economy is credited, never combat, bosses or purchases.
+  const FF_MIN_S = 2;          // ignore gaps shorter than this (tab flicks, reload jitter)
+  const FF_CAP_S = 24 * 3600;  // at most 24h of offline progress
+  const AWAY_MS = 6000;        // welcome-back card auto-fades after this
   const IDLE_DEBT = 0.045; // was 0.2; tuned down so 5× idle LOC does not refill the board
   const HATCH_MIN = 0.18;
   const HATCH_SPAN = 0.17; // jittered 180–350ms between automatic hatches
@@ -347,6 +352,13 @@
   promote.id = 'bh-promote';
   promote.hidden = true;
   promote.textContent = 'Promoted: Play Space unlocked';
+  // "Welcome back" fast-forward card: a toast under the header, never part of the HUD/upgrade panel.
+  const away = d.createElement('div');
+  away.id = 'bh-away';
+  away.hidden = true;
+  away.setAttribute('role', 'status');
+  away.innerHTML = '<div class="bh-away-k">Welcome back</div><div class="bh-away-v" data-k="away"></div>'
+    + '<button type="button" class="bh-away-x" data-act="away-x" aria-label="Dismiss">×</button>';
   const shipBar = d.createElement('div');
   shipBar.id = 'bh-shipbar';
   shipBar.hidden = true;
@@ -375,7 +387,7 @@
   celebrateCv.id = 'bh-celebrate';
   celebrateCv.setAttribute('aria-hidden', 'true');
   const celebrateCtx = celebrateCv.getContext('2d');
-  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, shipBar, shipWarn, shippedDim, celebrateCv, shipped);
+  d.body.append(codeCv, cv, playScene, playMark, ready, hud, hint, promote, away, shipBar, shipWarn, shippedDim, celebrateCv, shipped);
   const $ = s => hud.querySelector(s);
   const el = {
     loc: $('[data-k=loc]'), bugs: $('[data-k=bugs]'), commits: $('[data-k=commits]'),
@@ -3296,25 +3308,90 @@
     if (bugs.length || lasers.length || S.derick || S.agents) kick();
   }
 
-  // offline
-  (() => {
-    if (!S.optedIn || S.paused) return;
-    const dt = Math.min(900, Math.max(0, (Date.now() - (S.t || Date.now())) / 1000));
-    if (dt > 2 && S.derick) {
-      // Approximate auto kills while away
-      const kills = Math.min(40, Math.floor(derickDps() * dt * 0.25 + S.agents * 0.15 * dt));
-      if (kills) {
-        S.squashed += kills;
-        S.commits += Math.round(kills * 2 * mult());
-        S.backlog = Math.max(0, S.backlog - kills);
-        if (dt > 20) log(`While away: lasers cleared ${fmt(kills)} · +${fmt(kills * 2)} commits`);
-      }
-    }
-  })();
+  // ---------- sleep + fast-forward ----------
+  // Passive rates come from the same numbers the live economy uses: every unit that isn't firing drafts code
+  // at its idle rate (idleCodeRate(), without the temporary Heartbeat buff), and each idle LOC adds
+  // bugsPerLoc() × IDLE_DEBT bugs of debt that the lasers turn into commits at 3 × tier × mult() each
+  // (tier mix from spawnBug; splits ignored, so the estimate stays on the conservative side).
+  function passiveRates() {
+    if (!S.optedIn || S.paused) return { locPerSec: 0, commitsPerSec: 0, locPerMin: 0, commitsPerMin: 0 };
+    const djRate = S.derick ? IDLE_DERRICK + (S.agentic ? IDLE_AGENTIC : 0) : 0;
+    const subs = S.subagent ? (S.agents || 0) : 0; // one orbiting sub-agent per agent drafts too
+    const locPerSec = djRate + ((S.agents || 0) + subs) * IDLE_AGENT;
+    const p3 = Math.min(0.5, 0.1 + (S.loc || 0) / 3000);
+    const avgTier = p3 * 3 + (1 - p3) * (0.7 * 2 + 0.3 * 1);
+    const commitsPerBug = 3 * avgTier * mult();
+    const commitsPerSec = (S.derick || S.agents) ? locPerSec * bugsPerLoc() * IDLE_DEBT * commitsPerBug : 0;
+    return { locPerSec, commitsPerSec, locPerMin: locPerSec * 60, commitsPerMin: commitsPerSec * 60 };
+  }
+  // Pure: how much to credit for a gap. Negative (clock skew) and tiny gaps give nothing; long gaps cap at 24h.
+  function offlineCredit(elapsedMs, rates) {
+    const raw = (+elapsedMs || 0) / 1000;
+    if (!(raw >= FF_MIN_S)) return { sec: 0, loc: 0, commits: 0, capped: false };
+    const sec = Math.min(FF_CAP_S, raw);
+    return { sec, loc: Math.floor(rates.locPerSec * sec), commits: Math.floor(rates.commitsPerSec * sec), capped: raw > FF_CAP_S };
+  }
+  function fmtAway(sec) {
+    if (sec < 60) return Math.round(sec) + 's';
+    if (sec < 3600) return Math.round(sec / 60) + 'm';
+    const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    return h + 'h' + (m ? ' ' + m + 'm' : '');
+  }
+  let awayTimer = 0, lastAway = null;
+  function hideAway() {
+    if (awayTimer) { clearTimeout(awayTimer); awayTimer = 0; }
+    away.hidden = true; away.classList.remove('in');
+  }
+  function showAway(c) {
+    const v = away.querySelector('[data-k=away]');
+    if (v) v.textContent = `+${fmt(c.loc)} LOC · +${fmt(c.commits)} commits (${fmtAway(c.sec)}${c.capped ? ', 24h max' : ''})`;
+    away.hidden = false;
+    away.classList.remove('in'); void away.offsetWidth; away.classList.add('in');
+    if (awayTimer) clearTimeout(awayTimer);
+    awayTimer = setTimeout(hideAway, AWAY_MS);
+  }
+  away.addEventListener('click', e => { if (e.target.closest('[data-act=away-x]')) hideAway(); });
+  // Credit the time since lastActive. Called on load (saved game) and when the tab wakes up.
+  function fastForward(nowMs) {
+    const t = nowMs == null ? Date.now() : nowMs;
+    const from = S.lastActive || S.t || t;
+    S.lastActive = t;
+    if (!S.optedIn || S.paused || S.shelved || S.shipPending) return null;
+    const c = offlineCredit(t - from, passiveRates());
+    if (!c.sec || (!c.loc && !c.commits)) return null;
+    S.loc += c.loc;
+    S.commits += c.commits;
+    typeCode(Math.min(4000, c.loc * 14)); // the background code catches up too (no debt: nothing hatches offline)
+    lastAway = c;
+    showAway(c);
+    // (No HUD log line: the welcome-back toast is the only place this shows.)
+    dirty = true;
+    save();
+    return c;
+  }
+  // Sleep: a hidden tab runs nothing. No rAF, no econ/save intervals, no pending key repaint.
+  let asleep = false;
+  function sleep() {
+    if (asleep) return;
+    save(); // stamps lastActive = the moment we left
+    asleep = true;
+    stopLoops();
+    if (keyPaintRaf) { cancelAnimationFrame(keyPaintRaf); keyPaintRaf = 0; }
+    if (keyCoolId) { clearTimeout(keyCoolId); keyCoolId = 0; keyHot = 0; codeDirty = true; }
+  }
+  function wake() {
+    if (!asleep || d.hidden) return;
+    asleep = false;
+    fastForward();
+    // Fresh clocks so the first frame/econ tick after waking sees a normal dt, not the whole nap.
+    last = now(); lastEcon = now();
+    if (S.optedIn && !S.paused) startLoops(); // startLoops/kick are idempotent: one interval each, one rAF loop
+  }
 
   function save() {
     if (suppressSave) return;
     S.t = Date.now();
+    if (!asleep || !S.lastActive) S.lastActive = S.t; // while asleep, keep the moment we left
     if (S.optedIn && !S.paused) {
       S.bugs = bugs.slice(0, 20).map(b => ({
         tier: b.tier, x: +(b.x / Math.max(1, Wd)).toFixed(4), y: +(b.y / Math.max(1, Hd)).toFixed(4),
@@ -3328,12 +3405,12 @@
       }
     } catch {}
   }
-  addEventListener('pagehide', () => { save(); stopLoops(); });
+  addEventListener('pagehide', sleep);
+  // Back/forward cache restores the page without a reload; treat it like waking up.
+  addEventListener('pageshow', e => { if (e.persisted) { asleep = true; wake(); } });
+  addEventListener('blur', () => save()); // window unfocused but maybe still visible: keep playing, just save
   addEventListener('bh-save', save);
-  d.addEventListener('visibilitychange', () => {
-    if (d.hidden) { save(); if (raf) { cancelAnimationFrame(raf); raf = 0; } }
-    else { lastEcon = now(); if (S.optedIn && !S.paused) startLoops(); }
-  });
+  d.addEventListener('visibilitychange', () => { if (d.hidden) sleep(); else wake(); });
 
   resize(true);
   // restore bugs after resize so Wd/Hd are valid
@@ -3349,7 +3426,10 @@
   }
   render(true);
   if (S.shipPending && !S.shelved) showShippedFanfare(false);
-  if (S.optedIn && !S.paused) startLoops();
+  if (!fresh) fastForward(); // reopened with a saved game: credit the time since it was last active
+  else S.lastActive = Date.now();
+  if (d.hidden) asleep = true; // opened in a background tab: wake() starts the loops when it's shown
+  else if (S.optedIn && !S.paused) startLoops();
 
   W.__bugHunt = {
     S, get bugs() { return bugs; }, get derick() { return derickEnt; }, get agents() { return agents; },
@@ -3395,6 +3475,8 @@
     bugBodyRadius, laserDist, bugDrawPop, nearestBug, preyDist,
 
     KEY_LOC, KEY_MIN_GAP_MS, KEY_HOT_MS, typeKey, inPlaySpace,
+    passiveRates, offlineCredit, fastForward, sleep, wake, hideAway, FF_MIN_S, FF_CAP_S, AWAY_MS,
+    get asleep() { return asleep; }, get rafId() { return raf; }, get lastAway() { return lastAway; },
     get keyHot() { return keyHot; }, get typed() { return typed; },
     get quality() { return quality; },
     setQuality(q) { quality = Math.max(0, Math.min(3, q | 0)); resize(true); },
