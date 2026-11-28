@@ -75,6 +75,9 @@ The human site and the PDF stay primary. The builder also emits plain versions o
 
 Rules: no hidden text, no white-on-white or zero-size text, and no instructions aimed at AI readers. Everything in these files is also visible on the site. `node tests/test-content.mjs` (zero-dependency, run after a build) checks the JSON-LD, team sizes, the agentic page, `resume.md`, `llms.txt`, the footer links, and that the output has no hidden-text styles or prompt-injection phrasing.
 
+It also checks social meta (`og:image` 1200×630 and `twitter:card` `summary_large_image` on every layout page), `lastmod` dates in `sitemap.xml`, and the legacy Google Sites redirects generated from `data/legacy-redirects.json`. Those redirect pages are tiny static HTML (canonical, meta refresh 0, `location.replace`, a visible fallback link, `noindex`) and do not load Bug Hunt. Rebuild the Open Graph image from the existing headshot with `python3 tools/make-og-image.py` if the portrait changes.
+
+
 ### TODOs vs nice-to-haves
 
 - `todo[]` and top-level `aboutTodo` are **blockers**. A default `node build.mjs` shows them as orange notes on project pages, small cards, and the About photo. `node build.mjs --hide-todos` (preview and production) strips those notes.

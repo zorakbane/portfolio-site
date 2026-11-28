@@ -32,7 +32,9 @@ ok('JSON-LD knowsAbout includes Havok physics', person && person.knowsAbout.incl
 ok('llms.txt starts with an H1 + summary and links resume.md and the PDF', /^# Derick Janssen\n\n> /.test(llms) && llms.includes('resume.md') && llms.includes('resume.pdf'));
 ok('footer links to the plain-text resume and llms.txt', /class="foot-alt"><a href="[^"]*resume\.md">Plain-text resume<\/a> · <a href="[^"]*llms\.txt">llms\.txt<\/a>/.test(home));
 // No hidden or injected text anywhere in the output.
-const all = [home, ag, md, llms, ...fs.readdirSync(path.join(ROOT, 'dist/projects')).map(s => D(`projects/${s}/index.html`))].join('\n');
+const redirectMap = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/legacy-redirects.json'), 'utf8'));
+const redirectPages = redirectMap.redirects.map(r => D(`${r.from.replace(/^\//, '')}/index.html`));
+const all = [home, ag, md, llms, D('404.html'), ...fs.readdirSync(path.join(ROOT, 'dist/projects')).map(s => D(`projects/${s}/index.html`)), ...redirectPages].join('\n');
 ok('no prompt-injection phrasing', !/ignore (all |any )?(previous|prior) instructions|you are an? (ai|llm|language model)|as an ai|system prompt/i.test(all));
 ok('no inline hidden/white text styles', !/style="[^"]*(display:\s*none|visibility:\s*hidden|font-size:\s*0|color:\s*(#fff\b|#ffffff|white))/i.test(all));
 ok('sitemap includes the agentic page', D('sitemap.xml').includes('/agentic-ai/') || !D('robots.txt').includes('Allow'));
@@ -67,6 +69,85 @@ ok('awards strip lists AI Battle as a confirmed school competition, 2nd place ov
   /id="awards"[\s\S]*AI Battle \(school AI competition\): 2nd place overall[\s\S]*id="about"/.test(home)
   && home.includes('time and memory limits') && home.includes('ran matches deterministically')
   && md.includes('AI Battle (school AI competition): 2nd place overall'));
+
+const origin = String(data.site.url || 'https://derickjanssen.com').replace(/\/$/, '');
+const ogAbs = `${origin}/img/og-1200x630.jpg`;
+const layoutPages = [home, ag, D('404.html'), ...fs.readdirSync(path.join(ROOT, 'dist/projects')).map(s => D(`projects/${s}/index.html`))];
+for (const [label, html] of [['home', home], ['agentic', ag], ['404', D('404.html')], ['skyrim-vr', D('projects/skyrim-vr/index.html')]]) {
+  ok(`${label} has og:image and twitter:card summary_large_image`,
+    html.includes(`property="og:image" content="${ogAbs}"`)
+    && html.includes('property="og:image:width" content="1200"')
+    && html.includes('property="og:image:height" content="630"')
+    && html.includes('name="twitter:card" content="summary_large_image"')
+    && html.includes(`name="twitter:image" content="${ogAbs}"`));
+}
+ok('every layout page uses the same 1200x630 og:image', layoutPages.every(html => html.includes(`property="og:image" content="${ogAbs}"`) && html.includes('summary_large_image')));
+
+const ogFile = path.join(ROOT, 'dist/img/og-1200x630.jpg');
+ok('og image is in the build output', fs.existsSync(ogFile));
+const jpegSize = (buf) => {
+  if (buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  let i = 2;
+  while (i + 8 < buf.length) {
+    if (buf[i] !== 0xff) return null;
+    const marker = buf[i + 1];
+    const len = (buf[i + 2] << 8) + buf[i + 3];
+    if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+      return { height: (buf[i + 5] << 8) + buf[i + 6], width: (buf[i + 7] << 8) + buf[i + 8] };
+    }
+    i += 2 + len;
+  }
+  return null;
+};
+const dim = jpegSize(fs.readFileSync(ogFile));
+ok('og image is a 1200x630 JPEG', dim && dim.width === 1200 && dim.height === 630, dim ? `${dim.width}x${dim.height}` : 'unreadable');
+
+const sitemap = D('sitemap.xml');
+const urlBlocks = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map(m => m[1]);
+ok('sitemap has a lastmod date on every URL', urlBlocks.length > 0 && urlBlocks.every(b => /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/.test(b) && /<loc>https:\/\/derickjanssen\.com\//.test(b)));
+ok('sitemap does not list legacy redirect paths', redirectMap.redirects.every(r => !sitemap.includes(`${origin}${r.from}`)));
+const today = new Date();
+const todayStamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+ok('sitemap lastmod dates are not in the future', urlBlocks.every(b => {
+  const m = b.match(/<lastmod>(\d{4}-\d{2}-\d{2})<\/lastmod>/);
+  return m && m[1] <= todayStamp;
+}));
+
+const requiredFrom = [
+  '/about-me', '/major-game-projects', '/individual-projects',
+  '/individual-projects/engine', '/individual-projects/networking-and-multiplayer',
+  '/individual-projects/artificial-intelligence', '/individual-projects/available-source-downloads',
+  '/gaming', '/resume', '/networking', '/engine', '/ui', '/small-game-projects',
+];
+ok('redirect map covers every requested old Google Sites path', requiredFrom.every(f => redirectMap.redirects.some(r => r.from === f)));
+
+const destHref = (to, base = '/') => {
+  const hash = to.includes('#') ? to.slice(to.indexOf('#')) : '';
+  const pathPart = to.includes('#') ? to.slice(0, to.indexOf('#')) : to;
+  const u = p => base + p.replace(/^\//, '');
+  const destPath = (!pathPart || pathPart === '/') ? u('') : u(pathPart.replace(/^\//, ''));
+  return destPath + hash;
+};
+const canonUrl = (to) => {
+  const hash = to.includes('#') ? to.slice(to.indexOf('#')) : '';
+  const pathPart = to.includes('#') ? to.slice(0, to.indexOf('#')) : to;
+  const destPath = (!pathPart || pathPart === '/') ? '/' : pathPart;
+  return origin + destPath + hash;
+};
+
+for (const { from, to } of redirectMap.redirects) {
+  const html = D(`${from.replace(/^\//, '')}/index.html`);
+  const href = destHref(to, '/');
+  const canon = canonUrl(to);
+  const name = `redirect ${from} → ${to}`;
+  ok(`${name}: noindex, canonical, meta refresh 0, JS replace, visible link`,
+    /<meta name="robots" content="noindex, follow">/.test(html)
+    && html.includes(`<link rel="canonical" href="${canon}">`)
+    && html.includes(`<meta http-equiv="refresh" content="0;url=${href}">`)
+    && html.includes(`location.replace(${JSON.stringify(href)})`)
+    && html.includes(`<a href="${href}">${canon}</a>`));
+  ok(`${name}: no game or main script`, !html.includes('js/game.js') && !html.includes('js/main.js') && !html.includes('bugHunt') && !html.includes('Bug Hunt'));
+}
 
 console.log(`--- ${pass}/${pass + fail} passed ---`);
 process.exit(fail ? 1 : 0);

@@ -1,0 +1,31 @@
+{
+  "source": "Live Google Sites paths (the previous production IA), leftover analytics URLs (/networking, /engine, /ui, /resume, /small-game-projects), and classic Sites aliases that may still be linked or indexed.",
+  "redirects": [
+    { "from": "/about-me", "to": "/#about" },
+    { "from": "/major-game-projects", "to": "/#work" },
+    { "from": "/small-game-projects", "to": "/#lab" },
+    { "from": "/gaming", "to": "/#about" },
+    { "from": "/resume", "to": "/#contact" },
+    { "from": "/individual-projects", "to": "/#lab" },
+    { "from": "/individual-projects/artificial-intelligence", "to": "/#lab" },
+    { "from": "/individual-projects/available-source-downloads", "to": "/#lab" },
+    { "from": "/individual-projects/chronological-list-of-major-systems", "to": "/#lab" },
+    { "from": "/individual-projects/engine", "to": "/projects/janssengine/" },
+    { "from": "/individual-projects/graphics", "to": "/projects/janssengine/" },
+    { "from": "/individual-projects/miscellaneous", "to": "/#lab" },
+    { "from": "/individual-projects/networking-and-multiplayer", "to": "/#lab" },
+    { "from": "/individual-projects/tools", "to": "/#lab" },
+    { "from": "/individual-projects/user-interface", "to": "/#lab" },
+    { "from": "/networking", "to": "/#lab" },
+    { "from": "/engine", "to": "/projects/janssengine/" },
+    { "from": "/ui", "to": "/#lab" },
+    { "from": "/home", "to": "/" },
+    { "from": "/game-projects", "to": "/#work" },
+    { "from": "/small-projects", "to": "/#lab" },
+    { "from": "/individual-projects/available-source", "to": "/#lab" },
+    { "from": "/individual-projects/chronological-exhaustive-list-of-experience", "to": "/#lab" },
+    { "from": "/ask-me", "to": "/#contact" },
+    { "from": "/developer-blog", "to": "/" },
+    { "from": "/activities", "to": "/#about" }
+  ]
+}
