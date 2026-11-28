@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execSync } from 'node:child_process';
 
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const OUT = path.join(ROOT, 'dist');
@@ -19,6 +20,97 @@ const MAIN_HASH = hashOf(fs.readFileSync(path.join(ROOT, 'static/js/main.js')));
 const GAME_HASH = hashOf(fs.readFileSync(path.join(ROOT, 'static/js/game.js')));
 const CF_WEB_ANALYTICS_TOKEN = 'd32b06ba149348ff889364285db9fec3';
 const S = data.site;
+const origin = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
+const OG_IMAGE = `${origin}/img/og-1200x630.jpg`;
+const LEGACY_REDIRECTS = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/legacy-redirects.json'), 'utf8')).redirects;
+
+function contentLastmod() {
+  const files = ['data/projects.json', 'build.mjs', 'static/css/site.css', 'static/img/og-1200x630.jpg'];
+  try {
+    const out = execSync(`git log -1 --format=%cs -- ${files.join(' ')}`, { cwd: ROOT, encoding: 'utf8' }).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(out)) return out;
+  } catch { /* not a git checkout, or git unavailable */ }
+  const times = files.map(f => {
+    try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } catch { return 0; }
+  });
+  const d = new Date(Math.max(...times));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function destHref(to) {
+  const hash = to.includes('#') ? to.slice(to.indexOf('#')) : '';
+  const pathPart = to.includes('#') ? to.slice(0, to.indexOf('#')) : to;
+  const destPath = (!pathPart || pathPart === '/') ? u('') : u(pathPart.replace(/^\//, ''));
+  return destPath + hash;
+}
+
+function canonUrl(to) {
+  const hash = to.includes('#') ? to.slice(to.indexOf('#')) : '';
+  const pathPart = to.includes('#') ? to.slice(0, to.indexOf('#')) : to;
+  const destPath = (!pathPart || pathPart === '/') ? '/' : pathPart;
+  return origin + destPath + hash;
+}
+
+function redirectPage({ href, canon }) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>This page has moved | ${esc(S.name)}</title>
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="${esc(canon)}">
+<meta http-equiv="refresh" content="0;url=${esc(href)}">
+<script>location.replace(${JSON.stringify(href)});</script>
+<style>
+  html,body{background:#07070d;color:#ececf6;font:16px/1.5 system-ui,sans-serif;margin:0}
+  main{max-width:36rem;margin:20vh auto;padding:0 1.5rem}
+  a{color:#39ff88}
+</style>
+</head>
+<body>
+<main>
+  <p>This page has moved to <a href="${esc(href)}">${esc(canon)}</a>.</p>
+</main>
+</body>
+</html>
+`;
+}
+
+function reservedPaths() {
+  return new Set([
+    '', 'index.html', '404.html', 'resume.md', 'resume.pdf', 'llms.txt',
+    'sitemap.xml', 'robots.txt', 'favicon.svg', 'agentic-ai', 'projects',
+    'img', 'js', 'css',
+  ]);
+}
+
+function writeLegacyRedirects() {
+  const reserved = reservedPaths();
+  const seen = new Set();
+  for (const entry of LEGACY_REDIRECTS) {
+    const from = entry && entry.from;
+    const to = entry && entry.to;
+    if (typeof from !== 'string' || typeof to !== 'string' || !from.startsWith('/') || !to.startsWith('/')) {
+      throw new Error(`Invalid legacy redirect: ${JSON.stringify(entry)}`);
+    }
+    if (from === '/' || from.endsWith('/')) {
+      throw new Error(`Legacy redirect "from" must be a non-root path without a trailing slash: ${from}`);
+    }
+    const top = from.slice(1).split('/')[0];
+    if (reserved.has(top)) {
+      throw new Error(`Legacy redirect collides with a real site path: ${from}`);
+    }
+    if (seen.has(from)) throw new Error(`Duplicate legacy redirect: ${from}`);
+    seen.add(from);
+    const dir = path.join(OUT, from.slice(1));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'index.html'), redirectPage({ href: destHref(to), canon: canonUrl(to) }));
+  }
+}
+
 
 // Baked Inter 900 outlines with overlaps removed (variable-font A/N are
 // built from overlapping stems + bars; stroking those raw looked like a
@@ -79,6 +171,15 @@ function layout({ title, desc, body, bodyClass = '', canonical = '', home = fals
 <meta property="og:type" content="website">
 ${canonical ? `<meta property="og:url" content="${esc(canonical)}">
 <link rel="canonical" href="${esc(canonical)}">` : ''}
+<meta property="og:image" content="${esc(OG_IMAGE)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:alt" content="${esc(`${S.name}, ${S.title}`)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="${esc(OG_IMAGE)}">
 <link rel="icon" href="${u('favicon.svg')}" type="image/svg+xml">
 <link rel="alternate" type="text/markdown" href="${u('resume.md')}" title="Resume (plain text)">
 ${head}
@@ -406,17 +507,18 @@ fs.writeFileSync(path.join(OUT, 'resume.md'), resumeMd());
 fs.writeFileSync(path.join(OUT, 'llms.txt'), llmsTxt());
 fs.writeFileSync(path.join(OUT, '404.html'), layout({ title: `404 | ${S.name}`, desc: 'Page not found', body: `<section class="sec wrap center"><h1 class="proj-title">404</h1><p>This page desynced. Rolling back…</p><p><a class="btn primary" href="${u('')}">Respawn at home</a></p></section>` }));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
-const origin = String(S.url || 'https://derickjanssen.com').replace(/\/$/, '');
 const atRoot = BASE === '/' || BASE === '';
+writeLegacyRedirects();
 if (atRoot) {
+  const lastmod = contentLastmod();
   const sitemapUrls = [origin + '/', origin + '/agentic-ai/', ...paged.map(p => `${origin}/projects/${p.slug}/`)];
   fs.writeFileSync(path.join(OUT, 'sitemap.xml'),
     '<?xml version="1.0" encoding="UTF-8"?>\n'
     + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + sitemapUrls.map(loc => `  <url><loc>${loc}</loc></url>`).join('\n')
+    + sitemapUrls.map(loc => `  <url><loc>${loc}</loc><lastmod>${lastmod}</lastmod></url>`).join('\n')
     + '\n</urlset>\n');
 }
 fs.writeFileSync(path.join(OUT, 'robots.txt'), atRoot
   ? `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`
   : `User-agent: *\nDisallow: /\n`);
-console.log(`Built ${1 + paged.length + 2} pages -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);
+console.log(`Built ${1 + paged.length + 2} pages + ${LEGACY_REDIRECTS.length} redirects -> ${OUT}${SHOW_TODOS ? ' (TODOs visible)' : ''}${process.env.PUBLISH_CNAME === '1' ? ' (CNAME included)' : ''}`);
